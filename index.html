@@ -138,16 +138,27 @@
   .feature-card p{ margin:0; font-size:14.5px; color:var(--text-dim); }
   @media (max-width:640px){ .features{ grid-template-columns:1fr; } }
 
-  /* ===== Quiénes somos ===== */
-  .about-grid{ display:grid; grid-template-columns:0.8fr 1.2fr; gap:44px; align-items:center; max-width:920px; margin:0 auto; }
+  /* ===== Quién es Gianie ===== */
+  .about-grid{ display:grid; grid-template-columns:1.3fr 0.7fr; gap:44px; align-items:center; max-width:920px; margin:0 auto; }
   .about-photo{
     aspect-ratio:4/5; border-radius:18px; background:linear-gradient(160deg, var(--wine-3), var(--wine-1));
     border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
     color:var(--text-dim); font-size:13px; text-align:center; padding:0 20px;
   }
+  .about-photo-sm{ aspect-ratio:1; max-width:220px; margin:0 0 0 auto; }
   .about-grid p{ color:var(--text-dim); font-size:15px; }
   .about-grid p b{ color:var(--cream); }
-  @media (max-width:700px){ .about-grid{ grid-template-columns:1fr; } }
+  @media (max-width:700px){ .about-grid{ grid-template-columns:1fr; } .about-photo-sm{ margin:0 auto; } }
+
+  /* ===== Testimonios ===== */
+  .testimonials-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; max-width:920px; margin:0 auto; }
+  .testimonial-card{
+    aspect-ratio:3/4; border-radius:16px; background:linear-gradient(160deg, var(--wine-3), var(--wine-1));
+    border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+    color:var(--text-dim); font-size:13px; text-align:center; padding:0 16px;
+  }
+  .testimonial-video{ font-size:15px; }
+  @media (max-width:700px){ .testimonials-grid{ grid-template-columns:1fr; } }
 
   /* ===== Footer ===== */
   footer{ background:#0a0203; padding:44px 0; text-align:center; }
@@ -173,31 +184,19 @@
     </header>
 
     <section class="hero">
-      <div class="wrap hero-grid">
-        <div>
-          <h1>De experta invisible a <span class="hl">autoridad pagada</span>. El método para posicionar <span class="hl">tu servicio</span>, atraer clientas ideales y <span class="hl">cobrar lo que vales</span> — sin trabajar más horas.</h1>
-          <div class="cta-wrap">
-            <a class="btn btn-solid" href="#form">Quiero mi acceso gratis →</a>
-          </div>
-          <p style="margin:0 0 6px; font-weight:600;">En este entrenamiento vas a entender:</p>
-          <ul class="checklist">
-            <li>Por qué tu negocio no está creciendo aunque trabajas más que nunca.</li>
-            <li>Los 3 ajustes de posicionamiento que convierten tu servicio en una oferta irresistible.</li>
-            <li>Cómo vender con autoridad y estrategia — sin bajar precios ni aceptar clientas tóxicas.</li>
-          </ul>
-        </div>
-        <div class="hero-photo">
-          <span class="placeholder-label">[Foto principal — retrato o imagen de marca]</span>
-        </div>
+      <div class="wrap" style="max-width:760px; text-align:center;">
+        <h1>De experta invisible a <span class="hl">autoridad pagada</span>. El método para posicionar <span class="hl">tu servicio</span>, atraer clientas ideales y <span class="hl">cobrar lo que vales</span> — sin trabajar más horas.</h1>
+        <p style="margin:24px 0 6px; font-weight:600;">En este entrenamiento vas a entender:</p>
+        <ul class="checklist" style="display:inline-block; text-align:left;">
+          <li>Por qué tu negocio no está creciendo aunque trabajas más que nunca.</li>
+          <li>Los 3 ajustes de posicionamiento que convierten tu servicio en una oferta irresistible.</li>
+          <li>Cómo vender con autoridad y estrategia — sin bajar precios ni aceptar clientas tóxicas.</li>
+        </ul>
       </div>
     </section>
 
     <section class="section" id="vsl">
       <div class="wrap">
-        <div class="section-head">
-          <div class="eyebrow">[Paso 1]</div>
-          <h2>Mirá el video para ver los próximos pasos</h2>
-        </div>
         <div class="vsl-card">
           <div class="vsl-video">
             <div class="vsl-play">▶</div>
@@ -209,92 +208,33 @@
     </section>
   </div>
 
-  <section class="section wine-bg" id="calendario">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="eyebrow">[Paso 2]</div>
-        <h2>Elegí el <span class="hl">horario</span> que mejor te quede</h2>
-      </div>
-      <div class="calendar-card">
-        <div class="calendar-placeholder">
-          <b>[Embed de calendario acá]</b>
-          [Calendly, TidyCal, cal.com o el que uses — se integra como iframe en este bloque.]
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section wine-bg" id="form">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="eyebrow">[Paso 3]</div>
-        <h2>Completá tus datos</h2>
-      </div>
-      <div class="form-card">
-        <h3>[Registrate acá]</h3>
-        <p class="sub">[Te mandamos el acceso por WhatsApp y por correo.]</p>
-        <form>
-          <div class="field">
-            <label>Nombre completo</label>
-            <input type="text" placeholder="Tu nombre completo" required>
-          </div>
-          <div class="field">
-            <label>Correo electrónico</label>
-            <input type="email" placeholder="Tu correo electrónico" required>
-          </div>
-          <div class="field">
-            <label>WhatsApp</label>
-            <div class="phone-row">
-              <select>
-                <option>🇦🇷 +54</option>
-                <option>🇨🇴 +57</option>
-                <option>🇲🇽 +52</option>
-                <option>🇺🇸 +1</option>
-              </select>
-              <input type="tel" placeholder="Tu número">
-            </div>
-          </div>
-          <button type="submit" class="btn btn-solid">[¡Ingresá acá! →]</button>
-        </form>
-        <p class="form-fineprint">[Al registrarte aceptás recibir comunicaciones sobre esta clase.]</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="section wine-bg">
-    <div class="wrap">
-      <div class="section-head">
-        <div class="eyebrow">[Qué vas a lograr]</div>
-        <h2>Registrate gratis y <span class="hl">aprendé</span></h2>
-      </div>
-      <div class="features">
-        <div class="feature-card">
-          <div class="feature-ic">🚀</div>
-          <p>[Beneficio 1 — un cambio concreto de comportamiento o resultado.]</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-ic">💎</div>
-          <p>[Beneficio 2 — enfocado en mentalidad o enfoque estratégico.]</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-ic">🧠</div>
-          <p>[Beneficio 3 — sobre construir algo sólido y sostenible.]</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-ic">💰</div>
-          <p>[Beneficio 4 — el resultado de negocio/ingresos esperado.]</p>
-        </div>
-      </div>
+  <section class="section wine-bg" id="calendario" style="padding:50px 0;">
+    <div class="wrap" style="text-align:center;">
+      <a class="btn btn-solid" href="#">Agendar →</a>
     </div>
   </section>
 
   <section class="section wine-bg">
     <div class="wrap about-grid">
-      <div class="about-photo">[Foto del equipo / fundador·a]</div>
       <div>
-        <div class="eyebrow">[Quiénes somos]</div>
+        <div class="eyebrow">[Quién es Gianie]</div>
         <h2 style="margin-bottom:16px;">Por qué podemos <span class="hl">ayudarte</span></h2>
-        <p>[Una o dos oraciones presentando a quién lidera el programa — <b>[Nombre]</b>, [rol/credencial breve] — y qué la hace calificada para esta promesa.]</p>
+        <p>[Breve historia de Gianie — quién es, qué la califica para acompañar este proceso, y por qué las clientas confían en ella.]</p>
+      </div>
+      <div class="about-photo about-photo-sm">[Foto de Gianie]</div>
+    </div>
+  </section>
+
+  <section class="section wine-bg">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">[Resultados]</div>
+        <h2>Lo que dicen las <span class="hl">clientas</span></h2>
+      </div>
+      <div class="testimonials-grid">
+        <div class="testimonial-card">[Imagen de testimonio]</div>
+        <div class="testimonial-card testimonial-video">▶ [Video de testimonio]</div>
+        <div class="testimonial-card">[Imagen de testimonio]</div>
       </div>
     </div>
   </section>
