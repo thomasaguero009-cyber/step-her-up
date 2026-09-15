@@ -62,7 +62,7 @@
   }
   .btn-cta .cta-label{ position:relative; z-index:2; text-shadow:0 1px 4px rgba(0,0,0,0.5); }
   .btn-cta:not(.locked) .cta-label{ text-shadow:none; }
-  .btn-cta:not(.locked) .cta-wave{ display:none; }
+  .btn-cta:not(.locked) .cta-wave-clip{ display:none; }
   .btn-cta .cta-fill{
     position:absolute; top:0; left:0; bottom:0; width:0%; z-index:1; overflow:visible;
     background:var(--blush);
@@ -70,11 +70,18 @@
   /* La onda es una tira angosta pegada justo donde termina el relleno recto
      — sin superponerse con él — así el color pasa de lleno a la curva de
      la ola sin zonas ambiguas ("mordidas" dobles). */
-  .btn-cta .cta-wave{
-    position:absolute; top:0; left:100%; width:22px; height:100%;
-    color:var(--blush); animation:cta-wave-bob 1.8s ease-in-out infinite;
+  /* Ventana angosta pegada al borde del relleno, inclinada (arriba más a la
+     derecha, abajo más a la izquierda) — el contenido de adentro es el
+     doble de alto que necesita y fluye en loop continuo, sin rebotar. */
+  .btn-cta .cta-wave-clip{
+    position:absolute; top:0; left:100%; width:20px; height:100%; overflow:hidden;
+    transform:skewX(-11deg); transform-origin:center;
   }
-  @keyframes cta-wave-bob{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(14px); } }
+  .btn-cta .cta-wave{
+    position:absolute; top:0; left:-4px; width:24px; height:200%;
+    color:var(--blush); animation:cta-wave-flow 3.2s linear infinite;
+  }
+  @keyframes cta-wave-flow{ from{ transform:translateY(0); } to{ transform:translateY(-50%); } }
   .btn-cta.locked{ cursor:not-allowed; pointer-events:none; animation:cta-breathe 2.4s ease-in-out infinite; }
   .btn-cta:not(.locked){
     color:#2a0a13; border-color:transparent; box-shadow:0 10px 30px rgba(232,138,168,0.35);
@@ -252,9 +259,11 @@
       <a class="btn btn-cta locked" id="applyBtn" href="#" aria-disabled="true">
         <span class="cta-label">Aplicar al programa →</span>
         <span class="cta-fill" id="ctaFill">
-          <svg class="cta-wave" viewBox="0 0 22 85" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path fill="currentColor" d="M3.0,0.0 L3.2,1.2 L3.7,2.4 L4.4,3.6 L5.2,4.9 L6.2,6.1 L7.3,7.3 L8.5,8.5 L9.6,9.7 L10.7,10.9 L11.6,12.1 L12.4,13.4 L12.9,14.6 L13.3,15.8 L13.4,17.0 L13.2,18.2 L12.8,19.4 L12.3,20.6 L11.5,21.9 L10.6,23.1 L9.7,24.3 L8.8,25.5 L7.9,26.7 L7.1,27.9 L6.4,29.1 L5.9,30.4 L5.7,31.6 L5.7,32.8 L5.9,34.0 L6.4,35.2 L7.1,36.4 L8.0,37.6 L9.0,38.9 L10.1,40.1 L11.3,41.3 L12.4,42.5 L13.4,43.7 L14.4,44.9 L15.1,46.1 L15.7,47.4 L16.0,48.6 L16.1,49.8 L15.9,51.0 L15.5,52.2 L14.9,53.4 L14.1,54.6 L13.3,55.9 L12.3,57.1 L11.4,58.3 L10.5,59.5 L9.7,60.7 L9.1,61.9 L8.6,63.1 L8.4,64.4 L8.4,65.6 L8.7,66.8 L9.2,68.0 L9.9,69.2 L10.8,70.4 L11.8,71.6 L12.9,72.9 L14.0,74.1 L15.2,75.3 L16.2,76.5 L17.1,77.7 L17.9,78.9 L18.4,80.1 L18.7,81.4 L18.7,82.6 L18.6,83.8 L18.1,85.0 L0,85 L0,0 Z"/>
-          </svg>
+          <span class="cta-wave-clip">
+            <svg class="cta-wave" viewBox="0 0 18 170" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+              <path fill="currentColor" d="M4.0,0.0 L4.05,0.94 L4.19,1.89 L4.43,2.83 L4.76,3.78 L5.17,4.72 L5.65,5.67 L6.2,6.61 L6.81,7.56 L7.45,8.5 L8.13,9.44 L8.83,10.39 L9.52,11.33 L10.21,12.28 L10.87,13.22 L11.5,14.17 L12.08,15.11 L12.6,16.06 L13.05,17.0 L13.41,17.94 L13.7,18.89 L13.89,19.83 L13.99,20.78 L13.99,21.72 L13.89,22.67 L13.7,23.61 L13.41,24.56 L13.05,25.5 L12.6,26.44 L12.08,27.39 L11.5,28.33 L10.87,29.28 L10.21,30.22 L9.52,31.17 L8.83,32.11 L8.13,33.06 L7.45,34.0 L6.81,34.94 L6.2,35.89 L5.65,36.83 L5.17,37.78 L4.76,38.72 L4.43,39.67 L4.19,40.61 L4.05,41.56 L4.0,42.5 L4.05,43.44 L4.19,44.39 L4.43,45.33 L4.76,46.28 L5.17,47.22 L5.65,48.17 L6.2,49.11 L6.81,50.06 L7.45,51.0 L8.13,51.94 L8.83,52.89 L9.52,53.83 L10.21,54.78 L10.87,55.72 L11.5,56.67 L12.08,57.61 L12.6,58.56 L13.05,59.5 L13.41,60.44 L13.7,61.39 L13.89,62.33 L13.99,63.28 L13.99,64.22 L13.89,65.17 L13.7,66.11 L13.41,67.06 L13.05,68.0 L12.6,68.94 L12.08,69.89 L11.5,70.83 L10.87,71.78 L10.21,72.72 L9.52,73.67 L8.83,74.61 L8.13,75.56 L7.45,76.5 L6.81,77.44 L6.2,78.39 L5.65,79.33 L5.17,80.28 L4.76,81.22 L4.43,82.17 L4.19,83.11 L4.05,84.06 L4.0,85.0 L4.05,85.94 L4.19,86.89 L4.43,87.83 L4.76,88.78 L5.17,89.72 L5.65,90.67 L6.2,91.61 L6.81,92.56 L7.45,93.5 L8.13,94.44 L8.83,95.39 L9.52,96.33 L10.21,97.28 L10.87,98.22 L11.5,99.17 L12.08,100.11 L12.6,101.06 L13.05,102.0 L13.41,102.94 L13.7,103.89 L13.89,104.83 L13.99,105.78 L13.99,106.72 L13.89,107.67 L13.7,108.61 L13.41,109.56 L13.05,110.5 L12.6,111.44 L12.08,112.39 L11.5,113.33 L10.87,114.28 L10.21,115.22 L9.52,116.17 L8.83,117.11 L8.13,118.06 L7.45,119.0 L6.81,119.94 L6.2,120.89 L5.65,121.83 L5.17,122.78 L4.76,123.72 L4.43,124.67 L4.19,125.61 L4.05,126.56 L4.0,127.5 L4.05,128.44 L4.19,129.39 L4.43,130.33 L4.76,131.28 L5.17,132.22 L5.65,133.17 L6.2,134.11 L6.81,135.06 L7.45,136.0 L8.13,136.94 L8.83,137.89 L9.52,138.83 L10.21,139.78 L10.87,140.72 L11.5,141.67 L12.08,142.61 L12.6,143.56 L13.05,144.5 L13.41,145.44 L13.7,146.39 L13.89,147.33 L13.99,148.28 L13.99,149.22 L13.89,150.17 L13.7,151.11 L13.41,152.06 L13.05,153.0 L12.6,153.94 L12.08,154.89 L11.5,155.83 L10.87,156.78 L10.21,157.72 L9.52,158.67 L8.83,159.61 L8.13,160.56 L7.45,161.5 L6.81,162.44 L6.2,163.39 L5.65,164.33 L5.17,165.28 L4.76,166.22 L4.43,167.17 L4.19,168.11 L4.05,169.06 L4.0,170.0 L0,170 L0,0 Z"/>
+            </svg>
+          </span>
         </span>
       </a>
     </div>
