@@ -33,7 +33,7 @@
 
   /* ===== Header / logo (isotipo estrella + wordmark Step·HER·Up) ===== */
   header.top{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:28px 0 8px; }
-  .logo-mark{ width:58px; height:41px; color:var(--cream); margin-bottom:4px; }
+  .logo-mark{ width:110px; height:36px; color:var(--cream); margin-bottom:2px; }
   .logo{ display:flex; align-items:baseline; gap:6px; letter-spacing:0.5px; }
   .logo .script{ font-family:"Cormorant Garamond", serif; font-style:italic; font-size:17px; }
   .logo .serif{ font-family:"Playfair Display", serif; font-weight:700; font-size:32px; letter-spacing:2px; }
@@ -172,10 +172,16 @@
 
   <div class="wine-bg">
     <header class="top">
-      <svg class="logo-mark" viewBox="0 0 140 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <path d="M15 96 C 40 78, 100 78, 125 96" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
-        <path d="M60 4 C60 20 64 30 74 38 C64 46 60 56 60 72 C60 56 56 46 46 38 C56 30 60 20 60 4 Z" fill="currentColor"/>
-        <path d="M82 7 C82 10 83.5 12 87 14 C83.5 16 82 18 82 21 C82 18 80.5 16 77 14 C80.5 12 82 10 82 7 Z" fill="currentColor"/>
+      <svg class="logo-mark" viewBox="0 0 400 132" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="arcFade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="currentColor" stop-opacity="0"/>
+            <stop offset="50%" stop-color="currentColor" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M98 105 C 140 76, 260 76, 303 105" stroke="url(#arcFade)" stroke-width="2.5" fill="none"/>
+        <path d="M200 0 L221 31 L234 52 L209 61 L200 127 L191 61 L166 52 L191 43 Z" fill="currentColor"/>
       </svg>
       <div class="logo"><span class="script">Step</span><span class="serif">HER</span><span class="script">Up</span></div>
     </header>
