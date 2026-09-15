@@ -51,31 +51,29 @@
   .btn-solid{ background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; border:none; box-shadow:0 10px 30px rgba(232,138,168,0.3); }
   .btn-solid:hover{ box-shadow:0 14px 36px rgba(232,138,168,0.45); }
 
-  /* ===== Botón "Aplicar al programa" — el texto nunca cambia; mientras el
-     VSL no llegó al punto de desbloqueo se ve apagado, con una barra de
-     progreso propia adentro del botón (no un contador de texto) que se va
-     llenando a medida que "avanza" el video, para que quede claro que hay
-     que seguir viendo para poder aplicar. ===== */
+  /* ===== Botón "Aplicar al programa" — el texto nunca cambia; el BOTÓN
+     ENTERO es la animación de carga: se va rellenando de color de
+     izquierda a derecha a medida que "avanza" el video (como una barra de
+     carga, pero es el botón mismo, no una franja chica adentro). Al
+     llegar al 100% queda igual al botón final ya desbloqueado. ===== */
   .btn-cta{
-    position:relative; overflow:hidden; padding:26px 56px 32px; font-size:21px;
-    background:transparent; border:1px solid var(--blush-2); color:var(--cream);
-    transition:opacity .3s ease, border-color .3s ease;
+    position:relative; overflow:hidden; padding:26px 56px; font-size:21px;
+    background:var(--card); border:1px solid var(--blush-2); color:var(--cream);
   }
-  .btn-cta .cta-label{ position:relative; z-index:2; }
-  .btn-cta .cta-fill-track{
-    position:absolute; left:18px; right:18px; bottom:12px; height:4px; border-radius:999px;
-    background:rgba(255,255,255,0.18); overflow:hidden; z-index:1;
+  .btn-cta .cta-label{ position:relative; z-index:2; text-shadow:0 1px 4px rgba(0,0,0,0.5); }
+  .btn-cta:not(.locked) .cta-label{ text-shadow:none; }
+  .btn-cta .cta-fill{
+    position:absolute; inset:0; width:0%; z-index:1;
+    background:linear-gradient(90deg,var(--blush-2),var(--blush));
   }
-  .btn-cta .cta-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--blush-2),var(--blush)); }
   .btn-cta.locked{ cursor:not-allowed; pointer-events:none; animation:cta-breathe 2.4s ease-in-out infinite; }
   .btn-cta:not(.locked){
-    background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; border-color:transparent;
-    box-shadow:0 10px 30px rgba(232,138,168,0.35); padding:26px 56px; animation:none;
+    color:#2a0a13; border-color:transparent; box-shadow:0 10px 30px rgba(232,138,168,0.35);
+    animation:none;
   }
-  .btn-cta:not(.locked) .cta-fill-track{ display:none; }
   .btn-cta:not(.locked):hover{ box-shadow:0 14px 36px rgba(232,138,168,0.5); }
   .btn-cta.just-unlocked{ animation:cta-pulse .7s ease; }
-  @keyframes cta-breathe{ 0%,100%{ opacity:1; } 50%{ opacity:0.78; } }
+  @keyframes cta-breathe{ 0%,100%{ opacity:1; } 50%{ opacity:0.85; } }
   @keyframes cta-pulse{
     0%{ transform:scale(1); box-shadow:0 10px 30px rgba(232,138,168,0.3); }
     45%{ transform:scale(1.07); box-shadow:0 0 0 14px rgba(240,168,190,0.22); }
@@ -244,7 +242,7 @@
     <div class="wrap" style="text-align:center;">
       <a class="btn btn-cta locked" id="applyBtn" href="#" aria-disabled="true">
         <span class="cta-label">Aplicar al programa →</span>
-        <span class="cta-fill-track"><span class="cta-fill" id="ctaFill"></span></span>
+        <span class="cta-fill" id="ctaFill"></span>
       </a>
     </div>
   </section>
