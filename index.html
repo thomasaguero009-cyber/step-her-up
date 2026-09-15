@@ -51,18 +51,36 @@
   .btn-solid{ background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; border:none; box-shadow:0 10px 30px rgba(232,138,168,0.3); }
   .btn-solid:hover{ box-shadow:0 14px 36px rgba(232,138,168,0.45); }
 
-  /* ===== Botón "Aplicar" bloqueado hasta que avanza el VSL ===== */
-  .cta-lock-wrap{ display:inline-flex; flex-direction:column; align-items:center; gap:12px; }
-  .btn-solid.locked{ opacity:0.5; filter:grayscale(0.4); cursor:not-allowed; pointer-events:none; box-shadow:none; }
-  .btn-solid.just-unlocked{ animation:cta-pulse .7s ease; }
+  /* ===== Botón "Aplicar al programa" — el texto nunca cambia; mientras el
+     VSL no llegó al punto de desbloqueo se ve apagado, con una barra de
+     progreso propia adentro del botón (no un contador de texto) que se va
+     llenando a medida que "avanza" el video, para que quede claro que hay
+     que seguir viendo para poder aplicar. ===== */
+  .btn-cta{
+    position:relative; overflow:hidden; padding:26px 56px 32px; font-size:21px;
+    background:transparent; border:1px solid var(--blush-2); color:var(--cream);
+    transition:opacity .3s ease, border-color .3s ease;
+  }
+  .btn-cta .cta-label{ position:relative; z-index:2; }
+  .btn-cta .cta-fill-track{
+    position:absolute; left:18px; right:18px; bottom:12px; height:4px; border-radius:999px;
+    background:rgba(255,255,255,0.18); overflow:hidden; z-index:1;
+  }
+  .btn-cta .cta-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--blush-2),var(--blush)); }
+  .btn-cta.locked{ cursor:not-allowed; pointer-events:none; animation:cta-breathe 2.4s ease-in-out infinite; }
+  .btn-cta:not(.locked){
+    background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; border-color:transparent;
+    box-shadow:0 10px 30px rgba(232,138,168,0.35); padding:26px 56px; animation:none;
+  }
+  .btn-cta:not(.locked) .cta-fill-track{ display:none; }
+  .btn-cta:not(.locked):hover{ box-shadow:0 14px 36px rgba(232,138,168,0.5); }
+  .btn-cta.just-unlocked{ animation:cta-pulse .7s ease; }
+  @keyframes cta-breathe{ 0%,100%{ opacity:1; } 50%{ opacity:0.78; } }
   @keyframes cta-pulse{
     0%{ transform:scale(1); box-shadow:0 10px 30px rgba(232,138,168,0.3); }
     45%{ transform:scale(1.07); box-shadow:0 0 0 14px rgba(240,168,190,0.22); }
     100%{ transform:scale(1); box-shadow:0 10px 30px rgba(232,138,168,0.3); }
   }
-  .cta-progress{ width:240px; height:4px; border-radius:999px; background:rgba(255,255,255,0.12); overflow:hidden; }
-  .cta-progress[hidden]{ display:none; }
-  .cta-progress-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--blush-2),var(--blush)); }
   .hero .checklist{ margin:0; padding:0; list-style:none; font-size:15px; color:var(--text-dim); }
   .hero .checklist li{ padding:5px 0; }
   .hero .checklist li::before{ content:"• "; color:var(--blush); }
@@ -209,7 +227,7 @@
       </div>
     </section>
 
-    <section class="section" id="vsl" style="padding-top:20px;">
+    <section class="section" id="vsl" style="padding:20px 0 30px;">
       <div class="wrap">
         <div class="vsl-card">
           <div class="vsl-video">
@@ -222,16 +240,12 @@
     </section>
   </div>
 
-  <section class="section" id="calendario" style="padding:50px 0;">
+  <section class="section" id="calendario" style="padding:20px 0 50px;">
     <div class="wrap" style="text-align:center;">
-      <div class="cta-lock-wrap">
-        <a class="btn btn-solid locked" id="applyBtn" href="#" aria-disabled="true">
-          <span id="applyBtnLabel">Mirá el video para desbloquear</span>
-        </a>
-        <div class="cta-progress" id="ctaProgress" hidden>
-          <div class="cta-progress-fill" id="ctaProgressFill"></div>
-        </div>
-      </div>
+      <a class="btn btn-cta locked" id="applyBtn" href="#" aria-disabled="true">
+        <span class="cta-label">Aplicar al programa →</span>
+        <span class="cta-fill-track"><span class="cta-fill" id="ctaFill"></span></span>
+      </a>
     </div>
   </section>
 
@@ -278,24 +292,15 @@
 
   const playBtn = document.getElementById("vslPlayBtn");
   const applyBtn = document.getElementById("applyBtn");
-  const label = document.getElementById("applyBtnLabel");
-  const progressWrap = document.getElementById("ctaProgress");
-  const progressFill = document.getElementById("ctaProgressFill");
+  const fill = document.getElementById("ctaFill");
   if (!playBtn || !applyBtn) return;
-
-  function fmt(totalSeconds) {
-    const m = Math.floor(totalSeconds / 60);
-    const s = Math.floor(totalSeconds % 60);
-    return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-  }
 
   function unlock() {
     clearInterval(timer);
+    fill.style.width = "100%";
     applyBtn.classList.remove("locked");
     applyBtn.removeAttribute("aria-disabled");
     applyBtn.classList.add("just-unlocked");
-    label.textContent = "Aplicar al programa →";
-    progressWrap.hidden = true;
   }
 
   let started = false;
@@ -304,13 +309,11 @@
   playBtn.addEventListener("click", () => {
     if (started) return;
     started = true;
-    progressWrap.hidden = false;
     const startedAt = Date.now();
     timer = setInterval(() => {
       const elapsed = (Date.now() - startedAt) / 1000;
       const pct = Math.min(100, (elapsed / VSL_UNLOCK_SECONDS) * 100);
-      progressFill.style.width = pct + "%";
-      label.textContent = "Se desbloquea en " + fmt(Math.max(0, VSL_UNLOCK_SECONDS - elapsed));
+      fill.style.width = pct + "%";
       if (elapsed >= VSL_UNLOCK_SECONDS) unlock();
     }, 250);
   });
