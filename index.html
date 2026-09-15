@@ -31,17 +31,18 @@
       linear-gradient(180deg, var(--wine-2) 0%, var(--wine-1) 75%);
   }
 
-  /* ===== Header ===== */
-  header.top{ display:flex; justify-content:center; padding:28px 0 8px; }
-  .logo{ display:flex; align-items:baseline; gap:4px; font-size:22px; letter-spacing:0.5px; }
-  .logo .script{ font-family:"Cormorant Garamond", serif; font-style:italic; font-size:26px; }
-  .logo .serif{ font-family:"Playfair Display", serif; font-weight:700; }
+  /* ===== Header / logo (isotipo estrella + wordmark Step·HER·Up) ===== */
+  header.top{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:28px 0 8px; }
+  .logo-mark{ width:20px; height:20px; color:var(--cream); }
+  .logo{ display:flex; align-items:baseline; gap:5px; letter-spacing:0.5px; }
+  .logo .script{ font-family:"Cormorant Garamond", serif; font-style:italic; font-size:19px; }
+  .logo .serif{ font-family:"Playfair Display", serif; font-weight:700; font-size:26px; letter-spacing:1px; }
 
   /* ===== Hero ===== */
   .hero{ padding:20px 0 70px; position:relative; overflow:hidden; }
   .hero-grid{ display:grid; grid-template-columns:1.15fr 0.85fr; gap:40px; align-items:center; }
   .hero h1{ font-size:40px; line-height:1.18; font-weight:600; letter-spacing:-0.3px; }
-  .hero h1 .hl{ color:var(--blush); font-style:italic; }
+  .hero h1 .hl{ color:var(--blush); }
   .hero .cta-wrap{ margin:30px 0 26px; }
   .btn{
     display:inline-flex; align-items:center; gap:10px; padding:16px 30px; border-radius:999px;
@@ -171,21 +172,24 @@
 
   <div class="wine-bg">
     <header class="top">
-      <div class="logo"><span class="script">[Tu</span> <span class="serif">MARCA]</span></div>
+      <svg class="logo-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 0 L13.6 9.2 L22 12 L13.6 14.8 L12 24 L10.4 14.8 L2 12 L10.4 9.2 Z"/>
+      </svg>
+      <div class="logo"><span class="script">Step</span><span class="serif">HER</span><span class="script">Up</span></div>
     </header>
 
     <section class="hero">
       <div class="wrap hero-grid">
         <div>
-          <div class="hero-label">[Categoría / para quién es]</div>
-          <h1>[De <span class="hl">punto A</span>] a [<span class="hl">punto B deseado</span>]. [Una frase que resuma la promesa central de la oferta.]</h1>
+          <h1>De experta invisible a <span class="hl">autoridad pagada</span>. El método para posicionar <span class="hl">tu servicio</span>, atraer clientas ideales y <span class="hl">cobrar lo que vales</span> — sin trabajar más horas.</h1>
           <div class="cta-wrap">
-            <a class="btn btn-solid" href="#form">[Quiero mi acceso gratis →]</a>
+            <a class="btn btn-solid" href="#form">Quiero mi acceso gratis →</a>
           </div>
+          <p style="margin:0 0 6px; font-weight:600;">En este entrenamiento vas a entender:</p>
           <ul class="checklist">
-            <li>[Qué va a entender / lograr el visitante — punto 1.]</li>
-            <li>[Punto 2 — un obstáculo concreto que se resuelve.]</li>
-            <li>[Punto 3 — el resultado final, sin tecnicismos.]</li>
+            <li>Por qué tu negocio no está creciendo aunque trabajas más que nunca.</li>
+            <li>Los 3 ajustes de posicionamiento que convierten tu servicio en una oferta irresistible.</li>
+            <li>Cómo vender con autoridad y estrategia — sin bajar precios ni aceptar clientas tóxicas.</li>
           </ul>
         </div>
         <div class="hero-photo">
@@ -302,9 +306,10 @@
   </section>
 
   <footer>
-    <div class="logo"><span class="script">[Tu</span> <span class="serif">MARCA]</span></div>
-    <p>© [2026] [Tu Marca]™. Todos los derechos reservados.</p>
-    <p>[Tu Marca]™ es un programa educativo diseñado para [a quién acompaña y con qué fin]. No es una institución financiera, clínica psicológica ni organización religiosa — tiene fines exclusivamente educativos. Los resultados no están garantizados y pueden variar según el compromiso, esfuerzo y situación personal de cada participante.</p>
+    <div class="logo"><span class="script">Step</span><span class="serif">HER</span><span class="script">Up</span></div>
+    <p>© 2025 – 2026 Step Her Up™. Todos los derechos reservados.</p>
+    <p>Step Her Up™ es un programa educativo y de desarrollo profesional diseñado para acompañar a mujeres en la estructuración de su crecimiento a través de estrategia, claridad y acompañamiento guiado. No somos una institución financiera, clínica psicológica ni organización religiosa. Este programa tiene fines exclusivamente educativos.</p>
+    <p>Los resultados no están garantizados y pueden variar según el compromiso, esfuerzo y situación personal de cada participante.</p>
   </footer>
 
 </body>
