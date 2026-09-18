@@ -298,13 +298,17 @@
   .kpi-delta.up{ color:var(--green); }
   .kpi-delta.down{ color:#f0716c; }
 
-  /* "Matemática del éxito" — tasas de conversión + valor, calculadas
-     con las mismas columnas del Sheet (no piden nada nuevo). Grid
-     propia (no .kpi-grid) para no heredar las 5 columnas de los Kpis
-     del embudo. */
-  .mate-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:10px; }
+  /* "Matemática del éxito" — SOLO las 4 tasas de conversión del embudo
+     (agendado, show, cierre, total). El ticket promedio y el revenue
+     por lead son plata, no "matemática del éxito" — van junto al
+     gráfico de Ventas en vez de acá. */
+  .mate-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:10px; }
   @media(max-width:760px){ .mate-grid{ grid-template-columns:repeat(2, 1fr); } }
   @media(max-width:520px){ .mate-grid{ grid-template-columns:1fr; } }
+
+  /* Dos tarjetas de valor debajo del gráfico de Ventas. */
+  .value-grid{ display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; max-width:520px; margin:0 0 44px; }
+  @media(max-width:520px){ .value-grid{ grid-template-columns:1fr; } }
 
   /* Performance por setter / Leads por fuente — cantidad de tarjetas
      variable (depende de cuántos nombres/fuentes distintos aparezcan
@@ -495,6 +499,16 @@
         </div>
         <div class="chart-status" id="statusVentas">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
+      <div class="value-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket promedio</div>
+          <div class="kpi-value" id="mateTicket">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Revenue por lead</div>
+          <div class="kpi-value" id="mateRevenueLead">–</div>
+        </div>
+      </div>
 
       <div class="section-label" id="matematica">Matemática del éxito</div>
       <div class="mate-grid">
@@ -513,14 +527,6 @@
         <div class="kpi-card">
           <div class="kpi-label">Conversión total (lead → venta)</div>
           <div class="kpi-value" id="mateConversion">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Ticket promedio</div>
-          <div class="kpi-value" id="mateTicket">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Revenue por lead</div>
-          <div class="kpi-value" id="mateRevenueLead">–</div>
         </div>
       </div>
       <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
