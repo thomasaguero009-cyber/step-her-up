@@ -298,6 +298,14 @@
   .kpi-delta.up{ color:var(--green); }
   .kpi-delta.down{ color:#f0716c; }
 
+  /* "Matemática del éxito" — tasas de conversión + valor, calculadas
+     con las mismas columnas del Sheet (no piden nada nuevo). Grid
+     propia (no .kpi-grid) para no heredar las 5 columnas de los Kpis
+     del embudo. */
+  .mate-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:10px; }
+  @media(max-width:760px){ .mate-grid{ grid-template-columns:repeat(2, 1fr); } }
+  @media(max-width:520px){ .mate-grid{ grid-template-columns:1fr; } }
+
   /* Charts */
   .chart-panel{
     background:var(--card); border:1px solid var(--border); border-radius:20px;
@@ -473,13 +481,33 @@
       </div>
 
       <div class="section-label" id="matematica">🎯 Matemática del éxito</div>
-      <div class="chart-panel">
-        <div class="chart-wrap">
-          <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartMatematica"></svg>
-          <div class="chart-tooltip" id="tooltipMatematica"></div>
+      <div class="mate-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Tasa de agendado</div>
+          <div class="kpi-value" id="mateAgendado">–</div>
         </div>
-        <div class="chart-status">Sin datos todavía — se va a conectar a un Google Sheet</div>
+        <div class="kpi-card">
+          <div class="kpi-label">Show rate</div>
+          <div class="kpi-value" id="mateShowRate">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Tasa de cierre</div>
+          <div class="kpi-value" id="mateCierre">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Conversión total (lead → venta)</div>
+          <div class="kpi-value" id="mateConversion">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Ticket promedio</div>
+          <div class="kpi-value" id="mateTicket">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Revenue por lead</div>
+          <div class="kpi-value" id="mateRevenueLead">–</div>
+        </div>
       </div>
+      <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
 
     </div>
   </section>
@@ -524,7 +552,6 @@
     setTimeout(() => {
       showScreen(dashboardScreen);
       cargarYPintarDatosMes();
-      drawChart('chartMatematica', 'tooltipMatematica', matematicaSerie, '#e88aa8');
     }, 2000);
   }
   document.getElementById('goDashboardBtn').addEventListener('click', entrarAlDashboard);
@@ -568,10 +595,6 @@
   document.addEventListener('click', (e) => {
     if(!activeMonthPill.contains(e.target)) dashMonthList.classList.remove('open');
   });
-
-  // ===== "Matemática del éxito" — todavía sin conectar, queda en 0. =====
-  const DIAS_MES = 17;
-  const matematicaSerie = new Array(DIAS_MES).fill(0);
 
   // ===== Conexión al Google Sheet "Step Her Up - Tracker" (pestaña
   // publicada como CSV: Archivo → Compartir → Publicar en la web).
@@ -719,6 +742,19 @@
       : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en el Google Sheet';
     document.getElementById('statusLlamadas').textContent = statusTxt;
     document.getElementById('statusVentas').textContent = statusTxt;
+
+    // ===== "Matemática del éxito" — tasas de conversión y valor, todas
+    // calculadas con las mismas columnas de arriba (no piden nada nuevo
+    // en el Sheet). Cada una se cuida de no dividir por cero. =====
+    const pct = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + '%' : '–';
+    const money = (num, den) => den > 0 ? '$' + Math.round(num / den).toLocaleString('es-AR') : '–';
+    document.getElementById('mateAgendado').textContent = huboDatos ? pct(totLlamadas, totLeads) : '–';
+    document.getElementById('mateShowRate').textContent = huboDatos ? pct(totShows, totLlamadas) : '–';
+    document.getElementById('mateCierre').textContent = huboDatos ? pct(totCierres, totShows) : '–';
+    document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totLeads) : '–';
+    document.getElementById('mateTicket').textContent = huboDatos ? money(totVentas, totCierres) : '–';
+    document.getElementById('mateRevenueLead').textContent = huboDatos ? money(totVentas, totLeads) : '–';
+    document.getElementById('statusMatematica').textContent = statusTxt;
   }
 
   // ===== Gráfico de línea suavizada (mismo estilo que los dashboards de
