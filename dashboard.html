@@ -174,7 +174,7 @@
   }
 
   /* Kpis */
-  .kpi-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:44px; }
+  .kpi-grid{ display:grid; grid-template-columns:repeat(5, 1fr); gap:16px; margin-bottom:44px; }
   .kpi-card{
     background:var(--card); border:1px solid var(--border); border-radius:18px; padding:22px 20px;
   }
@@ -259,32 +259,45 @@
 
       <div class="quick-nav-row">
         <a href="#kpis" class="quick-nav-btn">📊 Kpis</a>
+        <a href="#llamadas" class="quick-nav-btn">📞 Llamadas</a>
         <a href="#ventas" class="quick-nav-btn">💰 Ventas del mes</a>
         <a href="#matematica" class="quick-nav-btn">🎯 Matemática del éxito</a>
       </div>
 
+      <!-- Embudo: Leads → Llamadas agendadas → Shows → Cierres → Ventas.
+           Todavía sin datos reales (ver drawChart/empty-state más abajo),
+           así que quedan en "–" hasta conectar el Google Sheet. -->
       <div class="section-label" id="kpis">📊 Kpis</div>
       <div class="kpi-grid">
         <div class="kpi-card">
+          <div class="kpi-label">Leads al funnel</div>
+          <div class="kpi-value">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Llamadas agendadas</div>
+          <div class="kpi-value">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Shows</div>
+          <div class="kpi-value">–</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Cierres</div>
+          <div class="kpi-value">–</div>
+        </div>
+        <div class="kpi-card">
           <div class="kpi-label">Ventas del mes</div>
-          <div class="kpi-value">$4.230.000</div>
-          <div class="kpi-delta up">▲ 18% vs mes anterior</div>
+          <div class="kpi-value">–</div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Clientas nuevas</div>
-          <div class="kpi-value">27</div>
-          <div class="kpi-delta up">▲ 6 más que Agosto</div>
+      </div>
+
+      <div class="section-label" id="llamadas">📞 Llamadas por día</div>
+      <div class="chart-panel">
+        <div class="chart-wrap">
+          <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
+          <div class="chart-tooltip" id="tooltipLlamadas"></div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Tasa de conversión</div>
-          <div class="kpi-value">34%</div>
-          <div class="kpi-delta up">▲ 3 pts</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Ticket promedio</div>
-          <div class="kpi-value">$156.700</div>
-          <div class="kpi-delta down">▼ 2% vs mes anterior</div>
-        </div>
+        <div class="chart-status">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
       <div class="section-label" id="ventas">💰 Ventas en lo que va del mes</div>
@@ -346,6 +359,7 @@
     showScreen(transitionScreen);
     setTimeout(() => {
       showScreen(dashboardScreen);
+      drawChart('chartLlamadas', 'tooltipLlamadas', llamadasSerie, '#8fb8f0');
       drawChart('chartVentas', 'tooltipVentas', ventasSerie, '#f0a8be');
       drawChart('chartMatematica', 'tooltipMatematica', matematicaSerie, '#e88aa8');
     }, 2000);
@@ -358,6 +372,7 @@
   // ===== Todavía sin conectar a Google Sheets — series en 0 hasta que
   // se sume la fuente de datos real. =====
   const DIAS_MES = 17; // "lo que va del mes" al momento de la maqueta
+  const llamadasSerie = new Array(DIAS_MES).fill(0);
   const ventasSerie = new Array(DIAS_MES).fill(0);
   const matematicaSerie = new Array(DIAS_MES).fill(0);
 
