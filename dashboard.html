@@ -306,6 +306,20 @@
   @media(max-width:760px){ .mate-grid{ grid-template-columns:repeat(2, 1fr); } }
   @media(max-width:520px){ .mate-grid{ grid-template-columns:1fr; } }
 
+  /* Performance por setter / Leads por fuente — cantidad de tarjetas
+     variable (depende de cuántos nombres/fuentes distintos aparezcan
+     en el Sheet ese mes), por eso auto-fill en vez de una columna fija. */
+  .breakdown-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; margin-bottom:10px; }
+  .breakdown-card{ background:var(--card); border:1px solid var(--border); border-radius:18px; padding:20px; }
+  .breakdown-card h4{ font-family:"Playfair Display", Georgia, serif; font-size:17px; font-weight:600; margin:0 0 10px; color:var(--blush); }
+  .breakdown-stat-row{
+    display:flex; justify-content:space-between; gap:10px; font-size:13.5px;
+    padding:7px 0; border-top:1px solid var(--border);
+  }
+  .breakdown-stat-row:first-of-type{ border-top:none; }
+  .breakdown-stat-row .label{ color:var(--text-dim); }
+  .breakdown-stat-row .val{ font-weight:700; white-space:nowrap; }
+
   /* Charts */
   .chart-panel{
     background:var(--card); border:1px solid var(--border); border-radius:20px;
@@ -433,6 +447,8 @@
         <a href="#llamadas" class="quick-nav-btn">📞 Llamadas</a>
         <a href="#ventas" class="quick-nav-btn">💰 Ventas del mes</a>
         <a href="#matematica" class="quick-nav-btn">🎯 Matemática del éxito</a>
+        <a href="#setters" class="quick-nav-btn">👥 Setters</a>
+        <a href="#fuentes" class="quick-nav-btn">📡 Fuentes</a>
       </div>
 
       <!-- Embudo: Leads → Llamadas agendadas → Shows → Cierres → Ventas.
@@ -508,6 +524,14 @@
         </div>
       </div>
       <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+
+      <div class="section-label" id="setters">👥 Performance por setter</div>
+      <div class="breakdown-grid" id="settersGrid"></div>
+      <div class="chart-status" id="statusSetters" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+
+      <div class="section-label" id="fuentes">📡 Leads por fuente</div>
+      <div class="breakdown-grid" id="fuentesGrid"></div>
+      <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
 
     </div>
   </section>
@@ -677,6 +701,8 @@
       const header = (filas[0] || []).map(h => h.trim().toLowerCase());
       const idx = {
         fecha: header.indexOf('fecha'),
+        setter: header.indexOf('setter'),
+        fuente: header.indexOf('fuente'),
         leads: header.indexOf('leads'),
         llamadas: header.indexOf('llamadas'),
         shows: header.indexOf('shows'),
@@ -690,6 +716,8 @@
         if(!fecha) continue;
         datos.push({
           fecha,
+          setter: (idx.setter > -1 && r[idx.setter] ? r[idx.setter].trim() : '') || 'Sin asignar',
+          fuente: (idx.fuente > -1 && r[idx.fuente] ? r[idx.fuente].trim() : '') || 'Sin asignar',
           leads: parseNumSheet(r[idx.leads]),
           llamadas: parseNumSheet(r[idx.llamadas]),
           shows: parseNumSheet(r[idx.shows]),
@@ -717,6 +745,8 @@
     const llamadas = new Array(dias).fill(0);
     const ventas = new Array(dias).fill(0);
     let totLeads = 0, totLlamadas = 0, totShows = 0, totCierres = 0, totVentas = 0, huboDatos = false;
+    const porSetter = new Map();
+    const porFuente = new Map();
 
     filas.forEach(f => {
       if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
@@ -726,6 +756,14 @@
       ventas[dia] += f.ventas;
       totLeads += f.leads; totLlamadas += f.llamadas; totShows += f.shows;
       totCierres += f.cierres; totVentas += f.ventas;
+
+      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { llamadas:0, shows:0, cierres:0, ventas:0 });
+      const s = porSetter.get(f.setter);
+      s.llamadas += f.llamadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
+
+      if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { leads:0, ventas:0 });
+      const fu = porFuente.get(f.fuente);
+      fu.leads += f.leads; fu.ventas += f.ventas;
     });
 
     document.getElementById('kpiLeads').textContent = huboDatos ? totLeads.toLocaleString('es-AR') : '–';
@@ -755,6 +793,49 @@
     document.getElementById('mateTicket').textContent = huboDatos ? money(totVentas, totCierres) : '–';
     document.getElementById('mateRevenueLead').textContent = huboDatos ? money(totVentas, totLeads) : '–';
     document.getElementById('statusMatematica').textContent = statusTxt;
+
+    // ===== Performance por setter / Leads por fuente — una tarjeta por
+    // cada nombre distinto que aparezca ese mes en las columnas Setter
+    // y Fuente del Sheet (cantidad variable, no fija). =====
+    renderBreakdownSetters(porSetter);
+    renderBreakdownFuentes(porFuente, totVentas);
+    document.getElementById('statusSetters').textContent = statusTxt;
+    document.getElementById('statusFuentes').textContent = statusTxt;
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderBreakdownSetters(mapa){
+    const grid = document.getElementById('settersGrid');
+    const nombres = [...mapa.keys()].sort((a,b) => mapa.get(b).ventas - mapa.get(a).ventas);
+    grid.innerHTML = nombres.map(nombre => {
+      const s = mapa.get(nombre);
+      const showRate = s.llamadas > 0 ? Math.round(s.shows / s.llamadas * 100) + '%' : '–';
+      const cierreRate = s.shows > 0 ? Math.round(s.cierres / s.shows * 100) + '%' : '–';
+      return `<div class="breakdown-card">
+        <h4>${escapeHtml(nombre)}</h4>
+        <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${s.llamadas.toLocaleString('es-AR')}</span></div>
+        <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${s.shows.toLocaleString('es-AR')} (${showRate})</span></div>
+        <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${s.cierres.toLocaleString('es-AR')} (${cierreRate})</span></div>
+        <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(s.ventas).toLocaleString('es-AR')}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderBreakdownFuentes(mapa, totalVentas){
+    const grid = document.getElementById('fuentesGrid');
+    const nombres = [...mapa.keys()].sort((a,b) => mapa.get(b).ventas - mapa.get(a).ventas);
+    grid.innerHTML = nombres.map(nombre => {
+      const f = mapa.get(nombre);
+      const pctVentas = totalVentas > 0 ? Math.round(f.ventas / totalVentas * 100) + '%' : '–';
+      return `<div class="breakdown-card">
+        <h4>${escapeHtml(nombre)}</h4>
+        <div class="breakdown-stat-row"><span class="label">Leads</span><span class="val">${f.leads.toLocaleString('es-AR')}</span></div>
+        <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(f.ventas).toLocaleString('es-AR')} (${pctVentas})</span></div>
+      </div>`;
+    }).join('');
   }
 
   // ===== Gráfico de línea suavizada (mismo estilo que los dashboards de
