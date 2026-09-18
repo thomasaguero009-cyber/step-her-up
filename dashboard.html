@@ -434,23 +434,23 @@
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">Leads al funnel</div>
-          <div class="kpi-value">–</div>
+          <div class="kpi-value" id="kpiLeads">–</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Llamadas agendadas</div>
-          <div class="kpi-value">–</div>
+          <div class="kpi-value" id="kpiLlamadas">–</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Shows</div>
-          <div class="kpi-value">–</div>
+          <div class="kpi-value" id="kpiShows">–</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Cierres</div>
-          <div class="kpi-value">–</div>
+          <div class="kpi-value" id="kpiCierres">–</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">Ventas del mes</div>
-          <div class="kpi-value">–</div>
+          <div class="kpi-value" id="kpiVentas">–</div>
         </div>
       </div>
 
@@ -460,7 +460,7 @@
           <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
           <div class="chart-tooltip" id="tooltipLlamadas"></div>
         </div>
-        <div class="chart-status">Sin datos todavía — se va a conectar a un Google Sheet</div>
+        <div class="chart-status" id="statusLlamadas">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
       <div class="section-label" id="ventas">💰 Ventas en lo que va del mes</div>
@@ -469,7 +469,7 @@
           <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartVentas"></svg>
           <div class="chart-tooltip" id="tooltipVentas"></div>
         </div>
-        <div class="chart-status">Sin datos todavía — se va a conectar a un Google Sheet</div>
+        <div class="chart-status" id="statusVentas">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
       <div class="section-label" id="matematica">🎯 Matemática del éxito</div>
@@ -523,8 +523,7 @@
     showScreen(transitionScreen);
     setTimeout(() => {
       showScreen(dashboardScreen);
-      drawChart('chartLlamadas', 'tooltipLlamadas', llamadasSerie, '#8fb8f0');
-      drawChart('chartVentas', 'tooltipVentas', ventasSerie, '#f0a8be');
+      cargarYPintarDatosMes();
       drawChart('chartMatematica', 'tooltipMatematica', matematicaSerie, '#e88aa8');
     }, 2000);
   }
@@ -557,8 +556,7 @@
         mesElegido = mi.dataset.mes;
         document.getElementById('dashMonthLabel').textContent = mesElegido;
         dashMonthList.classList.remove('open');
-        // TODO: cuando se conecte el Google Sheet, recargar los datos
-        // del mes elegido acá en vez de solo cambiar la etiqueta.
+        cargarYPintarDatosMes();
       });
     });
   }
@@ -571,12 +569,157 @@
     if(!activeMonthPill.contains(e.target)) dashMonthList.classList.remove('open');
   });
 
-  // ===== Todavía sin conectar a Google Sheets — series en 0 hasta que
-  // se sume la fuente de datos real. =====
-  const DIAS_MES = 17; // "lo que va del mes" al momento de la maqueta
-  const llamadasSerie = new Array(DIAS_MES).fill(0);
-  const ventasSerie = new Array(DIAS_MES).fill(0);
+  // ===== "Matemática del éxito" — todavía sin conectar, queda en 0. =====
+  const DIAS_MES = 17;
   const matematicaSerie = new Array(DIAS_MES).fill(0);
+
+  // ===== Conexión al Google Sheet "Step Her Up - Tracker" (pestaña
+  // publicada como CSV: Archivo → Compartir → Publicar en la web).
+  // Estructura esperada, una fila por día:
+  //   Fecha (DD/MM/AAAA) | Leads | Llamadas | Shows | Cierres | Ventas
+  // Alimenta los 5 Kpis y los gráficos de Llamadas por día / Ventas.
+  // "Matemática del éxito" sigue sin conectar. =====
+  const SHEET_TRACKER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=0&single=true&output=csv';
+
+  // Un fetch sin límite de tiempo puede quedarse colgado para siempre
+  // sin resolver ni rechazar (visto en SetterFlow) — por eso siempre
+  // con AbortController + timeout.
+  async function fetchTextConTimeout(url, ms){
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.text();
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  function parseCSVSheet(texto){
+    const lineas = texto.split(/\r\n|\n|\r/).filter(l => l.length);
+    return lineas.map(linea => {
+      const celdas = [];
+      let cur = '', enComillas = false;
+      for(let i=0;i<linea.length;i++){
+        const c = linea[i];
+        if(enComillas){
+          if(c === '"'){
+            if(linea[i+1] === '"'){ cur += '"'; i++; } else { enComillas = false; }
+          } else cur += c;
+        } else if(c === '"'){
+          enComillas = true;
+        } else if(c === ','){
+          celdas.push(cur); cur = '';
+        } else {
+          cur += c;
+        }
+      }
+      celdas.push(cur);
+      return celdas;
+    });
+  }
+
+  function parseFechaSheet(s){
+    if(!s) return null;
+    const m = String(s).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if(!m) return null;
+    let dia = parseInt(m[1],10), mes = parseInt(m[2],10) - 1, anio = parseInt(m[3],10);
+    if(anio < 100) anio += 2000;
+    const fecha = new Date(anio, mes, dia);
+    return isNaN(fecha) ? null : fecha;
+  }
+
+  function parseNumSheet(v){
+    if(v == null) return 0;
+    let s = String(v).trim();
+    if(!s) return 0;
+    s = s.replace(/[^0-9,.\-]/g, '');
+    const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+    if(lastComma > -1 && lastDot > -1){
+      s = lastComma > lastDot ? s.replace(/\./g,'').replace(',', '.') : s.replace(/,/g,'');
+    } else if(lastComma > -1){
+      s = (s.length - lastComma - 1) === 2 ? s.replace(',', '.') : s.replace(/,/g,'');
+    }
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+
+  let filasTrackerCache = null;
+  async function obtenerFilasTracker(){
+    if(filasTrackerCache) return filasTrackerCache;
+    try {
+      const texto = await fetchTextConTimeout(SHEET_TRACKER_CSV_URL, 8000);
+      const filas = parseCSVSheet(texto);
+      const header = (filas[0] || []).map(h => h.trim().toLowerCase());
+      const idx = {
+        fecha: header.indexOf('fecha'),
+        leads: header.indexOf('leads'),
+        llamadas: header.indexOf('llamadas'),
+        shows: header.indexOf('shows'),
+        cierres: header.indexOf('cierres'),
+        ventas: header.indexOf('ventas'),
+      };
+      const datos = [];
+      for(let i=1;i<filas.length;i++){
+        const r = filas[i];
+        const fecha = parseFechaSheet(r[idx.fecha]);
+        if(!fecha) continue;
+        datos.push({
+          fecha,
+          leads: parseNumSheet(r[idx.leads]),
+          llamadas: parseNumSheet(r[idx.llamadas]),
+          shows: parseNumSheet(r[idx.shows]),
+          cierres: parseNumSheet(r[idx.cierres]),
+          ventas: parseNumSheet(r[idx.ventas]),
+        });
+      }
+      filasTrackerCache = datos;
+    } catch(e){
+      console.warn('No se pudo leer el Google Sheet del tracker:', e);
+      filasTrackerCache = [];
+    }
+    return filasTrackerCache;
+  }
+
+  function mesElegidoAYyyyMm(){
+    const partes = mesElegido.split(' ');
+    return { anio: parseInt(partes[1], 10), mes: MESES_ES.indexOf(partes[0]) };
+  }
+
+  async function cargarYPintarDatosMes(){
+    const filas = await obtenerFilasTracker();
+    const { anio, mes } = mesElegidoAYyyyMm();
+    const dias = new Date(anio, mes + 1, 0).getDate();
+    const llamadas = new Array(dias).fill(0);
+    const ventas = new Array(dias).fill(0);
+    let totLeads = 0, totLlamadas = 0, totShows = 0, totCierres = 0, totVentas = 0, huboDatos = false;
+
+    filas.forEach(f => {
+      if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
+      huboDatos = true;
+      const dia = f.fecha.getDate() - 1;
+      llamadas[dia] += f.llamadas;
+      ventas[dia] += f.ventas;
+      totLeads += f.leads; totLlamadas += f.llamadas; totShows += f.shows;
+      totCierres += f.cierres; totVentas += f.ventas;
+    });
+
+    document.getElementById('kpiLeads').textContent = huboDatos ? totLeads.toLocaleString('es-AR') : '–';
+    document.getElementById('kpiLlamadas').textContent = huboDatos ? totLlamadas.toLocaleString('es-AR') : '–';
+    document.getElementById('kpiShows').textContent = huboDatos ? totShows.toLocaleString('es-AR') : '–';
+    document.getElementById('kpiCierres').textContent = huboDatos ? totCierres.toLocaleString('es-AR') : '–';
+    document.getElementById('kpiVentas').textContent = huboDatos ? ('$' + totVentas.toLocaleString('es-AR')) : '–';
+
+    drawChart('chartLlamadas', 'tooltipLlamadas', llamadas, '#8fb8f0');
+    drawChart('chartVentas', 'tooltipVentas', ventas, '#f0a8be');
+
+    const statusTxt = huboDatos
+      ? 'Datos en vivo — ' + mesElegido
+      : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en el Google Sheet';
+    document.getElementById('statusLlamadas').textContent = statusTxt;
+    document.getElementById('statusVentas').textContent = statusTxt;
+  }
 
   // ===== Gráfico de línea suavizada (mismo estilo que los dashboards de
   // Factor Studios: grilla + Catmull-Rom→Bézier + tooltip al pasar el mouse). =====
