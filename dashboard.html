@@ -337,6 +337,50 @@
   .breakdown-stat-row .label{ color:var(--text-dim); }
   .breakdown-stat-row .val{ font-weight:700; white-space:nowrap; }
 
+  /* Ranking Factor — gauges de cash del mes/día + tabla de closers.
+     Cantidad de filas variable según cuántos closers distintos
+     aparezcan en la pestaña "Ranking" del Sheet. */
+  .gauge-grid{ display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; margin-bottom:16px; }
+  @media(max-width:520px){ .gauge-grid{ grid-template-columns:1fr; } }
+  .gauge-card{
+    background:var(--card); border:1px solid var(--border); border-radius:18px;
+    padding:22px 24px; text-align:center;
+  }
+  .gauge-label{ font-size:13px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim); margin-bottom:14px; }
+  .gauge-svg-wrap{ position:relative; width:100%; max-width:220px; margin:0 auto; }
+  .gauge-svg-wrap svg{ width:100%; height:auto; display:block; }
+  .gauge-value-wrap{ position:absolute; left:0; right:0; bottom:6px; text-align:center; }
+  .gauge-value{ font-size:26px; font-weight:800; font-family:"Playfair Display",Georgia,serif; }
+  .gauge-unit{ font-size:11px; color:var(--text-dim); letter-spacing:0.05em; text-transform:uppercase; }
+  .gauge-range{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); max-width:220px; margin:2px auto 0; }
+
+  .ranking-table{ background:var(--card); border:1px solid var(--border); border-radius:18px; overflow:hidden; margin-bottom:10px; }
+  .ranking-head-row, .ranking-row{
+    display:grid; grid-template-columns:44px 1fr 130px; align-items:center; gap:12px; padding:14px 20px;
+  }
+  .ranking-head-row{
+    font-size:11.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-dim);
+    border-bottom:1px solid var(--border);
+  }
+  .ranking-row{ border-top:1px solid var(--border); }
+  .ranking-row:first-child{ border-top:none; }
+  .rank-badge{
+    width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:13px; background:rgba(255,255,255,0.08); color:var(--text-dim);
+  }
+  .rank-badge.g1{ background:#e8b64a; color:#2a1a02; }
+  .rank-badge.g2{ background:#c7cad3; color:#20222a; }
+  .rank-badge.g3{ background:#c97a4a; color:#2a1204; }
+  .ranking-name{ font-weight:600; }
+  .ranking-amount{
+    justify-self:end; background:rgba(232,138,168,0.16); color:var(--blush);
+    border-radius:10px; padding:6px 12px; font-weight:700; font-size:14px; white-space:nowrap;
+  }
+  @media(max-width:520px){
+    .ranking-head-row, .ranking-row{ grid-template-columns:34px 1fr auto; padding:12px 14px; gap:8px; }
+  }
+  .ranking-table + .chart-status{ margin-bottom:44px; }
+
   /* Charts */
   .chart-panel{
     background:var(--card); border:1px solid var(--border); border-radius:20px;
@@ -478,6 +522,7 @@
         <a href="#matematica" class="quick-nav-btn">Matemática del éxito</a>
         <a href="#setters" class="quick-nav-btn">Setters</a>
         <a href="#fuentes" class="quick-nav-btn">Fuentes</a>
+        <a href="#ranking" class="quick-nav-btn">Ranking Factor</a>
       </div>
 
       <!-- Embudo: Leads → Llamadas agendadas → Shows → Cierres → Ventas.
@@ -563,6 +608,55 @@
       <div class="section-label" id="fuentes">Leads por fuente</div>
       <div class="breakdown-grid" id="fuentesGrid"></div>
       <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
+
+      <div class="section-label" id="ranking">Ranking Factor</div>
+      <div class="gauge-grid">
+        <div class="gauge-card">
+          <div class="gauge-label">Cash del mes</div>
+          <div class="gauge-svg-wrap">
+            <svg viewBox="0 0 200 120">
+              <path d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="14" stroke-linecap="round"></path>
+              <path id="gaugeArcMes" d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="url(#gaugeGradMes)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 999"></path>
+              <defs>
+                <linearGradient id="gaugeGradMes" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" style="stop-color:var(--wine-3)"></stop>
+                  <stop offset="100%" style="stop-color:var(--blush)"></stop>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="gauge-value-wrap">
+              <div class="gauge-value" id="gaugeValMes">–</div>
+              <div class="gauge-unit">USD</div>
+            </div>
+          </div>
+          <div class="gauge-range"><span>0</span><span id="gaugeMaxMes">–</span></div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-label">Cash del día</div>
+          <div class="gauge-svg-wrap">
+            <svg viewBox="0 0 200 120">
+              <path d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="14" stroke-linecap="round"></path>
+              <path id="gaugeArcDia" d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="url(#gaugeGradDia)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 999"></path>
+              <defs>
+                <linearGradient id="gaugeGradDia" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" style="stop-color:var(--wine-3)"></stop>
+                  <stop offset="100%" style="stop-color:var(--blush)"></stop>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="gauge-value-wrap">
+              <div class="gauge-value" id="gaugeValDia">–</div>
+              <div class="gauge-unit">USD</div>
+            </div>
+          </div>
+          <div class="gauge-range"><span>0</span><span id="gaugeMaxDia">–</span></div>
+        </div>
+      </div>
+      <div class="ranking-table">
+        <div class="ranking-head-row"><span>#</span><span>Closer</span><span style="justify-self:end;">Monto (USD)</span></div>
+        <div id="rankingRows"></div>
+      </div>
+      <div class="chart-status" id="rankingFoot">Sin datos todavía — se va a conectar a un Google Sheet</div>
 
     </div>
   </section>
@@ -702,6 +796,21 @@
   // "Matemática del éxito" sigue sin conectar. =====
   const SHEET_TRACKER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=0&single=true&output=csv';
 
+  // ===== Ranking Factor — pestaña APARTE del mismo Google Sheet, llamada
+  // "Ranking" (no "Tracker"): una fila por cada cobro de un closer.
+  // Estructura esperada:
+  //   Fecha (DD/MM/AAAA) | Closer | Monto
+  // Para publicarla: en esa pestaña, Archivo → Compartir → Publicar en
+  // la web → elegir la pestaña "Ranking" (no "Documento completo") →
+  // formato CSV → pegar acá el link (va a tener un &gid= distinto al
+  // de arriba). Hasta que se reemplace este placeholder, la sección
+  // queda en "Sin datos todavía".
+  const SHEET_RANKING_CSV_URL = 'REEMPLAZAR_CON_EL_LINK_CSV_DE_LA_PESTAÑA_RANKING';
+
+  // Metas de los gauges de cash — se editan a mano acá, no vienen del Sheet.
+  const META_CASH_MES = 680000;
+  const META_CASH_DIA = 25000;
+
   // Un fetch sin límite de tiempo puede quedarse colgado para siempre
   // sin resolver ni rechazar (visto en SetterFlow) — por eso siempre
   // con AbortController + timeout.
@@ -807,6 +916,37 @@
     return filasTrackerCache;
   }
 
+  let filasRankingCache = null;
+  async function obtenerFilasRanking(){
+    if(filasRankingCache) return filasRankingCache;
+    try {
+      const texto = await fetchTextConTimeout(SHEET_RANKING_CSV_URL, 8000);
+      const filas = parseCSVSheet(texto);
+      const header = (filas[0] || []).map(h => h.trim().toLowerCase());
+      const idx = {
+        fecha: header.indexOf('fecha'),
+        closer: header.indexOf('closer'),
+        monto: header.indexOf('monto'),
+      };
+      const datos = [];
+      for(let i=1;i<filas.length;i++){
+        const r = filas[i];
+        const fecha = parseFechaSheet(r[idx.fecha]);
+        if(!fecha) continue;
+        datos.push({
+          fecha,
+          closer: (idx.closer > -1 && r[idx.closer] ? r[idx.closer].trim() : '') || 'Sin asignar',
+          monto: parseNumSheet(r[idx.monto]),
+        });
+      }
+      filasRankingCache = datos;
+    } catch(e){
+      console.warn('No se pudo leer la pestaña Ranking del Google Sheet:', e);
+      filasRankingCache = [];
+    }
+    return filasRankingCache;
+  }
+
   function mesElegidoAYyyyMm(){
     const partes = mesElegido.split(' ');
     return { anio: parseInt(partes[1], 10), mes: MESES_ES.indexOf(partes[0]) };
@@ -875,6 +1015,8 @@
     renderBreakdownFuentes(porFuente, totVentas);
     document.getElementById('statusSetters').textContent = statusTxt;
     document.getElementById('statusFuentes').textContent = statusTxt;
+
+    cargarYPintarRanking();
   }
 
   function escapeHtml(s){
@@ -910,6 +1052,59 @@
         <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(f.ventas).toLocaleString('es-AR')} (${pctVentas})</span></div>
       </div>`;
     }).join('');
+  }
+
+  // ===== Ranking Factor — dos gauges (semicírculo, largo real del path
+  // vía getTotalLength() en vez de un número fijo, así no depende de
+  // que el path SVG se mantenga exactamente igual) + tabla ordenada por
+  // monto acumulado del closer en el mes elegido. "Cash del día" mira
+  // la fecha de HOY siempre, sin importar qué mes esté elegido arriba. =====
+  function pintarGauge(pathId, valorId, value, max){
+    const path = document.getElementById(pathId);
+    const total = path.getTotalLength();
+    const frac = max > 0 ? Math.min(value / max, 1) : 0;
+    path.setAttribute('stroke-dasharray', (total * frac).toFixed(1) + ' ' + total.toFixed(1));
+    document.getElementById(valorId).textContent = '$' + Math.round(value).toLocaleString('es-AR');
+  }
+
+  function mismoDia(a, b){
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  async function cargarYPintarRanking(){
+    const filas = await obtenerFilasRanking();
+    const { anio, mes } = mesElegidoAYyyyMm();
+    const hoy = new Date();
+    let totalMes = 0, totalDia = 0, huboDatos = false;
+    const porCloser = new Map();
+
+    filas.forEach(f => {
+      if(f.fecha.getFullYear() === anio && f.fecha.getMonth() === mes){
+        huboDatos = true;
+        totalMes += f.monto;
+        porCloser.set(f.closer, (porCloser.get(f.closer) || 0) + f.monto);
+      }
+      if(mismoDia(f.fecha, hoy)) totalDia += f.monto;
+    });
+
+    document.getElementById('gaugeMaxMes').textContent = META_CASH_MES.toLocaleString('es-AR');
+    document.getElementById('gaugeMaxDia').textContent = META_CASH_DIA.toLocaleString('es-AR');
+    pintarGauge('gaugeArcMes', 'gaugeValMes', totalMes, META_CASH_MES);
+    pintarGauge('gaugeArcDia', 'gaugeValDia', totalDia, META_CASH_DIA);
+
+    const nombres = [...porCloser.keys()].sort((a,b) => porCloser.get(b) - porCloser.get(a));
+    const medallas = ['g1','g2','g3'];
+    document.getElementById('rankingRows').innerHTML = nombres.map((nombre, i) => `
+      <div class="ranking-row">
+        <span class="rank-badge${medallas[i] ? ' ' + medallas[i] : ''}">${i+1}</span>
+        <span class="ranking-name">${escapeHtml(nombre)}</span>
+        <span class="ranking-amount">$${Math.round(porCloser.get(nombre)).toLocaleString('es-AR')}</span>
+      </div>
+    `).join('');
+
+    document.getElementById('rankingFoot').textContent = huboDatos
+      ? (nombres.length + (nombres.length === 1 ? ' closer' : ' closers'))
+      : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ranking" del Google Sheet';
   }
 
   // ===== Gráfico de línea suavizada (mismo estilo que los dashboards de
