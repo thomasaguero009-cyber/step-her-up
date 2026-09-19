@@ -48,7 +48,7 @@
   #loadingScreen.active{ display:flex; }
   .loading-card{
     display:flex; flex-direction:column; align-items:center; gap:26px;
-    text-align:center; max-width:560px; width:100%;
+    text-align:center; max-width:760px; width:100%;
   }
   .loading-sub{ color:var(--text-dim); font-size:15px; margin:0; }
   .month-select-card{
@@ -85,20 +85,22 @@
   }
   .btn:hover{ box-shadow:0 14px 36px rgba(232,138,168,0.45); transform:translateY(-1px); }
 
-  /* Pantalla de entrada — 2 opciones (Onboarding / Dashboard) en vez
-     del selector de mes; el dashboard entra directo en el mes actual,
-     el mes se cambia DESPUÉS, desde adentro (ver .active-month-pill). */
-  .entry-options{ display:flex; flex-direction:row; gap:14px; width:100%; }
-  @media(max-width:520px){ .entry-options{ flex-direction:column; } }
+  /* Pantalla de entrada — grilla de 3 columnas fijas (Onboarding /
+     Dashboard / Ranking, por ahora). El día que se sume una 4ta
+     sección, alcanza con agregar otro botón acá: cae solo en una
+     segunda fila de 3, no achica las demás tarjetas. */
+  .entry-options{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; width:100%; }
+  @media(max-width:760px){ .entry-options{ grid-template-columns:repeat(2, 1fr); } }
+  @media(max-width:520px){ .entry-options{ grid-template-columns:1fr; } }
   .entry-option{
-    display:flex; align-items:center; justify-content:center; flex:1; min-width:0; text-align:center;
+    display:flex; align-items:center; justify-content:center; min-width:0; text-align:center;
     background:var(--card); border:1px solid var(--border); border-radius:20px;
-    padding:36px 22px; cursor:pointer; font-family:inherit; color:var(--cream);
+    padding:42px 24px; cursor:pointer; font-family:inherit; color:var(--cream);
     backdrop-filter:blur(6px); transition:background .2s ease, border-color .2s ease, transform .15s ease;
   }
   .entry-option:hover{ background:rgba(255,255,255,0.1); border-color:var(--blush-2); transform:translateY(-1px); }
-  .entry-option-text{ display:flex; flex-direction:column; align-items:center; gap:5px; }
-  .entry-option-title{ font-weight:700; font-size:19px; }
+  .entry-option-text{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .entry-option-title{ font-weight:700; font-size:20px; }
   .entry-option-sub{ font-size:13.5px; color:var(--text-dim); }
 
   /* ===== Pantalla 2: transición (2s, animación del logo) — la cruz/
@@ -254,6 +256,38 @@
     background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:12px;
     padding:13px 18px; font-size:14px; font-weight:700; margin-bottom:14px;
   }
+  /* Subir video propio + recorte simple — panel colapsable arriba del
+     reproductor. Ver el JS para la explicación de por qué esto vive
+     solo en el navegador de quien lo usa (no hay backend acá). */
+  .uploader-panel{
+    display:none; flex-direction:column; gap:14px;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px;
+  }
+  .uploader-panel.open{ display:flex; }
+  .uploader-row{ display:flex; flex-direction:column; gap:6px; }
+  .uploader-row label{ font-size:12.5px; color:var(--text-dim); font-weight:600; }
+  .uploader-row input[type="text"]{
+    background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:10px;
+    padding:10px 12px; font-size:14px; color:var(--cream); font-family:inherit;
+  }
+  .uploader-row input[type="file"]{ font-size:13px; color:var(--text-dim); }
+  .trim-inputs{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13.5px; color:var(--text-dim); }
+  .trim-inputs input[type="number"]{
+    width:70px; background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:8px;
+    padding:8px 10px; font-size:13.5px; color:var(--cream); font-family:inherit;
+  }
+  .uploader-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn-small{
+    display:inline-flex; align-items:center; justify-content:center; border:none; cursor:pointer;
+    border-radius:999px; font-weight:700; font-size:13px; padding:9px 18px; font-family:inherit;
+    background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13;
+  }
+  .btn-small:disabled{ opacity:0.5; cursor:not-allowed; }
+  .uploader-status{ font-size:12.5px; color:var(--text-dim); }
+  .uploader-download-link{ font-size:13px; color:var(--blush); text-decoration:none; font-weight:600; }
+  .uploader-download-link:hover{ text-decoration:underline; }
+
   .onboarding-body{ flex:1; display:flex; gap:14px; min-height:0; }
   .onboarding-lesson-list{
     display:flex; flex-direction:column; gap:8px; width:230px; flex-shrink:0; overflow-y:auto;
@@ -454,6 +488,32 @@
         </div>
       </div>
       <div class="onboarding-lesson-title" id="onboardingLessonTitle">1. Bienvenida a Step Her Up</div>
+
+      <button type="button" class="ghost-link-btn" id="toggleUploaderBtn" style="margin-bottom:14px;">Subir mi propio video ▾</button>
+      <div class="uploader-panel" id="uploaderPanel">
+        <div class="uploader-row">
+          <label for="uploadVideoTitle">Nombre del video (queda como título de la lección)</label>
+          <input type="text" id="uploadVideoTitle" placeholder="Ej: 3. Cómo funciona el programa">
+        </div>
+        <div class="uploader-row">
+          <label for="uploadVideoFile">Elegir archivo de video</label>
+          <input type="file" id="uploadVideoFile" accept="video/*">
+        </div>
+        <div class="uploader-row" id="trimControls" style="display:none;">
+          <label>Recorte, en segundos (<span id="trimDuration"></span>)</label>
+          <div class="trim-inputs">
+            Desde <input type="number" id="trimStart" min="0" step="1" value="0">
+            hasta <input type="number" id="trimEnd" min="0" step="1" value="0">
+          </div>
+          <div class="uploader-actions">
+            <button type="button" class="ghost-link-btn" id="previewTrimBtn">Reproducir recorte</button>
+            <button type="button" class="btn-small" id="cutVideoBtn">Cortar y usar</button>
+          </div>
+          <div class="uploader-status" id="uploaderStatus"></div>
+          <a id="downloadTrimLink" class="uploader-download-link" style="display:none;">Descargar el recorte</a>
+        </div>
+      </div>
+
       <div class="onboarding-body">
         <div class="onboarding-lesson-list" id="onboardingLessonList">
           <button type="button" class="lesson-item active" data-title="1. Bienvenida a Step Her Up">1. Bienvenida a Step Her Up</button>
@@ -796,8 +856,9 @@
   inicializarSwitcherSecciones('sectionSwitcherOnboarding', 'sectionSwitcherBtnOnboarding', 'sectionSwitcherListOnboarding');
   inicializarSwitcherSecciones('sectionSwitcherRanking', 'sectionSwitcherBtnRanking', 'sectionSwitcherListRanking');
 
-  // Selector de lección del onboarding — todavía sin video real
-  // conectado, solo cambia cuál queda marcada como activa.
+  // Selector de lección del onboarding — cambia cuál queda marcada
+  // como activa y el título; el video en sí es el mismo para todas
+  // hasta que se suban videos por lección.
   const onboardingLessonTitle = document.getElementById('onboardingLessonTitle');
   document.querySelectorAll('#onboardingLessonList .lesson-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -805,6 +866,125 @@
       item.classList.add('active');
       onboardingLessonTitle.textContent = item.dataset.title;
     });
+  });
+
+  // ===== Subir tu propio video + recorte simple — esto NO tiene
+  // backend (el sitio es estático, se sirve desde GitHub Pages), así
+  // que lo que subís y cortás acá queda SOLO en tu navegador, en esta
+  // pestaña: no se guarda ni lo ve nadie más. Si el resultado te
+  // sirve para dejarlo posta, descargalo con "Descargar el recorte" y
+  // pasámelo (como con el video de bienvenida) para subirlo al
+  // repositorio. El corte es básico a propósito: graba en tiempo real
+  // (con MediaRecorder, capturando el propio <video>) el tramo
+  // elegido mientras se reproduce — no hay reencode instantáneo, así
+  // que cortar un tramo de 2 minutos tarda 2 minutos. =====
+  const onboardingVideo = document.getElementById('onboardingVideo');
+  const toggleUploaderBtn = document.getElementById('toggleUploaderBtn');
+  const uploaderPanel = document.getElementById('uploaderPanel');
+  toggleUploaderBtn.addEventListener('click', () => {
+    uploaderPanel.classList.toggle('open');
+  });
+
+  const uploadVideoFile = document.getElementById('uploadVideoFile');
+  const uploadVideoTitle = document.getElementById('uploadVideoTitle');
+  const trimControls = document.getElementById('trimControls');
+  const trimStart = document.getElementById('trimStart');
+  const trimEnd = document.getElementById('trimEnd');
+  const trimDuration = document.getElementById('trimDuration');
+  const previewTrimBtn = document.getElementById('previewTrimBtn');
+  const cutVideoBtn = document.getElementById('cutVideoBtn');
+  const uploaderStatus = document.getElementById('uploaderStatus');
+  const downloadTrimLink = document.getElementById('downloadTrimLink');
+
+  let objectUrlSubido = null;
+
+  uploadVideoFile.addEventListener('change', () => {
+    const archivo = uploadVideoFile.files[0];
+    if(!archivo) return;
+    if(objectUrlSubido) URL.revokeObjectURL(objectUrlSubido);
+    objectUrlSubido = URL.createObjectURL(archivo);
+    onboardingVideo.pause();
+    onboardingVideo.src = objectUrlSubido;
+    onboardingVideo.load();
+    uploaderStatus.textContent = '';
+    downloadTrimLink.style.display = 'none';
+    onboardingVideo.onloadedmetadata = () => {
+      trimStart.value = 0;
+      trimEnd.value = Math.floor(onboardingVideo.duration);
+      trimDuration.textContent = 'dura ' + Math.floor(onboardingVideo.duration) + 's';
+      trimControls.style.display = 'flex';
+    };
+    if(uploadVideoTitle.value.trim()) onboardingLessonTitle.textContent = uploadVideoTitle.value.trim();
+  });
+
+  function irA(segundos){
+    return new Promise(resolve => {
+      onboardingVideo.onseeked = () => resolve();
+      onboardingVideo.currentTime = segundos;
+    });
+  }
+
+  previewTrimBtn.addEventListener('click', async () => {
+    const ini = Math.max(0, parseFloat(trimStart.value) || 0);
+    const fin = Math.min(onboardingVideo.duration, parseFloat(trimEnd.value) || onboardingVideo.duration);
+    await irA(ini);
+    onboardingVideo.play();
+    const onTime = () => {
+      if(onboardingVideo.currentTime >= fin){
+        onboardingVideo.pause();
+        onboardingVideo.removeEventListener('timeupdate', onTime);
+      }
+    };
+    onboardingVideo.addEventListener('timeupdate', onTime);
+  });
+
+  cutVideoBtn.addEventListener('click', async () => {
+    const ini = Math.max(0, parseFloat(trimStart.value) || 0);
+    const fin = Math.min(onboardingVideo.duration, parseFloat(trimEnd.value) || onboardingVideo.duration);
+    if(fin <= ini){
+      uploaderStatus.textContent = 'El "hasta" tiene que ser mayor al "desde".';
+      return;
+    }
+    if(typeof onboardingVideo.captureStream !== 'function'){
+      uploaderStatus.textContent = 'Este navegador no deja cortar video acá adentro — probá con Chrome.';
+      return;
+    }
+    cutVideoBtn.disabled = true;
+    downloadTrimLink.style.display = 'none';
+    uploaderStatus.textContent = 'Cortando… tarda lo mismo que dura el recorte (' + Math.round(fin - ini) + 's), no cierres la pestaña.';
+
+    const stream = onboardingVideo.captureStream();
+    let recorder;
+    try { recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' }); }
+    catch(e){ recorder = new MediaRecorder(stream); }
+    const partes = [];
+    recorder.ondataavailable = (e) => { if(e.data.size > 0) partes.push(e.data); };
+
+    await irA(ini);
+    recorder.start();
+    onboardingVideo.play();
+    await new Promise(resolve => {
+      recorder.onstop = resolve;
+      const onTime = () => {
+        if(onboardingVideo.currentTime >= fin){
+          onboardingVideo.pause();
+          onboardingVideo.removeEventListener('timeupdate', onTime);
+          recorder.stop();
+        }
+      };
+      onboardingVideo.addEventListener('timeupdate', onTime);
+    });
+
+    const blob = new Blob(partes, { type: 'video/webm' });
+    const urlRecorte = URL.createObjectURL(blob);
+    onboardingVideo.src = urlRecorte;
+    onboardingVideo.load();
+    downloadTrimLink.href = urlRecorte;
+    downloadTrimLink.download = (uploadVideoTitle.value.trim() || 'video-recortado') + '.webm';
+    downloadTrimLink.style.display = 'inline-block';
+    uploaderStatus.textContent = 'Listo — esto se ve solo en tu navegador. Descargalo y pasámelo si querés dejarlo visible para todos.';
+    cutVideoBtn.disabled = false;
+    if(uploadVideoTitle.value.trim()) onboardingLessonTitle.textContent = uploadVideoTitle.value.trim();
   });
 
   // ===== Cambiar mes — ahora es un popover dentro del dashboard (no
@@ -856,8 +1036,8 @@
   const SHEET_RANKING_CSV_URL = 'REEMPLAZAR_CON_EL_LINK_CSV_DE_LA_PESTAÑA_RANKING';
 
   // Metas de los gauges de cash — se editan a mano acá, no vienen del Sheet.
-  const META_CASH_MES = 680000;
-  const META_CASH_DIA = 25000;
+  const META_CASH_MES = 100000;
+  const META_CASH_DIA = 3500;
 
   // Un fetch sin límite de tiempo puede quedarse colgado para siempre
   // sin resolver ni rechazar (visto en SetterFlow) — por eso siempre
