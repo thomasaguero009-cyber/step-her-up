@@ -557,9 +557,21 @@
   .gauge-svg-wrap{ position:relative; width:100%; max-width:220px; margin:0 auto; }
   .gauge-svg-wrap svg{ width:100%; height:auto; display:block; }
   .gauge-value-wrap{ position:absolute; left:0; right:0; bottom:6px; text-align:center; }
-  .gauge-value{ font-size:26px; font-weight:800; font-family:"Playfair Display",Georgia,serif; }
+  .gauge-value{
+    font-size:26px; font-weight:800; font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-variant-numeric:tabular-nums;
+  }
   .gauge-unit{ font-size:11px; color:var(--text-dim); letter-spacing:0.05em; text-transform:uppercase; }
-  .gauge-range{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); max-width:220px; margin:2px auto 0; }
+  .gauge-range{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); max-width:220px; margin:2px auto 0; font-variant-numeric:tabular-nums; }
+
+  .ranking-mode-toggle{ display:flex; gap:8px; margin-bottom:10px; }
+  .rmt-btn{
+    background:var(--card); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:999px; padding:8px 18px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .rmt-btn:hover{ background:rgba(255,255,255,0.08); }
+  .rmt-btn.active{ background:rgba(240,168,190,0.14); border-color:var(--blush-2); color:var(--cream); }
 
   .ranking-table{ background:var(--card); border:1px solid var(--border); border-radius:18px; overflow:hidden; margin-bottom:10px; }
   .ranking-head-row, .ranking-row{
@@ -582,6 +594,7 @@
   .ranking-amount{
     justify-self:end; background:rgba(232,138,168,0.16); color:var(--blush);
     border-radius:10px; padding:6px 12px; font-weight:700; font-size:14px; white-space:nowrap;
+    font-variant-numeric:tabular-nums;
   }
   @media(max-width:520px){
     .ranking-head-row, .ranking-row{ grid-template-columns:34px 1fr auto; padding:12px 14px; gap:8px; }
@@ -947,8 +960,9 @@
               <path id="gaugeArcMes" d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="url(#gaugeGradMes)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 999"></path>
               <defs>
                 <linearGradient id="gaugeGradMes" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" style="stop-color:var(--wine-3)"></stop>
-                  <stop offset="100%" style="stop-color:var(--blush)"></stop>
+                  <stop offset="0%" stop-color="#f0716c"></stop>
+                  <stop offset="50%" stop-color="#e8b64a"></stop>
+                  <stop offset="100%" stop-color="#5fd39a"></stop>
                 </linearGradient>
               </defs>
             </svg>
@@ -967,8 +981,9 @@
               <path id="gaugeArcDia" d="M20,100 A80,80 0 0 1 180,100" fill="none" stroke="url(#gaugeGradDia)" stroke-width="14" stroke-linecap="round" stroke-dasharray="0 999"></path>
               <defs>
                 <linearGradient id="gaugeGradDia" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" style="stop-color:var(--wine-3)"></stop>
-                  <stop offset="100%" style="stop-color:var(--blush)"></stop>
+                  <stop offset="0%" stop-color="#f0716c"></stop>
+                  <stop offset="50%" stop-color="#e8b64a"></stop>
+                  <stop offset="100%" stop-color="#5fd39a"></stop>
                 </linearGradient>
               </defs>
             </svg>
@@ -980,8 +995,12 @@
           <div class="gauge-range"><span>0</span><span id="gaugeMaxDia">–</span></div>
         </div>
       </div>
+      <div class="ranking-mode-toggle" id="rankingModeToggle">
+        <button type="button" class="rmt-btn active" data-modo="closers">Closers</button>
+        <button type="button" class="rmt-btn" data-modo="setters">Setters</button>
+      </div>
       <div class="ranking-table">
-        <div class="ranking-head-row"><span>#</span><span>Closer</span><span style="justify-self:end;">Monto (USD)</span></div>
+        <div class="ranking-head-row"><span>#</span><span id="rankingHeadNombre">Closer</span><span style="justify-self:end;">Monto (USD)</span></div>
         <div id="rankingRows"></div>
       </div>
       <div class="chart-status" id="rankingFoot">Sin datos todavía — se va a conectar a un Google Sheet</div>
@@ -2105,18 +2124,63 @@
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   }
 
+  // ===== Ranking de Closers (cash cobrado, pestaña "Ranking") vs
+  // Ranking de Setters (ventas generadas, pestaña "Tracker" — mismos
+  // datos que ya alimentan "Performance por setter") — dos tablas
+  // separadas, nunca combinadas en una sola ("sin mezclar"), elegidas
+  // con el toggle de abajo. =====
+  let rankingModo = 'closers';
+  let porCloserActual = new Map();
+  let huboDatosCloserActual = false;
+  let porSetterVentasActual = new Map();
+  let huboDatosSetterActual = false;
+
+  const rankingModeToggle = document.getElementById('rankingModeToggle');
+  rankingModeToggle.querySelectorAll('.rmt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      rankingModo = btn.dataset.modo;
+      rankingModeToggle.querySelectorAll('.rmt-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderRankingTabla();
+    });
+  });
+
+  function renderRankingTabla(){
+    const esCloser = rankingModo === 'closers';
+    const mapa = esCloser ? porCloserActual : porSetterVentasActual;
+    const huboDatos = esCloser ? huboDatosCloserActual : huboDatosSetterActual;
+    document.getElementById('rankingHeadNombre').textContent = esCloser ? 'Closer' : 'Setter';
+
+    const nombres = [...mapa.keys()].sort((a,b) => mapa.get(b) - mapa.get(a));
+    const medallas = ['g1','g2','g3'];
+    document.getElementById('rankingRows').innerHTML = nombres.map((nombre, i) => `
+      <div class="ranking-row">
+        <span class="rank-badge${medallas[i] ? ' ' + medallas[i] : ''}">${i+1}</span>
+        <span class="ranking-name">${escapeHtml(nombre)}</span>
+        <span class="ranking-amount">$${Math.round(mapa.get(nombre)).toLocaleString('es-AR')}</span>
+      </div>
+    `).join('');
+
+    const etiqueta = esCloser ? 'closer' : 'setter';
+    document.getElementById('rankingFoot').textContent = huboDatos
+      ? (nombres.length + (nombres.length === 1 ? ' ' + etiqueta : ' ' + etiqueta + 's'))
+      : 'Sin datos todavía para ' + mesElegido + (esCloser
+        ? ' — cargá filas en la pestaña "Ranking" del Google Sheet'
+        : ' — cargá filas en la pestaña "Tracker" del Google Sheet');
+  }
+
   async function cargarYPintarRanking(){
-    const filas = await obtenerFilasRanking();
     const { anio, mes } = mesElegidoAYyyyMm();
     const hoy = new Date();
-    let totalMes = 0, totalDia = 0, huboDatos = false;
-    const porCloser = new Map();
 
-    filas.forEach(f => {
+    const filasRanking = await obtenerFilasRanking();
+    let totalMes = 0, totalDia = 0;
+    huboDatosCloserActual = false;
+    porCloserActual = new Map();
+    filasRanking.forEach(f => {
       if(f.fecha.getFullYear() === anio && f.fecha.getMonth() === mes){
-        huboDatos = true;
+        huboDatosCloserActual = true;
         totalMes += f.monto;
-        porCloser.set(f.closer, (porCloser.get(f.closer) || 0) + f.monto);
+        porCloserActual.set(f.closer, (porCloserActual.get(f.closer) || 0) + f.monto);
       }
       if(mismoDia(f.fecha, hoy)) totalDia += f.monto;
     });
@@ -2126,19 +2190,19 @@
     pintarGauge('gaugeArcMes', 'gaugeValMes', totalMes, META_CASH_MES);
     pintarGauge('gaugeArcDia', 'gaugeValDia', totalDia, META_CASH_DIA);
 
-    const nombres = [...porCloser.keys()].sort((a,b) => porCloser.get(b) - porCloser.get(a));
-    const medallas = ['g1','g2','g3'];
-    document.getElementById('rankingRows').innerHTML = nombres.map((nombre, i) => `
-      <div class="ranking-row">
-        <span class="rank-badge${medallas[i] ? ' ' + medallas[i] : ''}">${i+1}</span>
-        <span class="ranking-name">${escapeHtml(nombre)}</span>
-        <span class="ranking-amount">$${Math.round(porCloser.get(nombre)).toLocaleString('es-AR')}</span>
-      </div>
-    `).join('');
+    // Ranking de setters — reaprovecha la misma pestaña "Tracker" que ya
+    // usa el Dashboard, sin pegarle un fetch aparte.
+    const filasTracker = await obtenerFilasTracker();
+    huboDatosSetterActual = false;
+    porSetterVentasActual = new Map();
+    filasTracker.forEach(f => {
+      if(f.fecha.getFullYear() === anio && f.fecha.getMonth() === mes){
+        huboDatosSetterActual = true;
+        porSetterVentasActual.set(f.setter, (porSetterVentasActual.get(f.setter) || 0) + f.ventas);
+      }
+    });
 
-    document.getElementById('rankingFoot').textContent = huboDatos
-      ? (nombres.length + (nombres.length === 1 ? ' closer' : ' closers'))
-      : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ranking" del Google Sheet';
+    renderRankingTabla();
   }
 
   // ===== Gráfico de línea suavizada (mismo estilo que los dashboards de
