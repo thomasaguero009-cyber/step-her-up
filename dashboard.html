@@ -378,6 +378,22 @@
   .vc-seek{ flex:1; min-width:0; }
   .vc-volume{ width:70px; flex-shrink:0; }
   @media(max-width:520px){ .vc-volume{ display:none; } }
+  .vc-speed-wrap{ position:relative; flex-shrink:0; }
+  .vc-speed-btn{
+    background:rgba(255,255,255,0.12); border:none; color:var(--cream); cursor:pointer;
+    border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700; font-family:inherit;
+    opacity:0.9; transition:opacity .15s ease, background .15s ease;
+  }
+  .vc-speed-btn:hover{ opacity:1; background:rgba(255,255,255,0.2); }
+  .vc-speed-list{
+    display:none; position:absolute; bottom:calc(100% + 8px); right:0; z-index:10;
+    background:#170609; border:1px solid var(--border); border-radius:12px; padding:6px;
+    min-width:80px; box-shadow:0 14px 32px rgba(0,0,0,0.5);
+  }
+  .vc-speed-list.open{ display:block; }
+  .vc-speed-list .mi{ padding:8px 10px; border-radius:8px; font-size:13px; cursor:pointer; text-align:center; }
+  .vc-speed-list .mi:hover{ background:rgba(255,255,255,0.08); }
+  .vc-speed-list .mi.active{ color:var(--blush); font-weight:700; }
 
   /* Modal de contraseña para entrar en modo edición del onboarding. */
   .modal-overlay{
@@ -637,6 +653,10 @@
               <input type="range" class="vc-seek" id="vcSeek" min="0" max="1000" step="1" value="0">
               <button type="button" class="vc-btn" id="vcMute" aria-label="Silenciar"></button>
               <input type="range" class="vc-volume" id="vcVolume" min="0" max="1" step="0.05" value="1">
+              <div class="vc-speed-wrap" id="vcSpeedWrap">
+                <button type="button" class="vc-speed-btn" id="vcSpeedBtn" aria-label="Velocidad de reproducción">1x</button>
+                <div class="vc-speed-list" id="vcSpeedList"></div>
+              </div>
               <button type="button" class="vc-btn" id="vcFullscreen" aria-label="Pantalla completa">
                 <svg viewBox="0 0 24 24" width="17" height="17"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               </button>
@@ -1235,6 +1255,43 @@
   vcFullscreen.addEventListener('click', () => {
     if(videoShell.requestFullscreen) videoShell.requestFullscreen();
   });
+
+  // Velocidad de reproducción — mismo popover que usan "Secciones" y
+  // "Cambiar mes" (lista chica anclada al botón), acá abierta hacia
+  // arriba porque el botón vive en la barra de abajo del video.
+  const VELOCIDADES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const vcSpeedWrap = document.getElementById('vcSpeedWrap');
+  const vcSpeedBtn = document.getElementById('vcSpeedBtn');
+  const vcSpeedList = document.getElementById('vcSpeedList');
+
+  function renderSpeedList(){
+    vcSpeedList.innerHTML = VELOCIDADES.map(v =>
+      `<div class="mi${onboardingVideo.playbackRate === v ? ' active' : ''}" data-v="${v}">${v}x</div>`
+    ).join('');
+    vcSpeedList.querySelectorAll('.mi').forEach(mi => {
+      mi.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(mi.dataset.v);
+        onboardingVideo.playbackRate = v;
+        vcSpeedBtn.textContent = v + 'x';
+        vcSpeedList.classList.remove('open');
+      });
+    });
+  }
+  vcSpeedBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const yaAbierto = vcSpeedList.classList.contains('open');
+    vcSpeedList.classList.remove('open');
+    if(!yaAbierto){ renderSpeedList(); vcSpeedList.classList.add('open'); }
+  });
+  document.addEventListener('click', (e) => {
+    if(!vcSpeedWrap.contains(e.target)) vcSpeedList.classList.remove('open');
+  });
+  onboardingVideo.addEventListener('loadedmetadata', () => {
+    onboardingVideo.playbackRate = 1;
+    vcSpeedBtn.textContent = '1x';
+  });
+
   actualizarMuteIcon();
   actualizarPlayIcon();
 
