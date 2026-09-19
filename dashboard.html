@@ -272,12 +272,39 @@
     padding:10px 12px; font-size:14px; color:var(--cream); font-family:inherit;
   }
   .uploader-row input[type="file"]{ font-size:13px; color:var(--text-dim); }
-  .trim-inputs{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13.5px; color:var(--text-dim); }
-  .trim-inputs input[type="number"]{
-    width:70px; background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:8px;
-    padding:8px 10px; font-size:13.5px; color:var(--cream); font-family:inherit;
+
+  /* Línea de tiempo del recorte — filmina de miniaturas reales del
+     video + dos manijas arrastrables (pointer events, mouse y touch),
+     como el trim de cualquier app de edición. */
+  .trim-time-labels{
+    display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim);
+    font-variant-numeric:tabular-nums;
   }
-  .uploader-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+  .trim-time-labels b{ color:var(--blush); font-weight:700; }
+  .trim-timeline{
+    position:relative; height:64px; border-radius:10px; overflow:hidden;
+    background:#0d0304; border:1px solid var(--border); touch-action:none;
+  }
+  .trim-filmstrip{ position:absolute; inset:0; display:flex; }
+  .trim-filmstrip img{ height:100%; flex:1 1 0; min-width:0; object-fit:cover; display:block; }
+  .trim-overlay-out{ position:absolute; top:0; bottom:0; background:rgba(0,0,0,0.68); pointer-events:none; }
+  .trim-overlay-out.left{ left:0; }
+  .trim-overlay-out.right{ right:0; }
+  .trim-selection{
+    position:absolute; top:0; bottom:0; border-top:2px solid var(--blush); border-bottom:2px solid var(--blush);
+    box-shadow:0 0 0 1px rgba(240,168,190,0.5) inset; pointer-events:none;
+  }
+  .trim-handle{
+    position:absolute; top:0; bottom:0; width:16px; margin-left:-8px;
+    background:var(--blush); cursor:ew-resize; display:flex; align-items:center; justify-content:center;
+    border-radius:5px; touch-action:none; z-index:2;
+  }
+  .trim-handle::after{ content:''; width:2px; height:20px; background:rgba(0,0,0,0.45); border-radius:1px; }
+  .trim-playhead{
+    position:absolute; top:0; bottom:0; width:2px; background:#fff;
+    box-shadow:0 0 6px rgba(255,255,255,0.85); pointer-events:none; z-index:1;
+  }
+  .uploader-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .btn-small{
     display:inline-flex; align-items:center; justify-content:center; border:none; cursor:pointer;
     border-radius:999px; font-weight:700; font-size:13px; padding:9px 18px; font-family:inherit;
@@ -500,13 +527,23 @@
           <input type="file" id="uploadVideoFile" accept="video/*">
         </div>
         <div class="uploader-row" id="trimControls" style="display:none;">
-          <label>Recorte, en segundos (<span id="trimDuration"></span>)</label>
-          <div class="trim-inputs">
-            Desde <input type="number" id="trimStart" min="0" step="1" value="0">
-            hasta <input type="number" id="trimEnd" min="0" step="1" value="0">
+          <label>Recorte — arrastrá las manijas</label>
+          <div class="trim-time-labels">
+            <span>Inicio: <b id="trimLabelStart">0:00</b></span>
+            <span>Duración del recorte: <b id="trimLabelSel">0:00</b></span>
+            <span>Fin: <b id="trimLabelEnd">0:00</b></span>
+          </div>
+          <div class="trim-timeline" id="trimTimeline">
+            <div class="trim-filmstrip" id="trimFilmstrip"></div>
+            <div class="trim-overlay-out left" id="trimOverlayLeft"></div>
+            <div class="trim-overlay-out right" id="trimOverlayRight"></div>
+            <div class="trim-selection" id="trimSelection"></div>
+            <div class="trim-playhead" id="trimPlayhead"></div>
+            <div class="trim-handle" id="trimHandleStart"></div>
+            <div class="trim-handle" id="trimHandleEnd"></div>
           </div>
           <div class="uploader-actions">
-            <button type="button" class="ghost-link-btn" id="previewTrimBtn">Reproducir recorte</button>
+            <button type="button" class="ghost-link-btn" id="previewTrimBtn">▶ Reproducir recorte</button>
             <button type="button" class="btn-small" id="cutVideoBtn">Cortar y usar</button>
           </div>
           <div class="uploader-status" id="uploaderStatus"></div>
@@ -868,16 +905,20 @@
     });
   });
 
-  // ===== Subir tu propio video + recorte simple — esto NO tiene
-  // backend (el sitio es estático, se sirve desde GitHub Pages), así
-  // que lo que subís y cortás acá queda SOLO en tu navegador, en esta
-  // pestaña: no se guarda ni lo ve nadie más. Si el resultado te
-  // sirve para dejarlo posta, descargalo con "Descargar el recorte" y
-  // pasámelo (como con el video de bienvenida) para subirlo al
-  // repositorio. El corte es básico a propósito: graba en tiempo real
-  // (con MediaRecorder, capturando el propio <video>) el tramo
-  // elegido mientras se reproduce — no hay reencode instantáneo, así
-  // que cortar un tramo de 2 minutos tarda 2 minutos. =====
+  // ===== Subir tu propio video + recorte — esto NO tiene backend (el
+  // sitio es estático, se sirve desde GitHub Pages), así que lo que
+  // subís y cortás acá queda SOLO en tu navegador, en esta pestaña: no
+  // se guarda ni lo ve nadie más. Si el resultado te sirve para
+  // dejarlo posta, descargalo con "Descargar el recorte" y pasámelo
+  // (como con el video de bienvenida) para subirlo al repositorio.
+  // La línea de tiempo muestra miniaturas reales del video (sacadas
+  // con un <video> oculto + canvas) y dos manijas arrastrables
+  // (pointer events — mouse y touch) para elegir el tramo, como en
+  // cualquier app de edición. El corte en sí sigue siendo básico a
+  // propósito: graba en tiempo real (MediaRecorder capturando el
+  // propio <video>) el tramo elegido mientras se reproduce — no hay
+  // reencode instantáneo, así que cortar un tramo de 2 minutos tarda
+  // 2 minutos. =====
   const onboardingVideo = document.getElementById('onboardingVideo');
   const toggleUploaderBtn = document.getElementById('toggleUploaderBtn');
   const uploaderPanel = document.getElementById('uploaderPanel');
@@ -888,33 +929,93 @@
   const uploadVideoFile = document.getElementById('uploadVideoFile');
   const uploadVideoTitle = document.getElementById('uploadVideoTitle');
   const trimControls = document.getElementById('trimControls');
-  const trimStart = document.getElementById('trimStart');
-  const trimEnd = document.getElementById('trimEnd');
-  const trimDuration = document.getElementById('trimDuration');
+  const trimTimeline = document.getElementById('trimTimeline');
+  const trimFilmstrip = document.getElementById('trimFilmstrip');
+  const trimOverlayLeft = document.getElementById('trimOverlayLeft');
+  const trimOverlayRight = document.getElementById('trimOverlayRight');
+  const trimSelection = document.getElementById('trimSelection');
+  const trimPlayhead = document.getElementById('trimPlayhead');
+  const trimHandleStart = document.getElementById('trimHandleStart');
+  const trimHandleEnd = document.getElementById('trimHandleEnd');
+  const trimLabelStart = document.getElementById('trimLabelStart');
+  const trimLabelEnd = document.getElementById('trimLabelEnd');
+  const trimLabelSel = document.getElementById('trimLabelSel');
   const previewTrimBtn = document.getElementById('previewTrimBtn');
   const cutVideoBtn = document.getElementById('cutVideoBtn');
   const uploaderStatus = document.getElementById('uploaderStatus');
   const downloadTrimLink = document.getElementById('downloadTrimLink');
 
   let objectUrlSubido = null;
+  let duracionTotal = 0, trimIni = 0, trimFin = 0;
 
-  uploadVideoFile.addEventListener('change', () => {
-    const archivo = uploadVideoFile.files[0];
-    if(!archivo) return;
-    if(objectUrlSubido) URL.revokeObjectURL(objectUrlSubido);
-    objectUrlSubido = URL.createObjectURL(archivo);
+  function fmtTiempo(s){
+    s = Math.max(0, Math.round(s || 0));
+    const m = Math.floor(s / 60), sec = s % 60;
+    return m + ':' + String(sec).padStart(2, '0');
+  }
+
+  function pintarTimeline(){
+    const pIni = duracionTotal ? (trimIni / duracionTotal * 100) : 0;
+    const pFin = duracionTotal ? (trimFin / duracionTotal * 100) : 100;
+    trimHandleStart.style.left = pIni + '%';
+    trimHandleEnd.style.left = pFin + '%';
+    trimOverlayLeft.style.width = pIni + '%';
+    trimOverlayRight.style.width = (100 - pFin) + '%';
+    trimSelection.style.left = pIni + '%';
+    trimSelection.style.width = Math.max(0, pFin - pIni) + '%';
+    trimLabelStart.textContent = fmtTiempo(trimIni);
+    trimLabelEnd.textContent = fmtTiempo(trimFin);
+    trimLabelSel.textContent = fmtTiempo(trimFin - trimIni);
+  }
+
+  function pintarPlayhead(t){
+    const p = duracionTotal ? (t / duracionTotal * 100) : 0;
+    trimPlayhead.style.left = p + '%';
+  }
+
+  // Arrastre de las manijas — pointer events cubren mouse, touch y pen
+  // con la misma API, sin necesidad de código aparte para celular.
+  function habilitarArrastre(handle, esInicio){
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
+      const mover = (ev) => {
+        const rect = trimTimeline.getBoundingClientRect();
+        let frac = (ev.clientX - rect.left) / rect.width;
+        frac = Math.max(0, Math.min(1, frac));
+        const t = frac * duracionTotal;
+        const margen = Math.min(1, duracionTotal * 0.02);
+        if(esInicio){
+          trimIni = Math.max(0, Math.min(t, trimFin - margen));
+        } else {
+          trimFin = Math.min(duracionTotal, Math.max(t, trimIni + margen));
+        }
+        pintarTimeline();
+      };
+      const soltar = () => {
+        handle.releasePointerCapture(e.pointerId);
+        window.removeEventListener('pointermove', mover);
+        window.removeEventListener('pointerup', soltar);
+      };
+      window.addEventListener('pointermove', mover);
+      window.addEventListener('pointerup', soltar);
+    });
+  }
+  habilitarArrastre(trimHandleStart, true);
+  habilitarArrastre(trimHandleEnd, false);
+
+  // Tocar el resto de la línea de tiempo (no una manija) mueve la
+  // reproducción ahí — para poder mirar un fotograma sin arrancar el
+  // recorte entero.
+  trimTimeline.addEventListener('pointerdown', (e) => {
+    if(e.target === trimHandleStart || e.target === trimHandleEnd) return;
+    const rect = trimTimeline.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const t = frac * duracionTotal;
     onboardingVideo.pause();
-    onboardingVideo.src = objectUrlSubido;
-    onboardingVideo.load();
-    uploaderStatus.textContent = '';
-    downloadTrimLink.style.display = 'none';
-    onboardingVideo.onloadedmetadata = () => {
-      trimStart.value = 0;
-      trimEnd.value = Math.floor(onboardingVideo.duration);
-      trimDuration.textContent = 'dura ' + Math.floor(onboardingVideo.duration) + 's';
-      trimControls.style.display = 'flex';
-    };
-    if(uploadVideoTitle.value.trim()) onboardingLessonTitle.textContent = uploadVideoTitle.value.trim();
+    onboardingVideo.currentTime = t;
+    pintarPlayhead(t);
   });
 
   function irA(segundos){
@@ -924,13 +1025,59 @@
     });
   }
 
+  // Filmina de miniaturas — se generan con un <video> aparte (no el
+  // reproductor visible) para no interrumpir lo que se esté viendo.
+  async function generarFilmstrip(url, cantidad){
+    trimFilmstrip.innerHTML = '';
+    const vid = document.createElement('video');
+    vid.muted = true;
+    vid.preload = 'auto';
+    vid.src = url;
+    await new Promise(resolve => { vid.onloadedmetadata = resolve; });
+    const dur = vid.duration;
+    const canvas = document.createElement('canvas');
+    canvas.width = 80; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    for(let i = 0; i < cantidad; i++){
+      const t = Math.min(Math.max(dur - 0.05, 0), (dur * i) / cantidad);
+      await new Promise(resolve => { vid.onseeked = resolve; vid.currentTime = t; });
+      ctx.drawImage(vid, 0, 0, 80, 64);
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/jpeg', 0.55);
+      trimFilmstrip.appendChild(img);
+    }
+  }
+
+  uploadVideoFile.addEventListener('change', async () => {
+    const archivo = uploadVideoFile.files[0];
+    if(!archivo) return;
+    if(objectUrlSubido) URL.revokeObjectURL(objectUrlSubido);
+    objectUrlSubido = URL.createObjectURL(archivo);
+    onboardingVideo.pause();
+    onboardingVideo.src = objectUrlSubido;
+    onboardingVideo.load();
+    uploaderStatus.textContent = '';
+    downloadTrimLink.style.display = 'none';
+    onboardingVideo.onloadedmetadata = async () => {
+      duracionTotal = onboardingVideo.duration;
+      trimIni = 0;
+      trimFin = duracionTotal;
+      trimControls.style.display = 'flex';
+      pintarTimeline();
+      pintarPlayhead(0);
+      uploaderStatus.textContent = 'Generando miniaturas…';
+      await generarFilmstrip(objectUrlSubido, 12);
+      uploaderStatus.textContent = '';
+    };
+    if(uploadVideoTitle.value.trim()) onboardingLessonTitle.textContent = uploadVideoTitle.value.trim();
+  });
+
   previewTrimBtn.addEventListener('click', async () => {
-    const ini = Math.max(0, parseFloat(trimStart.value) || 0);
-    const fin = Math.min(onboardingVideo.duration, parseFloat(trimEnd.value) || onboardingVideo.duration);
-    await irA(ini);
+    await irA(trimIni);
     onboardingVideo.play();
     const onTime = () => {
-      if(onboardingVideo.currentTime >= fin){
+      pintarPlayhead(onboardingVideo.currentTime);
+      if(onboardingVideo.currentTime >= trimFin){
         onboardingVideo.pause();
         onboardingVideo.removeEventListener('timeupdate', onTime);
       }
@@ -939,10 +1086,9 @@
   });
 
   cutVideoBtn.addEventListener('click', async () => {
-    const ini = Math.max(0, parseFloat(trimStart.value) || 0);
-    const fin = Math.min(onboardingVideo.duration, parseFloat(trimEnd.value) || onboardingVideo.duration);
-    if(fin <= ini){
-      uploaderStatus.textContent = 'El "hasta" tiene que ser mayor al "desde".';
+    const ini = trimIni, fin = trimFin;
+    if(fin - ini < 0.3){
+      uploaderStatus.textContent = 'El recorte es demasiado corto.';
       return;
     }
     if(typeof onboardingVideo.captureStream !== 'function'){
@@ -966,6 +1112,7 @@
     await new Promise(resolve => {
       recorder.onstop = resolve;
       const onTime = () => {
+        pintarPlayhead(onboardingVideo.currentTime);
         if(onboardingVideo.currentTime >= fin){
           onboardingVideo.pause();
           onboardingVideo.removeEventListener('timeupdate', onTime);
