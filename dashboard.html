@@ -513,7 +513,10 @@
     background:var(--card); border:1px solid var(--border); border-radius:18px; padding:22px 20px;
   }
   .kpi-label{ font-size:13px; color:var(--text-dim); margin-bottom:10px; }
-  .kpi-value{ font-size:28px; font-weight:800; font-family:"Playfair Display",Georgia,serif; }
+  .kpi-value{
+    font-size:28px; font-weight:800; font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-variant-numeric:tabular-nums;
+  }
   .kpi-delta{ font-size:12.5px; margin-top:8px; font-weight:600; }
   .kpi-delta.up{ color:var(--green); }
   .kpi-delta.down{ color:#f0716c; }
@@ -557,7 +560,10 @@
   .gauge-svg-wrap{ position:relative; width:100%; max-width:220px; margin:0 auto; }
   .gauge-svg-wrap svg{ width:100%; height:auto; display:block; }
   .gauge-value-wrap{ position:absolute; left:0; right:0; bottom:6px; text-align:center; }
-  .gauge-value{ font-size:26px; font-weight:800; font-family:"Playfair Display",Georgia,serif; }
+  .gauge-value{
+    font-size:26px; font-weight:800; font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-variant-numeric:tabular-nums;
+  }
   .gauge-unit{ font-size:11px; color:var(--text-dim); letter-spacing:0.05em; text-transform:uppercase; }
   .gauge-range{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); max-width:220px; margin:2px auto 0; font-variant-numeric:tabular-nums; }
 
@@ -1842,10 +1848,12 @@
 
   // ===== Conexión al Google Sheet "Step Her Up - Tracker" (pestaña
   // publicada como CSV: Archivo → Compartir → Publicar en la web).
-  // Estructura esperada, una fila por día:
-  //   Fecha (DD/MM/AAAA) | Leads | Llamadas | Shows | Cierres | Ventas
-  // Alimenta los 5 Kpis y los gráficos de Llamadas por día / Ventas.
-  // "Matemática del éxito" sigue sin conectar. =====
+  // Estructura esperada, una fila por día (por setter):
+  //   Fecha (DD/MM/AAAA) | Setter | Fuente | Leads | Agendadas | Shows | Cierres | Ventas
+  // Ojo con "Agendadas": es la cantidad de llamadas AGENDADAS ese día
+  // (turnos que se sacaron), no la cantidad de llamadas/DMs hechos
+  // para conseguirlas — son cosas distintas y el Sheet las venía
+  // mezclando bajo la columna "Llamadas". =====
   const SHEET_TRACKER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=0&single=true&output=csv';
 
   // ===== Ranking Factor — pestaña APARTE del mismo Google Sheet, llamada
@@ -1939,7 +1947,7 @@
         setter: header.indexOf('setter'),
         fuente: header.indexOf('fuente'),
         leads: header.indexOf('leads'),
-        llamadas: header.indexOf('llamadas'),
+        llamadas: header.indexOf('agendadas'),
         shows: header.indexOf('shows'),
         cierres: header.indexOf('cierres'),
         ventas: header.indexOf('ventas'),
