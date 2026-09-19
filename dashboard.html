@@ -429,6 +429,12 @@
             <span class="entry-option-sub">Ver métricas del mes actual</span>
           </span>
         </button>
+        <button type="button" class="entry-option" id="goRankingBtn">
+          <span class="entry-option-text">
+            <span class="entry-option-title">Ranking</span>
+            <span class="entry-option-sub">Ver ranking de closers</span>
+          </span>
+        </button>
       </div>
     </div>
   </section>
@@ -493,7 +499,7 @@
       <div class="ti-glow"></div>
       <div class="ti-comet"></div>
     </div>
-    <div class="transition-text">Preparando tu dashboard…</div>
+    <div class="transition-text" id="transitionText">Preparando tu dashboard…</div>
   </section>
 
   <!-- ===================== PANTALLA 3: Dashboard ===================== -->
@@ -629,7 +635,7 @@
         </div>
       </header>
 
-      <div class="section-label" id="ranking">Ranking Factor</div>
+      <div class="section-label" id="ranking">Ranking</div>
       <div class="gauge-grid">
         <div class="gauge-card">
           <div class="gauge-label">Cash del mes</div>
@@ -711,35 +717,48 @@
   }
   let mesElegido = nombreMes(new Date());
 
-  // ===== Entrada: Onboarding / Dashboard =====
-  document.getElementById('goOnboardingBtn').addEventListener('click', () => {
-    showScreen(onboardingScreen);
-  });
-
-  function entrarAlDashboard(){
-    document.getElementById('dashMonthLabel').textContent = mesElegido;
+  // ===== Cambio de sección — SIEMPRE pasa por la pantalla de transición
+  // (animación del logo, 2s), sea que se entre desde el inicio o que se
+  // cambie desde el selector "Secciones ▾" de cualquier cabecera. =====
+  const transitionText = document.getElementById('transitionText');
+  function cambiarDeSeccion(destino, label, despues){
+    transitionText.textContent = 'Cargando ' + label + '…';
     showScreen(transitionScreen);
     setTimeout(() => {
-      showScreen(dashboardScreen);
-      cargarYPintarDatosMes();
+      showScreen(destino);
+      if(despues) despues();
     }, 2000);
+  }
+
+  function entrarAlOnboarding(){
+    cambiarDeSeccion(onboardingScreen, 'Onboarding');
+  }
+  document.getElementById('goOnboardingBtn').addEventListener('click', entrarAlOnboarding);
+
+  function entrarAlDashboard(){
+    cambiarDeSeccion(dashboardScreen, 'Dashboard', () => {
+      document.getElementById('dashMonthLabel').textContent = mesElegido;
+      cargarYPintarDatosMes();
+    });
   }
   document.getElementById('goDashboardBtn').addEventListener('click', entrarAlDashboard);
 
   function entrarAlRanking(){
-    document.getElementById('rankingMonthLabel').textContent = mesElegido;
-    showScreen(rankingScreen);
-    cargarYPintarRanking();
+    cambiarDeSeccion(rankingScreen, 'Ranking', () => {
+      document.getElementById('rankingMonthLabel').textContent = mesElegido;
+      cargarYPintarRanking();
+    });
   }
+  document.getElementById('goRankingBtn').addEventListener('click', entrarAlRanking);
 
   // ===== Selector de secciones — aparece en la cabecera del dashboard,
   // la del onboarding y la del ranking, con la misma lista en las tres.
   // El día que se agregue otra parte a la plataforma, alcanza con
   // sumarla acá — no hay que tocar el HTML de ninguna cabecera. =====
   const SECCIONES = [
-    { id: 'onboarding', label: 'Onboarding', activa: () => onboardingScreen.classList.contains('active'), ir: () => showScreen(onboardingScreen) },
+    { id: 'onboarding', label: 'Onboarding', activa: () => onboardingScreen.classList.contains('active'), ir: entrarAlOnboarding },
     { id: 'dashboard', label: 'Dashboard', activa: () => dashboardScreen.classList.contains('active'), ir: entrarAlDashboard },
-    { id: 'ranking', label: 'Ranking Factor', activa: () => rankingScreen.classList.contains('active'), ir: entrarAlRanking },
+    { id: 'ranking', label: 'Ranking', activa: () => rankingScreen.classList.contains('active'), ir: entrarAlRanking },
   ];
 
   function cerrarSwitchersSecciones(){
