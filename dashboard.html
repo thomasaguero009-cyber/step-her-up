@@ -276,6 +276,10 @@
   .file-picker{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .file-picker-name{ font-size:13px; color:var(--text-dim); }
   .uploader-editing-label{ font-size:12.5px; color:var(--blush); font-weight:700; }
+  .uploader-temp-aviso{
+    font-size:12.5px; line-height:1.5; color:var(--cream);
+    background:rgba(240,113,108,0.12); border:1px solid #f0716c; border-radius:10px; padding:10px 14px;
+  }
 
   /* Botones del panel de edición — más grandes que un link fantasma
      común, porque son la acción principal de esa zona, no un detalle
@@ -323,39 +327,6 @@
   }
   .btn-small:disabled{ opacity:0.5; cursor:not-allowed; }
   .uploader-status{ font-size:12.5px; color:var(--text-dim); }
-  .uploader-download-link{ font-size:13px; color:var(--blush); text-decoration:none; font-weight:600; }
-  .uploader-download-link:hover{ text-decoration:underline; }
-
-  /* Barra de progreso del EXPORTAR (la opción lenta, aparte de "Usar
-     este recorte" que es instantánea — ver JS). Bien grande y en su
-     propia tarjeta con borde rosa para que no pase desapercibida
-     entre el resto de los controles, que son más chicos. */
-  .cut-progress-wrap{
-    display:none; flex-direction:column; gap:10px;
-    background:rgba(232,138,168,0.1); border:1px solid var(--blush-2); border-radius:14px; padding:16px 18px;
-  }
-  .cut-progress-wrap.show{ display:flex; }
-  .cut-progress-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .cut-progress-title{ font-size:13.5px; font-weight:700; color:var(--cream); }
-  .cut-progress-label{ font-size:18px; font-weight:800; color:var(--blush); font-variant-numeric:tabular-nums; flex-shrink:0; }
-  .cut-progress-track{
-    height:16px; border-radius:999px; background:rgba(255,255,255,0.14); overflow:hidden; position:relative;
-  }
-  .cut-progress-fill{
-    height:100%; width:0%; border-radius:999px; position:relative; overflow:hidden;
-    background:linear-gradient(90deg, var(--wine-3), var(--blush));
-    transition:width .2s linear;
-  }
-  .cut-progress-fill::after{
-    content:''; position:absolute; top:0; bottom:0; width:90px;
-    background:linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
-    animation:cut-shimmer 1.1s linear infinite;
-  }
-  @keyframes cut-shimmer{
-    0%{ transform:translateX(-90px); }
-    100%{ transform:translateX(420px); }
-  }
-  .cut-progress-sub{ font-size:12.5px; color:var(--text-dim); }
 
   .onboarding-body{ flex:1; display:flex; gap:14px; min-height:0; }
   .onboarding-lesson-col{ display:flex; flex-direction:column; gap:10px; width:230px; flex-shrink:0; min-height:0; }
@@ -393,6 +364,10 @@
   .lesson-item .drag-handle:active{ cursor:grabbing; }
   .lesson-item-dot{
     flex-shrink:0; width:7px; height:7px; border-radius:50%; background:var(--blush-2); opacity:0.8;
+  }
+  .lesson-item-temp{
+    flex-shrink:0; font-size:10px; font-weight:700; letter-spacing:0.03em; color:#f0716c;
+    border:1px solid #f0716c; border-radius:5px; padding:2px 5px;
   }
   .onboarding-player-col{ flex:1; display:flex; flex-direction:column; gap:12px; min-height:0; min-width:0; }
   .onboarding-player{
@@ -683,6 +658,9 @@
 
       <div class="uploader-panel" id="uploaderPanel">
         <div class="uploader-editing-label" id="editandoLabel">Editando: 1. Bienvenida a Step Her Up</div>
+        <div class="uploader-temp-aviso" id="uploaderTempAviso" style="display:none;">
+          ⚠ Este video es temporal: solo se ve en <b>este navegador</b>, en esta pestaña. No hay botón de "Guardar" porque no hay ningún servidor donde subirlo — para que lo vea todo el equipo, mandame el archivo del video (el mismo que subiste acá) y lo subo yo a la plataforma.
+        </div>
         <div class="uploader-row">
           <label for="uploadVideoTitle">Nombre del video (queda como título del botón)</label>
           <input type="text" id="uploadVideoTitle" placeholder="Ej: 3. Cómo funciona el programa">
@@ -720,22 +698,6 @@
             <button type="button" class="btn-small" id="cutVideoBtn">Usar este recorte</button>
           </div>
           <div class="uploader-status" id="uploaderStatus"></div>
-
-          <div class="uploader-row" style="margin-top:6px;">
-            <label>¿Necesitás el archivo aparte para mandármelo? (esto sí tarda, ver abajo)</label>
-            <div class="uploader-actions">
-              <button type="button" class="ghost-link-btn" id="exportVideoBtn">Exportar recorte para descargar</button>
-            </div>
-            <div class="cut-progress-wrap" id="cutProgressWrap">
-              <div class="cut-progress-top">
-                <span class="cut-progress-title">Exportando el recorte…</span>
-                <span class="cut-progress-label" id="cutProgressLabel">0%</span>
-              </div>
-              <div class="cut-progress-track"><div class="cut-progress-fill" id="cutProgressFill"></div></div>
-              <div class="cut-progress-sub" id="cutProgressSub">No cierres la pestaña.</div>
-            </div>
-            <a id="downloadTrimLink" class="uploader-download-link" style="display:none;">Descargar el recorte</a>
-          </div>
         </div>
       </div>
 
@@ -1198,6 +1160,7 @@
   const editPasswordConfirm = document.getElementById('editPasswordConfirm');
   const uploaderPanel = document.getElementById('uploaderPanel');
   const editandoLabel = document.getElementById('editandoLabel');
+  const uploaderTempAviso = document.getElementById('uploaderTempAviso');
 
   let modoEdicion = false;
   try { modoEdicion = localStorage.getItem('shu_admin_ok') === '1'; } catch(e){}
@@ -1215,8 +1178,8 @@
     uploadVideoDescripcion.value = lec.descripcion || '';
     uploadVideoFileName.textContent = 'Ningún archivo seleccionado';
     trimControls.style.display = 'none';
-    downloadTrimLink.style.display = 'none';
     uploaderStatus.textContent = '';
+    uploaderTempAviso.style.display = (lec.videoUrl && lec.videoUrl.startsWith('blob:')) ? 'block' : 'none';
   }
   function entrarModoEdicion(){
     modoEdicion = true;
@@ -1320,6 +1283,7 @@
       <button type="button" class="lesson-item${lec.id === leccionActivaId ? ' active' : ''}" data-id="${lec.id}" draggable="${modoEdicion}">
         ${modoEdicion ? '<span class="drag-handle">' + ICONO_DRAG + '</span>' : ''}
         <span class="lesson-item-label">${escapeHtml(lec.titulo)}</span>
+        ${(modoEdicion && lec.videoUrl && lec.videoUrl.startsWith('blob:')) ? '<span class="lesson-item-temp" title="Video temporal: solo se ve en este navegador">TEMP</span>' : ''}
         ${!lec.videoUrl ? '<span class="lesson-item-dot" title="Sin video todavía"></span>' : ''}
       </button>
     `).join('');
@@ -1551,12 +1515,6 @@
   const previewTrimBtn = document.getElementById('previewTrimBtn');
   const cutVideoBtn = document.getElementById('cutVideoBtn');
   const uploaderStatus = document.getElementById('uploaderStatus');
-  const downloadTrimLink = document.getElementById('downloadTrimLink');
-  const cutProgressWrap = document.getElementById('cutProgressWrap');
-  const cutProgressFill = document.getElementById('cutProgressFill');
-  const cutProgressLabel = document.getElementById('cutProgressLabel');
-  const cutProgressSub = document.getElementById('cutProgressSub');
-  const exportVideoBtn = document.getElementById('exportVideoBtn');
 
   uploadVideoFileBtn.addEventListener('click', () => uploadVideoFile.click());
 
@@ -1681,7 +1639,7 @@
 
     cargarVideoDeLeccion(lec);
     uploaderStatus.textContent = '';
-    downloadTrimLink.style.display = 'none';
+    uploaderTempAviso.style.display = 'block';
     onboardingVideo.onloadedmetadata = async () => {
       duracionTotal = onboardingVideo.duration;
       trimIni = 0;
@@ -1743,78 +1701,6 @@
     guardarLecciones();
     cargarVideoDeLeccion(lec);
     uploaderStatus.textContent = 'Listo, ya está aplicado — esto no tarda nada porque no se vuelve a grabar el video.';
-  });
-
-  // "Exportar recorte para descargar" — esta es la opción LENTA y
-  // OPCIONAL, solo para cuando hace falta un archivo aparte (por
-  // ejemplo, para mandármelo y subirlo al repositorio). Como no hay
-  // backend, la única forma de generar ese archivo desde el navegador
-  // es grabando la reproducción en tiempo real con MediaRecorder — por
-  // eso tarda lo mismo que dura el recorte. No hace falta usar esto
-  // para que el recorte funcione en el onboarding: eso ya quedó
-  // aplicado al toque con "Usar este recorte".
-  exportVideoBtn.addEventListener('click', async () => {
-    const ini = trimIni, fin = trimFin;
-    if(fin - ini < 0.3){
-      uploaderStatus.textContent = 'El recorte es demasiado corto.';
-      return;
-    }
-    if(typeof onboardingVideo.captureStream !== 'function'){
-      uploaderStatus.textContent = 'Este navegador no deja exportar video acá adentro — probá con Chrome.';
-      return;
-    }
-    cutVideoBtn.disabled = true;
-    previewTrimBtn.disabled = true;
-    exportVideoBtn.disabled = true;
-    uploadVideoFileBtn.disabled = true;
-    uploadVideoTitle.disabled = true;
-    downloadTrimLink.style.display = 'none';
-    cutProgressWrap.classList.add('show');
-    cutProgressFill.style.width = '0%';
-    cutProgressLabel.textContent = '0%';
-    cutProgressSub.textContent = 'No cierres la pestaña — tarda ' + Math.round(fin - ini) + 's (lo que dura el recorte).';
-
-    const tiempoOriginal = onboardingVideo.currentTime;
-    const stream = onboardingVideo.captureStream();
-    let recorder;
-    try { recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' }); }
-    catch(e){ recorder = new MediaRecorder(stream); }
-    const partes = [];
-    recorder.ondataavailable = (e) => { if(e.data.size > 0) partes.push(e.data); };
-
-    await irA(ini);
-    recorder.start();
-    onboardingVideo.play();
-    await new Promise(resolve => {
-      recorder.onstop = resolve;
-      const onTime = () => {
-        pintarPlayhead(onboardingVideo.currentTime);
-        const pct = Math.min(100, Math.round((onboardingVideo.currentTime - ini) / (fin - ini) * 100));
-        cutProgressFill.style.width = pct + '%';
-        cutProgressLabel.textContent = pct + '%';
-        if(onboardingVideo.currentTime >= fin){
-          onboardingVideo.pause();
-          onboardingVideo.removeEventListener('timeupdate', onTime);
-          recorder.stop();
-        }
-      };
-      onboardingVideo.addEventListener('timeupdate', onTime);
-    });
-
-    onboardingVideo.onloadedmetadata = null;
-    const blob = new Blob(partes, { type: 'video/webm' });
-    const urlExportado = URL.createObjectURL(blob);
-    onboardingVideo.currentTime = tiempoOriginal;
-    downloadTrimLink.href = urlExportado;
-    downloadTrimLink.download = (uploadVideoTitle.value.trim() || 'video-recortado') + '.webm';
-    downloadTrimLink.style.display = 'inline-block';
-    cutProgressWrap.classList.remove('show');
-    uploaderStatus.textContent = 'Listo — descargalo y pasámelo si querés dejarlo visible para todos.';
-    cutVideoBtn.disabled = false;
-    previewTrimBtn.disabled = false;
-    exportVideoBtn.disabled = false;
-    uploadVideoFileBtn.disabled = false;
-    uploadVideoTitle.disabled = false;
   });
 
   seleccionarLeccion(leccionActivaId);
