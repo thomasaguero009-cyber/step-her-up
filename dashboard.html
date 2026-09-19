@@ -533,7 +533,7 @@
   .value-grid{ display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; max-width:520px; margin:0 0 44px; }
   @media(max-width:520px){ .value-grid{ grid-template-columns:1fr; } }
 
-  /* Performance por setter / Leads por fuente — cantidad de tarjetas
+  /* Performance por setter / Llamadas por fuente — cantidad de tarjetas
      variable (depende de cuántos nombres/fuentes distintos aparezcan
      en el Sheet ese mes), por eso auto-fill en vez de una columna fija. */
   .breakdown-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:16px; margin-bottom:10px; }
@@ -848,13 +848,15 @@
         <a href="#fuentes" class="quick-nav-btn">Fuentes</a>
       </div>
 
-      <!-- Embudo: Leads → Llamadas agendadas → Shows → Cierres → Ventas.
-           Todavía sin datos reales (ver drawChart/empty-state más abajo),
-           así que quedan en "–" hasta conectar el Google Sheet. -->
+      <!-- Embudo: Llamadas → Agendadas → Shows → Cierres → Ventas.
+           "Llamadas" = llamadas que efectivamente hace el setter (lo que
+           antes vivía, medio a los ponchazos, en la columna "Leads" del
+           Sheet). "Agendadas" es lo que resulta de esas llamadas: cuántas
+           terminan en un turno agendado. -->
       <div class="section-label" id="kpis">Kpis</div>
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">Leads al funnel</div>
+          <div class="kpi-label">Llamadas</div>
           <div class="kpi-value" id="kpiLeads">–</div>
         </div>
         <div class="kpi-card">
@@ -898,7 +900,7 @@
           <div class="kpi-value" id="mateTicket">–</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Revenue por lead</div>
+          <div class="kpi-label">Revenue por llamada</div>
           <div class="kpi-value" id="mateRevenueLead">–</div>
         </div>
       </div>
@@ -918,7 +920,7 @@
           <div class="kpi-value" id="mateCierre">–</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Conversión total (lead → venta)</div>
+          <div class="kpi-label">Conversión total (llamada → venta)</div>
           <div class="kpi-value" id="mateConversion">–</div>
         </div>
       </div>
@@ -928,7 +930,7 @@
       <div class="breakdown-grid" id="settersGrid"></div>
       <div class="chart-status" id="statusSetters" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
 
-      <div class="section-label" id="fuentes">Leads por fuente</div>
+      <div class="section-label" id="fuentes">Llamadas por fuente</div>
       <div class="breakdown-grid" id="fuentesGrid"></div>
       <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
 
@@ -1849,11 +1851,10 @@
   // ===== Conexión al Google Sheet "Step Her Up - Tracker" (pestaña
   // publicada como CSV: Archivo → Compartir → Publicar en la web).
   // Estructura esperada, una fila por día (por setter):
-  //   Fecha (DD/MM/AAAA) | Setter | Fuente | Leads | Agendadas | Shows | Cierres | Ventas
-  // Ojo con "Agendadas": es la cantidad de llamadas AGENDADAS ese día
-  // (turnos que se sacaron), no la cantidad de llamadas/DMs hechos
-  // para conseguirlas — son cosas distintas y el Sheet las venía
-  // mezclando bajo la columna "Llamadas". =====
+  //   Fecha (DD/MM/AAAA) | Setter | Fuente | Llamadas | Agendadas | Shows | Cierres | Ventas
+  // "Llamadas" = llamadas que efectivamente hizo el setter ese día.
+  // "Agendadas" = de esas llamadas, cuántas terminaron en un turno
+  // agendado — son cosas distintas, no hay que confundirlas. =====
   const SHEET_TRACKER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=0&single=true&output=csv';
 
   // ===== Ranking Factor — pestaña APARTE del mismo Google Sheet, llamada
@@ -1952,8 +1953,8 @@
         fecha: idxDe('fecha'),
         setter: idxDe('setter'),
         fuente: idxDe('fuente'),
-        leads: idxDe('leads'),
-        llamadas: idxDe('agendadas', 'agendas', 'llamadas agendadas', 'llamadas'),
+        llamadas: idxDe('llamadas', 'leads'),
+        agendadas: idxDe('agendadas', 'agendas', 'llamadas agendadas'),
         shows: idxDe('shows'),
         cierres: idxDe('cierres'),
         ventas: idxDe('ventas'),
@@ -1967,8 +1968,8 @@
           fecha,
           setter: (idx.setter > -1 && r[idx.setter] ? r[idx.setter].trim() : '') || 'Sin asignar',
           fuente: (idx.fuente > -1 && r[idx.fuente] ? r[idx.fuente].trim() : '') || 'Sin asignar',
-          leads: parseNumSheet(r[idx.leads]),
           llamadas: parseNumSheet(r[idx.llamadas]),
+          agendadas: parseNumSheet(r[idx.agendadas]),
           shows: parseNumSheet(r[idx.shows]),
           cierres: parseNumSheet(r[idx.cierres]),
           ventas: parseNumSheet(r[idx.ventas]),
@@ -2024,7 +2025,7 @@
     const dias = new Date(anio, mes + 1, 0).getDate();
     const llamadas = new Array(dias).fill(0);
     const ventas = new Array(dias).fill(0);
-    let totLeads = 0, totLlamadas = 0, totShows = 0, totCierres = 0, totVentas = 0, huboDatos = false;
+    let totLlamadas = 0, totAgendadas = 0, totShows = 0, totCierres = 0, totVentas = 0, huboDatos = false;
     const porSetter = new Map();
     const porFuente = new Map();
 
@@ -2034,20 +2035,20 @@
       const dia = f.fecha.getDate() - 1;
       llamadas[dia] += f.llamadas;
       ventas[dia] += f.ventas;
-      totLeads += f.leads; totLlamadas += f.llamadas; totShows += f.shows;
+      totLlamadas += f.llamadas; totAgendadas += f.agendadas; totShows += f.shows;
       totCierres += f.cierres; totVentas += f.ventas;
 
-      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { llamadas:0, shows:0, cierres:0, ventas:0 });
+      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { agendadas:0, shows:0, cierres:0, ventas:0 });
       const s = porSetter.get(f.setter);
-      s.llamadas += f.llamadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
+      s.agendadas += f.agendadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
 
-      if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { leads:0, ventas:0 });
+      if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { llamadas:0, ventas:0 });
       const fu = porFuente.get(f.fuente);
-      fu.leads += f.leads; fu.ventas += f.ventas;
+      fu.llamadas += f.llamadas; fu.ventas += f.ventas;
     });
 
-    document.getElementById('kpiLeads').textContent = huboDatos ? totLeads.toLocaleString('es-AR') : '–';
-    document.getElementById('kpiLlamadas').textContent = huboDatos ? totLlamadas.toLocaleString('es-AR') : '–';
+    document.getElementById('kpiLeads').textContent = huboDatos ? totLlamadas.toLocaleString('es-AR') : '–';
+    document.getElementById('kpiLlamadas').textContent = huboDatos ? totAgendadas.toLocaleString('es-AR') : '–';
     document.getElementById('kpiShows').textContent = huboDatos ? totShows.toLocaleString('es-AR') : '–';
     document.getElementById('kpiCierres').textContent = huboDatos ? totCierres.toLocaleString('es-AR') : '–';
     document.getElementById('kpiVentas').textContent = huboDatos ? ('$' + totVentas.toLocaleString('es-AR')) : '–';
@@ -2066,17 +2067,17 @@
     // en el Sheet). Cada una se cuida de no dividir por cero. =====
     const pct = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + '%' : '–';
     const money = (num, den) => den > 0 ? '$' + Math.round(num / den).toLocaleString('es-AR') : '–';
-    document.getElementById('mateAgendado').textContent = huboDatos ? pct(totLlamadas, totLeads) : '–';
-    document.getElementById('mateShowRate').textContent = huboDatos ? pct(totShows, totLlamadas) : '–';
+    document.getElementById('mateAgendado').textContent = huboDatos ? pct(totAgendadas, totLlamadas) : '–';
+    document.getElementById('mateShowRate').textContent = huboDatos ? pct(totShows, totAgendadas) : '–';
     document.getElementById('mateCierre').textContent = huboDatos ? pct(totCierres, totShows) : '–';
-    document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totLeads) : '–';
+    document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totLlamadas) : '–';
     document.getElementById('mateTicket').textContent = huboDatos ? money(totVentas, totCierres) : '–';
-    document.getElementById('mateRevenueLead').textContent = huboDatos ? money(totVentas, totLeads) : '–';
+    document.getElementById('mateRevenueLead').textContent = huboDatos ? money(totVentas, totLlamadas) : '–';
     document.getElementById('statusMatematica').textContent = statusTxt;
 
-    // ===== Performance por setter / Leads por fuente — una tarjeta por
-    // cada nombre distinto que aparezca ese mes en las columnas Setter
-    // y Fuente del Sheet (cantidad variable, no fija). =====
+    // ===== Performance por setter / Llamadas por fuente — una tarjeta
+    // por cada nombre distinto que aparezca ese mes en las columnas
+    // Setter y Fuente del Sheet (cantidad variable, no fija). =====
     renderBreakdownSetters(porSetter);
     renderBreakdownFuentes(porFuente, totVentas);
     document.getElementById('statusSetters').textContent = statusTxt;
@@ -2092,11 +2093,11 @@
     const nombres = [...mapa.keys()].sort((a,b) => mapa.get(b).ventas - mapa.get(a).ventas);
     grid.innerHTML = nombres.map(nombre => {
       const s = mapa.get(nombre);
-      const showRate = s.llamadas > 0 ? Math.round(s.shows / s.llamadas * 100) + '%' : '–';
+      const showRate = s.agendadas > 0 ? Math.round(s.shows / s.agendadas * 100) + '%' : '–';
       const cierreRate = s.shows > 0 ? Math.round(s.cierres / s.shows * 100) + '%' : '–';
       return `<div class="breakdown-card">
         <h4>${escapeHtml(nombre)}</h4>
-        <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${s.llamadas.toLocaleString('es-AR')}</span></div>
+        <div class="breakdown-stat-row"><span class="label">Agendadas</span><span class="val">${s.agendadas.toLocaleString('es-AR')}</span></div>
         <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${s.shows.toLocaleString('es-AR')} (${showRate})</span></div>
         <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${s.cierres.toLocaleString('es-AR')} (${cierreRate})</span></div>
         <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(s.ventas).toLocaleString('es-AR')}</span></div>
@@ -2112,7 +2113,7 @@
       const pctVentas = totalVentas > 0 ? Math.round(f.ventas / totalVentas * 100) + '%' : '–';
       return `<div class="breakdown-card">
         <h4>${escapeHtml(nombre)}</h4>
-        <div class="breakdown-stat-row"><span class="label">Leads</span><span class="val">${f.leads.toLocaleString('es-AR')}</span></div>
+        <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${f.llamadas.toLocaleString('es-AR')}</span></div>
         <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(f.ventas).toLocaleString('es-AR')} (${pctVentas})</span></div>
       </div>`;
     }).join('');
