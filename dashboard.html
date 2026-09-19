@@ -1942,15 +1942,21 @@
       const texto = await fetchTextConTimeout(SHEET_TRACKER_CSV_URL, 8000);
       const filas = parseCSVSheet(texto);
       const header = (filas[0] || []).map(h => h.trim().toLowerCase());
+      // Acepta variantes cercanas del nombre de cada columna (typos como
+      // "Agendas" en vez de "Agendadas" no deberían romper el dashboard).
+      const idxDe = (...opciones) => {
+        for(const o of opciones){ const i = header.indexOf(o); if(i > -1) return i; }
+        return -1;
+      };
       const idx = {
-        fecha: header.indexOf('fecha'),
-        setter: header.indexOf('setter'),
-        fuente: header.indexOf('fuente'),
-        leads: header.indexOf('leads'),
-        llamadas: header.indexOf('agendadas'),
-        shows: header.indexOf('shows'),
-        cierres: header.indexOf('cierres'),
-        ventas: header.indexOf('ventas'),
+        fecha: idxDe('fecha'),
+        setter: idxDe('setter'),
+        fuente: idxDe('fuente'),
+        leads: idxDe('leads'),
+        llamadas: idxDe('agendadas', 'agendas', 'llamadas agendadas', 'llamadas'),
+        shows: idxDe('shows'),
+        cierres: idxDe('cierres'),
+        ventas: idxDe('ventas'),
       };
       const datos = [];
       for(let i=1;i<filas.length;i++){
