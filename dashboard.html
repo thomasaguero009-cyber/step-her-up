@@ -414,7 +414,8 @@
     border-radius:16px; padding:12px; margin-bottom:30px;
   }
   .quick-nav-btn{
-    flex:1; min-width:140px; text-align:center; text-decoration:none; color:var(--cream);
+    flex:1; min-width:140px; display:flex; align-items:center; justify-content:center; text-align:center;
+    text-decoration:none; color:var(--cream);
     background:rgba(255,255,255,0.05); border:1px solid transparent; border-radius:11px;
     padding:12px 14px; font-size:14px; font-weight:600; transition:background .18s ease, border-color .18s ease;
   }
@@ -740,7 +741,7 @@
         </div>
       </div>
 
-      <div class="section-label" id="llamadas">Llamadas por día</div>
+      <div class="section-label" id="llamadas">Llamadas</div>
       <div class="chart-panel">
         <div class="chart-wrap">
           <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
@@ -749,7 +750,7 @@
         <div class="chart-status" id="statusLlamadas">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
-      <div class="section-label" id="ventas">Ventas en lo que va del mes</div>
+      <div class="section-label" id="ventas">Ventas</div>
       <div class="chart-panel">
         <div class="chart-wrap">
           <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartVentas"></svg>
@@ -1700,8 +1701,14 @@
     document.getElementById('kpiCierres').textContent = huboDatos ? totCierres.toLocaleString('es-AR') : '–';
     document.getElementById('kpiVentas').textContent = huboDatos ? ('$' + totVentas.toLocaleString('es-AR')) : '–';
 
-    drawChart('chartLlamadas', 'tooltipLlamadas', llamadas, '#8fb8f0');
-    drawChart('chartVentas', 'tooltipVentas', ventas, '#f0a8be');
+    // Si el mes elegido es el mes en curso, el gráfico corta en el día
+    // de hoy — no tiene sentido dibujar en 0 los días que todavía no
+    // pasaron. En un mes ya cerrado se ve completo, como antes.
+    const hoy = new Date();
+    const esMesEnCurso = anio === hoy.getFullYear() && mes === hoy.getMonth();
+    const diasAMostrar = esMesEnCurso ? hoy.getDate() : dias;
+    drawChart('chartLlamadas', 'tooltipLlamadas', llamadas.slice(0, diasAMostrar), '#8fb8f0');
+    drawChart('chartVentas', 'tooltipVentas', ventas.slice(0, diasAMostrar), '#f0a8be');
 
     const statusTxt = huboDatos
       ? 'Datos en vivo — ' + mesElegido
