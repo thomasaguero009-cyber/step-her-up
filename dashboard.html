@@ -344,12 +344,18 @@
     transition:background .15s ease, border-color .15s ease, color .15s ease;
   }
   .lesson-add-btn:hover{ background:rgba(255,255,255,0.06); border-color:var(--blush-2); color:var(--cream); }
-  .lesson-trash-zone{
-    display:flex; align-items:center; justify-content:center; gap:8px;
-    border:1px dashed var(--border); border-radius:10px; padding:12px 14px;
-    font-size:12.5px; color:var(--text-dim); transition:background .15s ease, border-color .15s ease, color .15s ease;
+  .lesson-add-row{ display:flex; gap:8px; }
+  .lesson-add-row input{
+    flex:1; min-width:0; background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:10px;
+    padding:10px 12px; font-size:13px; color:var(--cream); font-family:inherit;
   }
-  .lesson-trash-zone.armed{ background:rgba(240,113,108,0.14); border-color:#f0716c; color:#f0716c; }
+  .lesson-add-row .lesson-add-btn{ flex-shrink:0; padding:10px 16px; }
+  .lesson-admin-hint{ font-size:11.5px; line-height:1.5; color:var(--text-dim); }
+  .lesson-item-delete{
+    flex-shrink:0; background:transparent; border:none; color:var(--text-dim); cursor:pointer;
+    padding:2px 4px; font-size:15px; line-height:1; border-radius:5px;
+  }
+  .lesson-item-delete:hover{ color:#f0716c; background:rgba(240,113,108,0.14); }
   .lesson-item{
     display:flex; align-items:center; gap:9px; text-align:left; background:var(--card);
     border:1px solid var(--border); border-radius:10px;
@@ -701,7 +707,11 @@
         <div class="onboarding-lesson-col">
           <div class="onboarding-lesson-list" id="onboardingLessonList"></div>
           <div class="lesson-admin-controls" id="lessonAdminControls" style="display:none;">
-            Para agregar, sacar o reordenar lecciones, editá la pestaña "Lecciones" del Google Sheet (columna Orden).
+            <div class="lesson-add-row">
+              <input type="text" id="lessonNewTitulo" placeholder="Título de la nueva lección">
+              <button type="button" class="lesson-add-btn" id="lessonAddBtn">+ Agregar</button>
+            </div>
+            <div class="lesson-admin-hint">Arrastrá una lección para reordenarla. El video, la descripción o el título de una ya creada se editan en la pestaña "Lecciones" del Sheet.</div>
           </div>
         </div>
         <div class="onboarding-player-col">
@@ -1096,6 +1106,8 @@
   const onboardingLessonTitle = document.getElementById('onboardingLessonTitle');
   const onboardingLessonList = document.getElementById('onboardingLessonList');
   const lessonAdminControls = document.getElementById('lessonAdminControls');
+  const lessonAddBtn = document.getElementById('lessonAddBtn');
+  const lessonNewTitulo = document.getElementById('lessonNewTitulo');
   const onboardingVideo = document.getElementById('onboardingVideo');
   const onboardingIframe = document.getElementById('onboardingIframe');
   const videoShell = document.getElementById('videoShell');
@@ -1103,6 +1115,8 @@
   const videoCenterBtn = document.getElementById('videoCenterBtn');
   const videoControlsBar = document.getElementById('videoControlsBar');
   const videoDescription = document.getElementById('videoDescription');
+
+  const ICONO_DRAG = '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="8" cy="6" r="1.6" fill="currentColor"></circle><circle cx="8" cy="12" r="1.6" fill="currentColor"></circle><circle cx="8" cy="18" r="1.6" fill="currentColor"></circle><circle cx="16" cy="6" r="1.6" fill="currentColor"></circle><circle cx="16" cy="12" r="1.6" fill="currentColor"></circle><circle cx="16" cy="18" r="1.6" fill="currentColor"></circle></svg>';
 
   // ===== Modo edición — gateado con una contraseña simple. Ojo: esto
   // NO es seguridad real (el sitio es estático, cualquiera puede leer
@@ -1260,17 +1274,110 @@
 
   function renderLeccionList(){
     onboardingLessonList.innerHTML = LECCIONES.map(lec => `
-      <button type="button" class="lesson-item${lec.id === leccionActivaId ? ' active' : ''}" data-id="${lec.id}">
+      <div class="lesson-item${lec.id === leccionActivaId ? ' active' : ''}" data-id="${lec.id}" draggable="${modoEdicion}">
+        ${modoEdicion ? '<span class="drag-handle">' + ICONO_DRAG + '</span>' : ''}
         <span class="lesson-item-label">${escapeHtml(lec.titulo)}</span>
         ${(modoEdicion && lec.videoUrl && lec.videoUrl.startsWith('blob:')) ? '<span class="lesson-item-temp" title="Video de prueba: solo se ve en este navegador">TEMP</span>' : ''}
         ${!lec.videoUrl ? '<span class="lesson-item-dot" title="Sin video todavía"></span>' : ''}
-      </button>
+        ${modoEdicion ? '<button type="button" class="lesson-item-delete" title="Eliminar lección">✕</button>' : ''}
+      </div>
     `).join('');
 
-    onboardingLessonList.querySelectorAll('.lesson-item').forEach(btn => {
-      btn.addEventListener('click', () => seleccionarLeccion(btn.dataset.id));
+    onboardingLessonList.querySelectorAll('.lesson-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        if(e.target.closest('.drag-handle') || e.target.closest('.lesson-item-delete')) return;
+        seleccionarLeccion(item.dataset.id);
+      });
+      const delBtn = item.querySelector('.lesson-item-delete');
+      if(delBtn){
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          eliminarLeccion(item.dataset.id);
+        });
+      }
+      if(!modoEdicion) return;
+      item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.dataset.id);
+        item.classList.add('dragging');
+      });
+      item.addEventListener('dragend', () => item.classList.remove('dragging'));
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const arrastrando = onboardingLessonList.querySelector('.dragging');
+        if(!arrastrando || arrastrando === item) return;
+        const rect = item.getBoundingClientRect();
+        const antes = (e.clientY - rect.top) < rect.height / 2;
+        onboardingLessonList.insertBefore(arrastrando, antes ? item : item.nextSibling);
+      });
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const nuevoOrden = [...onboardingLessonList.querySelectorAll('.lesson-item')].map(el => obtenerLeccion(el.dataset.id).titulo);
+        guardarOrdenLecciones(nuevoOrden);
+      });
     });
   }
+
+  // ===== Agregar / eliminar / reordenar lecciones — persiste en la
+  // pestaña "Lecciones" vía el Apps Script (LECCIONES_WRITE_URL), así
+  // lo ve todo el equipo, no solo este navegador (a diferencia de cómo
+  // funcionaba antes con localStorage). =====
+  // Nota: la pestaña "Lecciones" publicada como CSV puede tardar hasta
+  // un minuto en reflejar un cambio recién escrito (lo mismo que ya
+  // pasa con Tracker/Ranking) — por eso estas tres acciones NO
+  // recargan desde el Sheet para actualizar la pantalla: reordenan/
+  // agregan/sacan directo sobre el array LECCIONES ya en memoria (así
+  // se ve al toque para quien está editando) y solo invalidan el
+  // caché para que la PRÓXIMA vez que alguien entre al onboarding,
+  // ya cargado, traiga la versión real y actualizada del Sheet.
+  async function guardarOrdenLecciones(nuevoOrdenTitulos){
+    try {
+      await escribirLecciones({ action: 'reorderLessons', orden: nuevoOrdenTitulos });
+      filasLeccionesCache = null;
+      LECCIONES = nuevoOrdenTitulos.map(titulo => LECCIONES.find(l => l.titulo === titulo)).filter(Boolean);
+      renderLeccionList();
+    } catch(e){
+      alert('No se pudo guardar el nuevo orden: ' + e.message);
+      renderLeccionList();
+    }
+  }
+
+  async function eliminarLeccion(id){
+    const lec = obtenerLeccion(id);
+    if(!lec) return;
+    if(LECCIONES.length <= 1){
+      alert('Tiene que quedar al menos una lección.');
+      return;
+    }
+    if(!confirm('¿Eliminar "' + lec.titulo + '"? Se borra para todo el equipo y no se puede deshacer.')) return;
+    try {
+      await escribirLecciones({ action: 'deleteLesson', titulo: lec.titulo });
+      filasLeccionesCache = null;
+      LECCIONES = LECCIONES.filter(l => l.id !== id);
+      if(leccionActivaId === id) leccionActivaId = LECCIONES[0].id;
+      seleccionarLeccion(leccionActivaId);
+    } catch(e){
+      alert('No se pudo eliminar: ' + e.message);
+    }
+  }
+
+  lessonAddBtn.addEventListener('click', async () => {
+    const titulo = lessonNewTitulo.value.trim();
+    if(!titulo) return;
+    lessonAddBtn.disabled = true;
+    try {
+      await escribirLecciones({ action: 'addLesson', titulo });
+      lessonNewTitulo.value = '';
+      filasLeccionesCache = null;
+      LECCIONES = [...LECCIONES, { id: 'nuevo' + Date.now(), titulo, videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null }];
+      seleccionarLeccion(LECCIONES[LECCIONES.length - 1].id);
+    } catch(e){
+      alert('No se pudo agregar: ' + e.message);
+    } finally {
+      lessonAddBtn.disabled = false;
+    }
+  });
+  lessonNewTitulo.addEventListener('keydown', (e) => { if(e.key === 'Enter') lessonAddBtn.click(); });
 
   // ===== Reproductor propio (no el "controls" nativo del navegador). =====
   const ICONO_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18"><polygon points="6,4 20,12 6,20" fill="currentColor"></polygon></svg>';
@@ -1654,6 +1761,20 @@
   // archivo directo (un asset del repo, por ejemplo). Si una fila no
   // tiene VideoURL, esa lección queda "sin video todavía".
   const SHEET_LECCIONES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=1088004922&single=true&output=csv';
+
+  // Backend chico (Apps Script, ver apps_script_lecciones.gs) que escribe
+  // directo en la pestaña "Lecciones" — solo para agregar, eliminar y
+  // reordenar desde el botón "Editar" (título/video/descripción de una
+  // lección ya creada se siguen cargando a mano en el Sheet).
+  const LECCIONES_WRITE_URL = 'https://script.google.com/macros/s/AKfycbxPo2XCgJzs9vCt_FZJOPt2-07ERFKElBzfOmxOPaJfg4BkUWLV5nJKgxPT_lbCIge5/exec';
+  async function escribirLecciones(body){
+    const res = await fetch(LECCIONES_WRITE_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if(!data || data.status !== 'ok') throw new Error((data && data.message) || 'Error al guardar');
+    return data;
+  }
 
   // Metas de los gauges de cash — se editan a mano acá, no vienen del Sheet.
   const META_CASH_MES = 100000;
