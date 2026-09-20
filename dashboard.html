@@ -415,11 +415,18 @@
   }
   .quick-nav-btn{
     flex:1; min-width:140px; display:flex; align-items:center; justify-content:center; text-align:center;
-    text-decoration:none; color:var(--cream);
+    text-decoration:none; color:var(--cream); cursor:pointer; font-family:inherit;
     background:rgba(255,255,255,0.05); border:1px solid transparent; border-radius:11px;
     padding:12px 14px; font-size:14px; font-weight:600; transition:background .18s ease, border-color .18s ease;
   }
   .quick-nav-btn:hover{ background:rgba(255,255,255,0.12); border-color:var(--border); }
+  .quick-nav-btn.active{ background:rgba(240,168,190,0.14); border-color:var(--blush-2); color:var(--cream); }
+
+  /* Cada botón de arriba muestra un solo panel a la vez, en vez de
+     hacer scroll a un ancla — los datos se siguen cargando igual para
+     todos, solo cambia qué se ve. */
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
 
   .section-label{
     font-family:"Playfair Display", Georgia, serif; font-size:22px; font-weight:600;
@@ -724,13 +731,13 @@
         </div>
       </header>
 
-      <div class="quick-nav-row">
-        <a href="#kpis" class="quick-nav-btn">Kpis</a>
-        <a href="#llamadas" class="quick-nav-btn">Llamadas</a>
-        <a href="#ventas" class="quick-nav-btn">Ventas del mes</a>
-        <a href="#matematica" class="quick-nav-btn">Matemática del éxito</a>
-        <a href="#setters" class="quick-nav-btn">Setters</a>
-        <a href="#fuentes" class="quick-nav-btn">Fuentes</a>
+      <div class="quick-nav-row" id="dashTabNav">
+        <button type="button" class="quick-nav-btn active" data-tab="kpis">Kpis</button>
+        <button type="button" class="quick-nav-btn" data-tab="llamadas">Llamadas</button>
+        <button type="button" class="quick-nav-btn" data-tab="ventas">Ventas del mes</button>
+        <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
+        <button type="button" class="quick-nav-btn" data-tab="setters">Setters</button>
+        <button type="button" class="quick-nav-btn" data-tab="fuentes">Fuentes</button>
       </div>
 
       <!-- Embudo: Llamadas → Agendadas → Shows → Cierres → Ventas.
@@ -738,114 +745,126 @@
            antes vivía, medio a los ponchazos, en la columna "Leads" del
            Sheet). "Agendadas" es lo que resulta de esas llamadas: cuántas
            terminan en un turno agendado. -->
-      <div class="section-label" id="kpis">Kpis</div>
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">Llamadas</div>
-          <div class="kpi-value" id="kpiLeads">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Llamadas agendadas</div>
-          <div class="kpi-value" id="kpiLlamadas">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Shows</div>
-          <div class="kpi-value" id="kpiShows">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Cierres</div>
-          <div class="kpi-value" id="kpiCierres">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Ventas del mes</div>
-          <div class="kpi-value" id="kpiVentas">–</div>
-        </div>
-      </div>
-
-      <div class="section-label" id="llamadas">Llamadas</div>
-      <div class="chart-panel">
-        <div class="chart-wrap">
-          <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
-          <div class="chart-tooltip" id="tooltipLlamadas"></div>
-        </div>
-        <div class="chart-status" id="statusLlamadas">Sin datos todavía — se va a conectar a un Google Sheet</div>
-      </div>
-
-      <div class="section-label" id="ventas">Ventas</div>
-      <div class="chart-panel">
-        <div class="chart-wrap">
-          <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartVentas"></svg>
-          <div class="chart-tooltip" id="tooltipVentas"></div>
-        </div>
-        <div class="chart-status" id="statusVentas">Sin datos todavía — se va a conectar a un Google Sheet</div>
-      </div>
-      <div class="value-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">Ticket promedio</div>
-          <div class="kpi-value" id="mateTicket">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Revenue por llamada</div>
-          <div class="kpi-value" id="mateRevenueLead">–</div>
-        </div>
-      </div>
-
-      <div class="section-label" id="matematica">Matemática del éxito</div>
-
-      <div class="chart-panel">
-        <div class="proj-legend">
-          <span class="proj-legend-item"><i style="background:#5fd39a"></i> Optimista (+15%)</span>
-          <span class="proj-legend-item"><i style="background:#8fb8f0"></i> Ritmo actual</span>
-          <span class="proj-legend-item"><i style="background:#f0716c"></i> Pesimista (-15%)</span>
-        </div>
-        <div class="chart-wrap">
-          <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartProyeccion"></svg>
-          <div class="chart-tooltip" id="tooltipProyeccion"></div>
-        </div>
-        <div class="proj-grid">
-          <div class="proj-stat pesimista">
-            <div class="proj-stat-label">Pesimista (-15%)</div>
-            <div class="proj-stat-value" id="projPesimista">–</div>
+      <div class="tab-panel active" data-tab-panel="kpis">
+        <div class="section-label" id="kpis">Kpis</div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Llamadas</div>
+            <div class="kpi-value" id="kpiLeads">–</div>
           </div>
-          <div class="proj-stat actual">
-            <div class="proj-stat-label">Ritmo actual</div>
-            <div class="proj-stat-value" id="projRitmo">–</div>
+          <div class="kpi-card">
+            <div class="kpi-label">Llamadas agendadas</div>
+            <div class="kpi-value" id="kpiLlamadas">–</div>
           </div>
-          <div class="proj-stat optimista">
-            <div class="proj-stat-label">Optimista (+15%)</div>
-            <div class="proj-stat-value" id="projOptimista">–</div>
+          <div class="kpi-card">
+            <div class="kpi-label">Shows</div>
+            <div class="kpi-value" id="kpiShows">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Cierres</div>
+            <div class="kpi-value" id="kpiCierres">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Ventas del mes</div>
+            <div class="kpi-value" id="kpiVentas">–</div>
           </div>
         </div>
-        <div class="chart-status" id="statusProyeccion">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
-      <div class="mate-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">Tasa de agendado</div>
-          <div class="kpi-value" id="mateAgendado">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Show rate</div>
-          <div class="kpi-value" id="mateShowRate">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Tasa de cierre</div>
-          <div class="kpi-value" id="mateCierre">–</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Conversión total (llamada → venta)</div>
-          <div class="kpi-value" id="mateConversion">–</div>
+      <div class="tab-panel" data-tab-panel="llamadas">
+        <div class="section-label" id="llamadas">Llamadas</div>
+        <div class="chart-panel">
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
+            <div class="chart-tooltip" id="tooltipLlamadas"></div>
+          </div>
+          <div class="chart-status" id="statusLlamadas">Sin datos todavía — se va a conectar a un Google Sheet</div>
         </div>
       </div>
-      <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
 
-      <div class="section-label" id="setters">Performance por setter</div>
-      <div class="breakdown-grid" id="settersGrid"></div>
-      <div class="chart-status" id="statusSetters" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      <div class="tab-panel" data-tab-panel="ventas">
+        <div class="section-label" id="ventas">Ventas</div>
+        <div class="chart-panel">
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartVentas"></svg>
+            <div class="chart-tooltip" id="tooltipVentas"></div>
+          </div>
+          <div class="chart-status" id="statusVentas">Sin datos todavía — se va a conectar a un Google Sheet</div>
+        </div>
+        <div class="value-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Ticket promedio</div>
+            <div class="kpi-value" id="mateTicket">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Revenue por llamada</div>
+            <div class="kpi-value" id="mateRevenueLead">–</div>
+          </div>
+        </div>
+      </div>
 
-      <div class="section-label" id="fuentes">Llamadas por fuente</div>
-      <div class="breakdown-grid" id="fuentesGrid"></div>
-      <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      <div class="tab-panel" data-tab-panel="matematica">
+        <div class="section-label" id="matematica">Matemática del éxito</div>
+
+        <div class="chart-panel">
+          <div class="proj-legend">
+            <span class="proj-legend-item"><i style="background:#5fd39a"></i> Optimista (+15%)</span>
+            <span class="proj-legend-item"><i style="background:#8fb8f0"></i> Ritmo actual</span>
+            <span class="proj-legend-item"><i style="background:#f0716c"></i> Pesimista (-15%)</span>
+          </div>
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartProyeccion"></svg>
+            <div class="chart-tooltip" id="tooltipProyeccion"></div>
+          </div>
+          <div class="proj-grid">
+            <div class="proj-stat pesimista">
+              <div class="proj-stat-label">Pesimista (-15%)</div>
+              <div class="proj-stat-value" id="projPesimista">–</div>
+            </div>
+            <div class="proj-stat actual">
+              <div class="proj-stat-label">Ritmo actual</div>
+              <div class="proj-stat-value" id="projRitmo">–</div>
+            </div>
+            <div class="proj-stat optimista">
+              <div class="proj-stat-label">Optimista (+15%)</div>
+              <div class="proj-stat-value" id="projOptimista">–</div>
+            </div>
+          </div>
+          <div class="chart-status" id="statusProyeccion">Sin datos todavía — se va a conectar a un Google Sheet</div>
+        </div>
+
+        <div class="mate-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Tasa de agendado</div>
+            <div class="kpi-value" id="mateAgendado">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Show rate</div>
+            <div class="kpi-value" id="mateShowRate">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Tasa de cierre</div>
+            <div class="kpi-value" id="mateCierre">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Conversión total (llamada → venta)</div>
+            <div class="kpi-value" id="mateConversion">–</div>
+          </div>
+        </div>
+        <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
+
+      <div class="tab-panel" data-tab-panel="setters">
+        <div class="section-label" id="setters">Performance por setter</div>
+        <div class="breakdown-grid" id="settersGrid"></div>
+        <div class="chart-status" id="statusSetters" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
+
+      <div class="tab-panel" data-tab-panel="fuentes">
+        <div class="section-label" id="fuentes">Llamadas por fuente</div>
+        <div class="breakdown-grid" id="fuentesGrid"></div>
+        <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
 
     </div>
   </section>
@@ -1038,6 +1057,19 @@
   inicializarSwitcherSecciones('sectionSwitcherDash', 'sectionSwitcherBtnDash', 'sectionSwitcherListDash');
   inicializarSwitcherSecciones('sectionSwitcherOnboarding', 'sectionSwitcherBtnOnboarding', 'sectionSwitcherListOnboarding');
   inicializarSwitcherSecciones('sectionSwitcherRanking', 'sectionSwitcherBtnRanking', 'sectionSwitcherListRanking');
+
+  // ===== Botones de arriba del dashboard (Kpis / Llamadas / Ventas /
+  // Matemática / Setters / Fuentes) — antes hacían scroll a un ancla,
+  // ahora funcionan como pestañas: muestran un solo bloque a la vez.
+  // Los datos se siguen cargando igual para todos aunque estén ocultos. =====
+  const dashTabNav = document.getElementById('dashTabNav');
+  dashTabNav.querySelectorAll('.quick-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      dashTabNav.querySelectorAll('.quick-nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === tab));
+    });
+  });
 
   // ===== Lecciones del onboarding — la fuente de verdad es la pestaña
   // "Lecciones" del Google Sheet (Orden | Titulo | VideoURL |
