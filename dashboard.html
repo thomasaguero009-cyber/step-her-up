@@ -449,6 +449,27 @@
   @media(max-width:760px){ .mate-grid{ grid-template-columns:repeat(2, 1fr); } }
   @media(max-width:520px){ .mate-grid{ grid-template-columns:1fr; } }
 
+  /* Proyección de fin de mes — 1 línea sólida con lo ya facturado y 3
+     líneas punteadas que abren desde "hoy" hasta fin de mes, cada una
+     a un ritmo distinto (ver cargarYPintarDatosMes/drawProjectionChart). */
+  .proj-legend{ display:flex; gap:18px; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--text-dim); }
+  .proj-legend-item{ display:inline-flex; align-items:center; gap:6px; }
+  .proj-legend-item i{ display:inline-block; width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .proj-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-top:18px; }
+  @media(max-width:600px){ .proj-grid{ grid-template-columns:1fr; } }
+  .proj-stat{
+    background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:14px;
+    padding:16px 18px; text-align:center;
+  }
+  .proj-stat-label{ font-size:12.5px; color:var(--text-dim); margin-bottom:8px; }
+  .proj-stat-value{
+    font-size:22px; font-weight:800; font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+    font-variant-numeric:tabular-nums;
+  }
+  .proj-stat.optimista .proj-stat-value{ color:var(--green); }
+  .proj-stat.actual .proj-stat-value{ color:#8fb8f0; }
+  .proj-stat.pesimista .proj-stat-value{ color:#f0716c; }
+
   /* Dos tarjetas de valor debajo del gráfico de Ventas. */
   .value-grid{ display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; max-width:520px; margin:0 0 44px; }
   @media(max-width:520px){ .value-grid{ grid-template-columns:1fr; } }
@@ -770,6 +791,33 @@
       </div>
 
       <div class="section-label" id="matematica">Matemática del éxito</div>
+
+      <div class="chart-panel">
+        <div class="proj-legend">
+          <span class="proj-legend-item"><i style="background:#5fd39a"></i> Optimista (+15%)</span>
+          <span class="proj-legend-item"><i style="background:#8fb8f0"></i> Ritmo actual</span>
+          <span class="proj-legend-item"><i style="background:#f0716c"></i> Pesimista (-15%)</span>
+        </div>
+        <div class="chart-wrap">
+          <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartProyeccion"></svg>
+        </div>
+        <div class="proj-grid">
+          <div class="proj-stat pesimista">
+            <div class="proj-stat-label">Pesimista (-15%)</div>
+            <div class="proj-stat-value" id="projPesimista">–</div>
+          </div>
+          <div class="proj-stat actual">
+            <div class="proj-stat-label">Ritmo actual</div>
+            <div class="proj-stat-value" id="projRitmo">–</div>
+          </div>
+          <div class="proj-stat optimista">
+            <div class="proj-stat-label">Optimista (+15%)</div>
+            <div class="proj-stat-value" id="projOptimista">–</div>
+          </div>
+        </div>
+        <div class="chart-status" id="statusProyeccion">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
+
       <div class="mate-grid">
         <div class="kpi-card">
           <div class="kpi-label">Tasa de agendado</div>
@@ -1710,6 +1758,32 @@
     drawChart('chartLlamadas', 'tooltipLlamadas', llamadas.slice(0, diasAMostrar), '#8fb8f0');
     drawChart('chartVentas', 'tooltipVentas', ventas.slice(0, diasAMostrar), '#f0a8be');
 
+    // Proyección de fin de mes — solo tiene sentido para el mes en curso
+    // (uno ya cerrado no se "proyecta", ya se sabe el total real).
+    const statusProyeccion = document.getElementById('statusProyeccion');
+    if(huboDatos && esMesEnCurso && diasAMostrar >= 1){
+      const acumulado = [];
+      let corrida = 0;
+      for(let i=0;i<diasAMostrar;i++){ corrida += ventas[i]; acumulado.push(corrida); }
+      const promedioDiario = acumulado[acumulado.length - 1] / diasAMostrar;
+      const proyActual = promedioDiario * dias;
+      const proyOptimista = proyActual * 1.15;
+      const proyPesimista = proyActual * 0.85;
+      drawProjectionChart('chartProyeccion', acumulado, dias, proyActual, proyOptimista, proyPesimista);
+      document.getElementById('projRitmo').textContent = '$' + Math.round(proyActual).toLocaleString('es-AR');
+      document.getElementById('projOptimista').textContent = '$' + Math.round(proyOptimista).toLocaleString('es-AR');
+      document.getElementById('projPesimista').textContent = '$' + Math.round(proyPesimista).toLocaleString('es-AR');
+      statusProyeccion.textContent = 'Proyectado desde el día ' + diasAMostrar + ' de ' + dias + ' — ' + mesElegido;
+    } else {
+      drawProjectionChart('chartProyeccion', [], dias, 0, 0, 0);
+      document.getElementById('projRitmo').textContent = '–';
+      document.getElementById('projOptimista').textContent = '–';
+      document.getElementById('projPesimista').textContent = '–';
+      statusProyeccion.textContent = huboDatos
+        ? 'Mes cerrado — total real arriba, en "Ventas"'
+        : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en el Google Sheet';
+    }
+
     const statusTxt = huboDatos
       ? 'Datos en vivo — ' + mesElegido
       : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en el Google Sheet';
@@ -1988,6 +2062,109 @@
       tooltip.style.left = left + 'px';
       tooltip.classList.add('show');
     }
+  }
+
+  // ===== Proyección de fin de mes — 1 línea sólida con lo ya
+  // facturado (días 1..hoy) y 3 líneas punteadas que abren desde "hoy"
+  // hasta el último día del mes: optimista (+15%), al ritmo actual
+  // (promedio diario × días del mes) y pesimista (-15%). Sin tooltip
+  // interactivo a propósito: los 3 números ya están en las tarjetas
+  // de abajo, más fáciles de leer que 3 líneas casi pegadas. =====
+  function drawProjectionChart(svgId, acumulado, diasDelMes, proyActual, proyOptimista, proyPesimista){
+    const svg = document.getElementById(svgId);
+    svg.innerHTML = '';
+    const W = 1000, H = 280, padL = 58, padB = 24, padT = 10;
+
+    if(!acumulado.length){
+      const base = document.createElementNS('http://www.w3.org/2000/svg','line');
+      base.setAttribute('x1', padL); base.setAttribute('x2', W-10);
+      base.setAttribute('y1', H-padB); base.setAttribute('y2', H-padB);
+      base.setAttribute('stroke', 'rgba(255,255,255,0.14)'); base.setAttribute('stroke-width', '1.5');
+      base.setAttribute('stroke-dasharray', '5,5');
+      svg.appendChild(base);
+      const msg = document.createElementNS('http://www.w3.org/2000/svg','text');
+      msg.setAttribute('x', W/2); msg.setAttribute('y', (H-padB)/2);
+      msg.setAttribute('fill', 'rgba(247,236,233,0.55)'); msg.setAttribute('font-size', '15');
+      msg.setAttribute('text-anchor', 'middle');
+      msg.textContent = 'Esperando datos del Google Sheet…';
+      svg.appendChild(msg);
+      return;
+    }
+
+    const diasTranscurridos = acumulado.length;
+    const maxVal = Math.max(1, proyOptimista, acumulado[acumulado.length - 1]);
+
+    for(let g=0; g<=5; g++){
+      const y = padT + (H-padT-padB) * (1 - g/5);
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W-10);
+      line.setAttribute('y1', y); line.setAttribute('y2', y);
+      line.setAttribute('stroke', 'rgba(255,255,255,0.1)'); line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+      const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+      label.setAttribute('x', 4); label.setAttribute('y', y+4);
+      label.setAttribute('fill', 'rgba(247,236,233,0.45)'); label.setAttribute('font-size', '11');
+      label.textContent = '$' + Math.round(maxVal * g/5).toLocaleString('es-AR');
+      svg.appendChild(label);
+    }
+
+    function xAt(dia){ return padL + (W-padL-20) * (diasDelMes<=1 ? 0 : (dia-1)/(diasDelMes-1)); }
+    function yAt(v){ return padT + (H-padT-padB) * (1 - v/maxVal); }
+
+    const ptsReal = acumulado.map((v,i) => [xAt(i+1), yAt(v)]);
+
+    const areaReal = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const areaD = smoothPath(ptsReal) + ` L ${ptsReal[ptsReal.length-1][0]},${H-padB} L ${ptsReal[0][0]},${H-padB} Z`;
+    areaReal.setAttribute('d', areaD);
+    areaReal.setAttribute('fill', '#f0a8be');
+    areaReal.setAttribute('opacity', '0.12');
+    svg.appendChild(areaReal);
+
+    const pathReal = document.createElementNS('http://www.w3.org/2000/svg','path');
+    pathReal.setAttribute('d', smoothPath(ptsReal));
+    pathReal.setAttribute('fill','none');
+    pathReal.setAttribute('stroke', '#f0a8be');
+    pathReal.setAttribute('stroke-width', '2.5');
+    pathReal.setAttribute('stroke-linecap','round');
+    pathReal.setAttribute('stroke-linejoin','round');
+    svg.appendChild(pathReal);
+
+    const ultimoPunto = ptsReal[ptsReal.length - 1];
+
+    // 3 escenarios, cada uno una línea punteada recta desde "hoy" hasta
+    // fin de mes — orden optimista→pesimista para que la más alta quede
+    // dibujada primero y no tape a las demás.
+    [
+      { valor: proyOptimista, color: '#5fd39a' },
+      { valor: proyActual, color: '#8fb8f0' },
+      { valor: proyPesimista, color: '#f0716c' },
+    ].forEach(esc => {
+      const destino = [xAt(diasDelMes), yAt(esc.valor)];
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', `M ${ultimoPunto[0]},${ultimoPunto[1]} L ${destino[0]},${destino[1]}`);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke', esc.color);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('stroke-dasharray', '6,5');
+      path.setAttribute('stroke-linecap','round');
+      svg.appendChild(path);
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx', destino[0]); dot.setAttribute('cy', destino[1]); dot.setAttribute('r','4');
+      dot.setAttribute('fill', esc.color);
+      svg.appendChild(dot);
+    });
+
+    // Línea vertical + punto marcando "hoy", donde arrancan los 3 escenarios.
+    const hoyLine = document.createElementNS('http://www.w3.org/2000/svg','line');
+    hoyLine.setAttribute('x1', ultimoPunto[0]); hoyLine.setAttribute('x2', ultimoPunto[0]);
+    hoyLine.setAttribute('y1', padT); hoyLine.setAttribute('y2', H-padB);
+    hoyLine.setAttribute('stroke', 'rgba(255,255,255,0.18)'); hoyLine.setAttribute('stroke-width', '1');
+    hoyLine.setAttribute('stroke-dasharray', '3,4');
+    svg.appendChild(hoyLine);
+    const hoyDot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    hoyDot.setAttribute('cx', ultimoPunto[0]); hoyDot.setAttribute('cy', ultimoPunto[1]); hoyDot.setAttribute('r','3.5');
+    hoyDot.setAttribute('fill', '#170609'); hoyDot.setAttribute('stroke', '#f0a8be'); hoyDot.setAttribute('stroke-width','1.5');
+    svg.appendChild(hoyDot);
   }
 </script>
 </body>
