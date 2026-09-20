@@ -800,6 +800,7 @@
         </div>
         <div class="chart-wrap">
           <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartProyeccion"></svg>
+          <div class="chart-tooltip" id="tooltipProyeccion"></div>
         </div>
         <div class="proj-grid">
           <div class="proj-stat pesimista">
@@ -942,6 +943,7 @@
   // el mes real de hoy, sin pedirlo en la pantalla de inicio. El mes
   // se cambia DESPUÉS, desde adentro del dashboard (ver más abajo). =====
   const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   function nombreMes(fecha){
     return MESES_ES[fecha.getMonth()] + ' ' + fecha.getFullYear();
   }
@@ -1755,8 +1757,8 @@
     const hoy = new Date();
     const esMesEnCurso = anio === hoy.getFullYear() && mes === hoy.getMonth();
     const diasAMostrar = esMesEnCurso ? hoy.getDate() : dias;
-    drawChart('chartLlamadas', 'tooltipLlamadas', llamadas.slice(0, diasAMostrar), '#8fb8f0');
-    drawChart('chartVentas', 'tooltipVentas', ventas.slice(0, diasAMostrar), '#f0a8be');
+    drawChart('chartLlamadas', 'tooltipLlamadas', llamadas.slice(0, diasAMostrar), '#8fb8f0', anio, mes);
+    drawChart('chartVentas', 'tooltipVentas', ventas.slice(0, diasAMostrar), '#f0a8be', anio, mes);
 
     // Proyección de fin de mes — solo tiene sentido para el mes en curso
     // (uno ya cerrado no se "proyecta", ya se sabe el total real).
@@ -1769,13 +1771,13 @@
       const proyActual = promedioDiario * dias;
       const proyOptimista = proyActual * 1.15;
       const proyPesimista = proyActual * 0.85;
-      drawProjectionChart('chartProyeccion', acumulado, dias, proyActual, proyOptimista, proyPesimista);
+      drawProjectionChart('chartProyeccion', 'tooltipProyeccion', acumulado, dias, proyActual, proyOptimista, proyPesimista, anio, mes);
       document.getElementById('projRitmo').textContent = '$' + Math.round(proyActual).toLocaleString('es-AR');
       document.getElementById('projOptimista').textContent = '$' + Math.round(proyOptimista).toLocaleString('es-AR');
       document.getElementById('projPesimista').textContent = '$' + Math.round(proyPesimista).toLocaleString('es-AR');
       statusProyeccion.textContent = 'Proyectado desde el día ' + diasAMostrar + ' de ' + dias + ' — ' + mesElegido;
     } else {
-      drawProjectionChart('chartProyeccion', [], dias, 0, 0, 0);
+      drawProjectionChart('chartProyeccion', 'tooltipProyeccion', [], dias, 0, 0, 0, anio, mes);
       document.getElementById('projRitmo').textContent = '–';
       document.getElementById('projOptimista').textContent = '–';
       document.getElementById('projPesimista').textContent = '–';
@@ -1964,7 +1966,7 @@
     return d;
   }
 
-  function drawChart(svgId, tooltipId, valores, color){
+  function drawChart(svgId, tooltipId, valores, color, anio, mes){
     const svg = document.getElementById(svgId);
     const tooltip = document.getElementById(tooltipId);
     svg.innerHTML = '';
@@ -2051,8 +2053,9 @@
     }
 
     function showTooltip(i, x){
+      const diaSemana = DIAS_SEMANA[new Date(anio, mes, i+1).getDay()];
       tooltip.innerHTML = `
-        <div class="tt-day">Día ${i+1}</div>
+        <div class="tt-day">Día ${i+1} · ${diaSemana}</div>
         <div class="tt-val">${valores[i].toLocaleString('es-AR')}</div>
       `;
       const wrapWidth = svg.parentElement.clientWidth;
@@ -2067,12 +2070,15 @@
   // ===== Proyección de fin de mes — 1 línea sólida con lo ya
   // facturado (días 1..hoy) y 3 líneas punteadas que abren desde "hoy"
   // hasta el último día del mes: optimista (+15%), al ritmo actual
-  // (promedio diario × días del mes) y pesimista (-15%). Sin tooltip
-  // interactivo a propósito: los 3 números ya están en las tarjetas
-  // de abajo, más fáciles de leer que 3 líneas casi pegadas. =====
-  function drawProjectionChart(svgId, acumulado, diasDelMes, proyActual, proyOptimista, proyPesimista){
+  // (promedio diario × días del mes) y pesimista (-15%). Al pasar el
+  // mouse por un día ya transcurrido muestra lo real acumulado; por un
+  // día futuro, interpola los 3 escenarios en línea recta hasta ese
+  // día (misma pendiente que las líneas punteadas dibujadas). =====
+  function drawProjectionChart(svgId, tooltipId, acumulado, diasDelMes, proyActual, proyOptimista, proyPesimista, anio, mes){
     const svg = document.getElementById(svgId);
+    const tooltip = document.getElementById(tooltipId);
     svg.innerHTML = '';
+    tooltip.classList.remove('show');
     const W = 1000, H = 280, padL = 58, padB = 24, padT = 10;
 
     if(!acumulado.length){
@@ -2165,6 +2171,51 @@
     hoyDot.setAttribute('cx', ultimoPunto[0]); hoyDot.setAttribute('cy', ultimoPunto[1]); hoyDot.setAttribute('r','3.5');
     hoyDot.setAttribute('fill', '#170609'); hoyDot.setAttribute('stroke', '#f0a8be'); hoyDot.setAttribute('stroke-width','1.5');
     svg.appendChild(hoyDot);
+
+    // Una columna invisible por día del mes — antes de "hoy" muestra lo
+    // real acumulado; después, interpola cada escenario en línea recta
+    // entre "hoy" y su punto final (misma recta que la línea punteada).
+    const ultimoReal = acumulado[acumulado.length - 1];
+    for(let dia=1; dia<=diasDelMes; dia++){
+      const hit = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      const x = xAt(dia);
+      const colW = diasDelMes>1 ? (W-padL-20)/(diasDelMes-1) : W;
+      hit.setAttribute('x', x - colW/2);
+      hit.setAttribute('y', 0);
+      hit.setAttribute('width', colW);
+      hit.setAttribute('height', H);
+      hit.setAttribute('fill', 'transparent');
+      hit.style.cursor = 'pointer';
+      hit.addEventListener('mouseenter', () => showTooltip(dia, x));
+      hit.addEventListener('mousemove', () => showTooltip(dia, x));
+      hit.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+      svg.appendChild(hit);
+    }
+
+    function showTooltip(dia, x){
+      const diaSemana = DIAS_SEMANA[new Date(anio, mes, dia).getDay()];
+      if(dia <= diasTranscurridos){
+        tooltip.innerHTML = `
+          <div class="tt-day">Día ${dia} · ${diaSemana}</div>
+          <div class="tt-val">$${Math.round(acumulado[dia-1]).toLocaleString('es-AR')} acumulado</div>
+        `;
+      } else {
+        const frac = (dia - diasTranscurridos) / (diasDelMes - diasTranscurridos);
+        const enEsc = valor => Math.round(ultimoReal + frac * (valor - ultimoReal)).toLocaleString('es-AR');
+        tooltip.innerHTML = `
+          <div class="tt-day">Día ${dia} · ${diaSemana} (proyectado)</div>
+          <div class="tt-val" style="color:#5fd39a">Optimista: $${enEsc(proyOptimista)}</div>
+          <div class="tt-val" style="color:#8fb8f0">Ritmo actual: $${enEsc(proyActual)}</div>
+          <div class="tt-val" style="color:#f0716c">Pesimista: $${enEsc(proyPesimista)}</div>
+        `;
+      }
+      const wrapWidth = svg.parentElement.clientWidth;
+      const pxRatio = wrapWidth / W;
+      let left = x * pxRatio + 14;
+      if(left + 180 > wrapWidth) left = x * pxRatio - 194;
+      tooltip.style.left = left + 'px';
+      tooltip.classList.add('show');
+    }
   }
 </script>
 </body>
