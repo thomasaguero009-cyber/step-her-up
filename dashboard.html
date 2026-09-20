@@ -258,75 +258,12 @@
     background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:12px;
     padding:13px 18px; font-size:14px; font-weight:700; margin-bottom:14px;
   }
-  /* Subir video propio + recorte simple — panel colapsable arriba del
-     reproductor. Ver el JS para la explicación de por qué esto vive
-     solo en el navegador de quien lo usa (no hay backend acá). */
-  .uploader-panel{
-    display:none; flex-direction:column; gap:14px;
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
-    padding:18px 20px; margin-bottom:14px;
-  }
-  .uploader-panel.open{ display:flex; }
-  .uploader-row{ display:flex; flex-direction:column; gap:6px; }
-  .uploader-row label{ font-size:12.5px; color:var(--text-dim); font-weight:600; }
-  .uploader-row input[type="text"], .uploader-row textarea{
-    background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:10px;
-    padding:10px 12px; font-size:14px; color:var(--cream); font-family:inherit; resize:vertical;
-  }
-  .file-picker{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .file-picker-name{ font-size:13px; color:var(--text-dim); }
-  .uploader-editing-label{ font-size:12.5px; color:var(--blush); font-weight:700; }
-  .uploader-temp-aviso{
-    font-size:12.5px; line-height:1.5; color:var(--cream);
-    background:rgba(240,113,108,0.12); border:1px solid #f0716c; border-radius:10px; padding:10px 14px;
-  }
-
-  /* Botones del panel de edición — más grandes que un link fantasma
-     común, porque son la acción principal de esa zona, no un detalle
-     secundario de navegación. */
-  .file-picker .ghost-link-btn, .uploader-actions .ghost-link-btn, .uploader-actions .btn-small{
-    padding:13px 22px; font-size:14.5px;
-  }
-
-  /* Línea de tiempo del recorte — filmina de miniaturas reales del
-     video + dos manijas arrastrables (pointer events, mouse y touch),
-     como el trim de cualquier app de edición. */
-  .trim-time-labels{
-    display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-dim);
-    font-variant-numeric:tabular-nums;
-  }
-  .trim-time-labels b{ color:var(--blush); font-weight:700; }
-  .trim-timeline{
-    position:relative; height:64px; border-radius:10px; overflow:hidden;
-    background:#0d0304; border:1px solid var(--border); touch-action:none;
-  }
-  .trim-filmstrip{ position:absolute; inset:0; display:flex; }
-  .trim-filmstrip img{ height:100%; flex:1 1 0; min-width:0; object-fit:cover; display:block; }
-  .trim-overlay-out{ position:absolute; top:0; bottom:0; background:rgba(0,0,0,0.68); pointer-events:none; }
-  .trim-overlay-out.left{ left:0; }
-  .trim-overlay-out.right{ right:0; }
-  .trim-selection{
-    position:absolute; top:0; bottom:0; border-top:2px solid var(--blush); border-bottom:2px solid var(--blush);
-    box-shadow:0 0 0 1px rgba(240,168,190,0.5) inset; pointer-events:none;
-  }
-  .trim-handle{
-    position:absolute; top:0; bottom:0; width:16px; margin-left:-8px;
-    background:var(--blush); cursor:ew-resize; display:flex; align-items:center; justify-content:center;
-    border-radius:5px; touch-action:none; z-index:2;
-  }
-  .trim-handle::after{ content:''; width:2px; height:20px; background:rgba(0,0,0,0.45); border-radius:1px; }
-  .trim-playhead{
-    position:absolute; top:0; bottom:0; width:2px; background:#fff;
-    box-shadow:0 0 6px rgba(255,255,255,0.85); pointer-events:none; z-index:1;
-  }
-  .uploader-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .btn-small{
     display:inline-flex; align-items:center; justify-content:center; border:none; cursor:pointer;
     border-radius:999px; font-weight:700; font-size:13px; padding:9px 18px; font-family:inherit;
     background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13;
   }
   .btn-small:disabled{ opacity:0.5; cursor:not-allowed; }
-  .uploader-status{ font-size:12.5px; color:var(--text-dim); }
 
   .onboarding-body{ flex:1; display:flex; gap:14px; min-height:0; }
   .onboarding-lesson-col{ display:flex; flex-direction:column; gap:10px; width:230px; flex-shrink:0; min-height:0; }
@@ -336,7 +273,12 @@
   /* "+ Agregar" y la zona de eliminar — solo en modo edición, siempre
      visibles debajo de la lista (no se pierden si hay que scrollear
      entre muchas lecciones). */
-  .lesson-admin-controls{ display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+  .lesson-admin-controls{
+    display:none; flex-direction:column; gap:10px;
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:16px 20px; margin-bottom:14px;
+  }
+  .lesson-admin-controls.open{ display:flex; }
   .lesson-add-btn{
     display:flex; align-items:center; justify-content:center; background:transparent;
     border:1px dashed var(--border); border-radius:10px; padding:12px 14px; font-size:13.5px;
@@ -370,10 +312,6 @@
   .lesson-item .drag-handle:active{ cursor:grabbing; }
   .lesson-item-dot{
     flex-shrink:0; width:7px; height:7px; border-radius:50%; background:var(--blush-2); opacity:0.8;
-  }
-  .lesson-item-temp{
-    flex-shrink:0; font-size:10px; font-weight:700; letter-spacing:0.03em; color:#f0716c;
-    border:1px solid #f0716c; border-radius:5px; padding:2px 5px;
   }
   .onboarding-player-col{ flex:1; display:flex; flex-direction:column; gap:12px; min-height:0; min-width:0; }
   .onboarding-player{
@@ -662,57 +600,17 @@
       </div>
       <div class="onboarding-lesson-title" id="onboardingLessonTitle">1. Bienvenida a Step Her Up</div>
 
-      <div class="uploader-panel" id="uploaderPanel">
-        <div class="uploader-editing-label" id="editandoLabel">Editando: 1. Bienvenida a Step Her Up</div>
-        <div class="uploader-temp-aviso" id="uploaderTempAviso" style="display:none;">
-          ⚠ Este video es temporal: solo se ve en <b>este navegador</b>, en esta pestaña. No hay botón de "Guardar" porque no hay ningún servidor donde subirlo — para que lo vea todo el equipo, mandame el archivo del video (el mismo que subiste acá) y lo subo yo a la plataforma.
+      <div class="lesson-admin-controls" id="lessonAdminControls">
+        <div class="lesson-add-row">
+          <input type="text" id="lessonNewTitulo" placeholder="Título de la nueva lección">
+          <button type="button" class="lesson-add-btn" id="lessonAddBtn">+ Agregar</button>
         </div>
-        <div class="uploader-row">
-          <label for="uploadVideoFile">Probar un archivo de video para esta lección (vista previa, solo en tu navegador)</label>
-          <div class="file-picker">
-            <button type="button" class="ghost-link-btn" id="uploadVideoFileBtn">Elegir archivo</button>
-            <span class="file-picker-name" id="uploadVideoFileName">Ningún archivo seleccionado</span>
-          </div>
-          <input type="file" id="uploadVideoFile" accept="video/*" hidden>
-        </div>
-        <div class="uploader-row" id="trimControls" style="display:none;">
-          <label>Recorte — arrastrá las manijas</label>
-          <div class="trim-time-labels">
-            <span>Inicio: <b id="trimLabelStart">0:00</b></span>
-            <span>Duración del recorte: <b id="trimLabelSel">0:00</b></span>
-            <span>Fin: <b id="trimLabelEnd">0:00</b></span>
-          </div>
-          <div class="trim-timeline" id="trimTimeline">
-            <div class="trim-filmstrip" id="trimFilmstrip"></div>
-            <div class="trim-overlay-out left" id="trimOverlayLeft"></div>
-            <div class="trim-overlay-out right" id="trimOverlayRight"></div>
-            <div class="trim-selection" id="trimSelection"></div>
-            <div class="trim-playhead" id="trimPlayhead"></div>
-            <div class="trim-handle" id="trimHandleStart"></div>
-            <div class="trim-handle" id="trimHandleEnd"></div>
-          </div>
-          <div class="uploader-actions">
-            <button type="button" class="ghost-link-btn" id="previewTrimBtn">▶ Reproducir recorte</button>
-            <button type="button" class="btn-small" id="cutVideoBtn">Usar este recorte (solo vista previa)</button>
-          </div>
-          <div class="uploader-status" id="uploaderStatus"></div>
-        </div>
-        <div class="uploader-row">
-          <label>Para que el video quede de verdad, sea visible para todos y sobreviva a un recargo de página</label>
-          <div class="uploader-status" style="color:var(--cream);opacity:0.85;">Subí el archivo a Google Drive, compartilo como "Cualquiera con el enlace" y pegá ese link en la columna <b>VideoURL</b> de la pestaña "Lecciones" del Google Sheet (misma fila que el título de esta lección).</div>
-        </div>
+        <div class="lesson-admin-hint">Arrastrá una lección (a la izquierda) para reordenarla, o tocá la ✕ para eliminarla. El video, la descripción o el título de una ya creada se editan en la pestaña "Lecciones" del Google Sheet.</div>
       </div>
 
       <div class="onboarding-body">
         <div class="onboarding-lesson-col">
           <div class="onboarding-lesson-list" id="onboardingLessonList"></div>
-          <div class="lesson-admin-controls" id="lessonAdminControls" style="display:none;">
-            <div class="lesson-add-row">
-              <input type="text" id="lessonNewTitulo" placeholder="Título de la nueva lección">
-              <button type="button" class="lesson-add-btn" id="lessonAddBtn">+ Agregar</button>
-            </div>
-            <div class="lesson-admin-hint">Arrastrá una lección para reordenarla. El video, la descripción o el título de una ya creada se editan en la pestaña "Lecciones" del Sheet.</div>
-          </div>
         </div>
         <div class="onboarding-player-col">
         <div class="onboarding-player">
@@ -1128,9 +1026,6 @@
   const editPasswordError = document.getElementById('editPasswordError');
   const editPasswordCancel = document.getElementById('editPasswordCancel');
   const editPasswordConfirm = document.getElementById('editPasswordConfirm');
-  const uploaderPanel = document.getElementById('uploaderPanel');
-  const editandoLabel = document.getElementById('editandoLabel');
-  const uploaderTempAviso = document.getElementById('uploaderTempAviso');
 
   let modoEdicion = false;
   try { modoEdicion = localStorage.getItem('shu_admin_ok') === '1'; } catch(e){}
@@ -1139,15 +1034,7 @@
     editModeBtn.textContent = modoEdicion ? 'Salir de edición' : 'Editar';
   }
   function actualizarPanelEdicion(){
-    uploaderPanel.classList.toggle('open', modoEdicion);
-    lessonAdminControls.style.display = modoEdicion ? 'flex' : 'none';
-    if(!modoEdicion) return;
-    const lec = obtenerLeccion(leccionActivaId);
-    editandoLabel.textContent = 'Editando: ' + lec.titulo;
-    uploadVideoFileName.textContent = 'Ningún archivo seleccionado';
-    trimControls.style.display = 'none';
-    uploaderStatus.textContent = '';
-    uploaderTempAviso.style.display = (lec.videoUrl && lec.videoUrl.startsWith('blob:')) ? 'block' : 'none';
+    lessonAdminControls.classList.toggle('open', modoEdicion);
   }
   function entrarModoEdicion(){
     modoEdicion = true;
@@ -1256,7 +1143,7 @@
       videoCenterBtn.style.display = 'none';
       videoEmpty.style.display = 'flex';
       videoEmpty.textContent = modoEdicion
-        ? 'Todavía no se subió el video de esta lección — subilo a Drive y pegá el link en la pestaña "Lecciones" del Sheet (o probalo acá arriba antes).'
+        ? 'Todavía no se subió el video de esta lección — subilo a Drive y pegá el link en la pestaña "Lecciones" del Sheet.'
         : 'Todavía no se subió el video de esta lección.';
       limiteActivo = null;
     }
@@ -1277,7 +1164,6 @@
       <div class="lesson-item${lec.id === leccionActivaId ? ' active' : ''}" data-id="${lec.id}" draggable="${modoEdicion}">
         ${modoEdicion ? '<span class="drag-handle">' + ICONO_DRAG + '</span>' : ''}
         <span class="lesson-item-label">${escapeHtml(lec.titulo)}</span>
-        ${(modoEdicion && lec.videoUrl && lec.videoUrl.startsWith('blob:')) ? '<span class="lesson-item-temp" title="Video de prueba: solo se ve en este navegador">TEMP</span>' : ''}
         ${!lec.videoUrl ? '<span class="lesson-item-dot" title="Sin video todavía"></span>' : ''}
         ${modoEdicion ? '<button type="button" class="lesson-item-delete" title="Eliminar lección">✕</button>' : ''}
       </div>
@@ -1506,203 +1392,6 @@
 
   actualizarMuteIcon();
   actualizarPlayIcon();
-
-  // ===== Subir tu propio video + recorte (solo en modo edición) —
-  // esto NO tiene backend (el sitio es estático, se sirve desde
-  // GitHub Pages), así que lo que subís y cortás acá queda SOLO en tu
-  // navegador, en esta pestaña: no se guarda ni lo ve nadie más. Si el
-  // resultado te sirve para dejarlo posta, descargalo con "Descargar
-  // el recorte" y pasámelo (como con el video de bienvenida) para
-  // subirlo al repositorio. La línea de tiempo muestra miniaturas
-  // reales del video (sacadas con un <video> oculto + canvas) y dos
-  // manijas arrastrables (pointer events — mouse y touch) para elegir
-  // el tramo, como en cualquier app de edición. El corte en sí sigue
-  // siendo básico a propósito: graba en tiempo real (MediaRecorder
-  // capturando el propio <video>) el tramo elegido mientras se
-  // reproduce — no hay reencode instantáneo, así que cortar un tramo
-  // de 2 minutos tarda 2 minutos. =====
-  const uploadVideoFileBtn = document.getElementById('uploadVideoFileBtn');
-  const uploadVideoFileName = document.getElementById('uploadVideoFileName');
-  const uploadVideoFile = document.getElementById('uploadVideoFile');
-  const trimControls = document.getElementById('trimControls');
-  const trimTimeline = document.getElementById('trimTimeline');
-  const trimFilmstrip = document.getElementById('trimFilmstrip');
-  const trimOverlayLeft = document.getElementById('trimOverlayLeft');
-  const trimOverlayRight = document.getElementById('trimOverlayRight');
-  const trimSelection = document.getElementById('trimSelection');
-  const trimPlayhead = document.getElementById('trimPlayhead');
-  const trimHandleStart = document.getElementById('trimHandleStart');
-  const trimHandleEnd = document.getElementById('trimHandleEnd');
-  const trimLabelStart = document.getElementById('trimLabelStart');
-  const trimLabelEnd = document.getElementById('trimLabelEnd');
-  const trimLabelSel = document.getElementById('trimLabelSel');
-  const previewTrimBtn = document.getElementById('previewTrimBtn');
-  const cutVideoBtn = document.getElementById('cutVideoBtn');
-  const uploaderStatus = document.getElementById('uploaderStatus');
-
-  uploadVideoFileBtn.addEventListener('click', () => uploadVideoFile.click());
-
-  let objectUrlSubido = null;
-  let duracionTotal = 0, trimIni = 0, trimFin = 0;
-
-  function fmtTiempo(s){
-    s = Math.max(0, Math.round(s || 0));
-    const m = Math.floor(s / 60), sec = s % 60;
-    return m + ':' + String(sec).padStart(2, '0');
-  }
-
-  function pintarTimeline(){
-    const pIni = duracionTotal ? (trimIni / duracionTotal * 100) : 0;
-    const pFin = duracionTotal ? (trimFin / duracionTotal * 100) : 100;
-    trimHandleStart.style.left = pIni + '%';
-    trimHandleEnd.style.left = pFin + '%';
-    trimOverlayLeft.style.width = pIni + '%';
-    trimOverlayRight.style.width = (100 - pFin) + '%';
-    trimSelection.style.left = pIni + '%';
-    trimSelection.style.width = Math.max(0, pFin - pIni) + '%';
-    trimLabelStart.textContent = fmtTiempo(trimIni);
-    trimLabelEnd.textContent = fmtTiempo(trimFin);
-    trimLabelSel.textContent = fmtTiempo(trimFin - trimIni);
-  }
-
-  function pintarPlayhead(t){
-    const p = duracionTotal ? (t / duracionTotal * 100) : 0;
-    trimPlayhead.style.left = p + '%';
-  }
-
-  // Arrastre de las manijas — pointer events cubren mouse, touch y pen
-  // con la misma API, sin necesidad de código aparte para celular.
-  function habilitarArrastre(handle, esInicio){
-    handle.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      handle.setPointerCapture(e.pointerId);
-      const mover = (ev) => {
-        const rect = trimTimeline.getBoundingClientRect();
-        let frac = (ev.clientX - rect.left) / rect.width;
-        frac = Math.max(0, Math.min(1, frac));
-        const t = frac * duracionTotal;
-        const margen = Math.min(1, duracionTotal * 0.02);
-        if(esInicio){
-          trimIni = Math.max(0, Math.min(t, trimFin - margen));
-        } else {
-          trimFin = Math.min(duracionTotal, Math.max(t, trimIni + margen));
-        }
-        pintarTimeline();
-      };
-      const soltar = () => {
-        handle.releasePointerCapture(e.pointerId);
-        window.removeEventListener('pointermove', mover);
-        window.removeEventListener('pointerup', soltar);
-      };
-      window.addEventListener('pointermove', mover);
-      window.addEventListener('pointerup', soltar);
-    });
-  }
-  habilitarArrastre(trimHandleStart, true);
-  habilitarArrastre(trimHandleEnd, false);
-
-  // Tocar el resto de la línea de tiempo (no una manija) mueve la
-  // reproducción ahí — para poder mirar un fotograma sin arrancar el
-  // recorte entero.
-  trimTimeline.addEventListener('pointerdown', (e) => {
-    if(e.target === trimHandleStart || e.target === trimHandleEnd) return;
-    const rect = trimTimeline.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const t = frac * duracionTotal;
-    onboardingVideo.pause();
-    onboardingVideo.currentTime = t;
-    pintarPlayhead(t);
-  });
-
-  function irA(segundos){
-    return new Promise(resolve => {
-      onboardingVideo.onseeked = () => resolve();
-      onboardingVideo.currentTime = segundos;
-    });
-  }
-
-  // Filmina de miniaturas — se generan con un <video> aparte (no el
-  // reproductor visible) para no interrumpir lo que se esté viendo.
-  async function generarFilmstrip(url, cantidad){
-    trimFilmstrip.innerHTML = '';
-    const vid = document.createElement('video');
-    vid.muted = true;
-    vid.preload = 'auto';
-    vid.src = url;
-    await new Promise(resolve => { vid.onloadedmetadata = resolve; });
-    const dur = vid.duration;
-    const canvas = document.createElement('canvas');
-    canvas.width = 80; canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    for(let i = 0; i < cantidad; i++){
-      const t = Math.min(Math.max(dur - 0.05, 0), (dur * i) / cantidad);
-      await new Promise(resolve => { vid.onseeked = resolve; vid.currentTime = t; });
-      ctx.drawImage(vid, 0, 0, 80, 64);
-      const img = document.createElement('img');
-      img.src = canvas.toDataURL('image/jpeg', 0.55);
-      trimFilmstrip.appendChild(img);
-    }
-  }
-
-  uploadVideoFile.addEventListener('change', async () => {
-    const archivo = uploadVideoFile.files[0];
-    if(!archivo || !modoEdicion) return;
-    uploadVideoFileName.textContent = archivo.name;
-    if(objectUrlSubido) URL.revokeObjectURL(objectUrlSubido);
-    objectUrlSubido = URL.createObjectURL(archivo);
-
-    const lec = obtenerLeccion(leccionActivaId);
-    lec.videoUrl = objectUrlSubido;
-    lec.poster = null;
-    renderLeccionList();
-
-    cargarVideoDeLeccion(lec);
-    uploaderStatus.textContent = '';
-    uploaderTempAviso.style.display = 'block';
-    onboardingVideo.onloadedmetadata = async () => {
-      duracionTotal = onboardingVideo.duration;
-      trimIni = 0;
-      trimFin = duracionTotal;
-      trimControls.style.display = 'flex';
-      pintarTimeline();
-      pintarPlayhead(0);
-      uploaderStatus.textContent = 'Generando miniaturas…';
-      await generarFilmstrip(objectUrlSubido, 12);
-      uploaderStatus.textContent = '';
-    };
-  });
-
-  previewTrimBtn.addEventListener('click', async () => {
-    await irA(trimIni);
-    onboardingVideo.play();
-    const onTime = () => {
-      pintarPlayhead(onboardingVideo.currentTime);
-      if(onboardingVideo.currentTime >= trimFin){
-        onboardingVideo.pause();
-        onboardingVideo.removeEventListener('timeupdate', onTime);
-      }
-    };
-    onboardingVideo.addEventListener('timeupdate', onTime);
-  });
-
-  // "Usar este recorte" — INSTANTÁNEO. No graba nada de nuevo: guarda
-  // el inicio/fin elegido como metadata de la lección y el reproductor
-  // simplemente no deja ver más allá de ese tramo (ver rangoActivo() /
-  // limiteActivo más arriba). El archivo real sigue siendo el mismo de
-  // siempre, entero, sin recodificar — por eso no hay espera acá.
-  cutVideoBtn.addEventListener('click', () => {
-    const ini = trimIni, fin = trimFin;
-    if(fin - ini < 0.3){
-      uploaderStatus.textContent = 'El recorte es demasiado corto.';
-      return;
-    }
-    const lec = obtenerLeccion(leccionActivaId);
-    lec.inicio = ini;
-    lec.fin = fin;
-    cargarVideoDeLeccion(lec);
-    uploaderStatus.textContent = 'Listo, ya está aplicado en tu navegador — esto no tarda nada porque no se vuelve a grabar el video. Recordá que esto es solo una vista previa: no queda guardado para nadie más.';
-  });
 
   seleccionarLeccion(leccionActivaId);
 
