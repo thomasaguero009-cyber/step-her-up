@@ -732,7 +732,8 @@
       </header>
 
       <div class="quick-nav-row" id="dashTabNav">
-        <button type="button" class="quick-nav-btn active" data-tab="kpis">Kpis</button>
+        <button type="button" class="quick-nav-btn active" data-tab="general">Vista General</button>
+        <button type="button" class="quick-nav-btn" data-tab="kpis">Kpis</button>
         <button type="button" class="quick-nav-btn" data-tab="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn" data-tab="ventas">Ventas del mes</button>
         <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
@@ -771,7 +772,7 @@
         </div>
       </div>
 
-      <div class="tab-panel" data-tab-panel="llamadas">
+      <div class="tab-panel active" data-tab-panel="llamadas">
         <div class="section-label" id="llamadas">Llamadas</div>
         <div class="chart-panel">
           <div class="chart-wrap">
@@ -782,7 +783,7 @@
         </div>
       </div>
 
-      <div class="tab-panel" data-tab-panel="ventas">
+      <div class="tab-panel active" data-tab-panel="ventas">
         <div class="section-label" id="ventas">Ventas</div>
         <div class="chart-panel">
           <div class="chart-wrap">
@@ -803,7 +804,7 @@
         </div>
       </div>
 
-      <div class="tab-panel" data-tab-panel="matematica">
+      <div class="tab-panel active" data-tab-panel="matematica">
         <div class="section-label" id="matematica">Matemática del éxito</div>
 
         <div class="chart-panel">
@@ -854,13 +855,13 @@
         <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
-      <div class="tab-panel" data-tab-panel="setters">
+      <div class="tab-panel active" data-tab-panel="setters">
         <div class="section-label" id="setters">Performance por setter</div>
         <div class="breakdown-grid" id="settersGrid"></div>
         <div class="chart-status" id="statusSetters" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
-      <div class="tab-panel" data-tab-panel="fuentes">
+      <div class="tab-panel active" data-tab-panel="fuentes">
         <div class="section-label" id="fuentes">Llamadas por fuente</div>
         <div class="breakdown-grid" id="fuentesGrid"></div>
         <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
@@ -1058,16 +1059,17 @@
   inicializarSwitcherSecciones('sectionSwitcherOnboarding', 'sectionSwitcherBtnOnboarding', 'sectionSwitcherListOnboarding');
   inicializarSwitcherSecciones('sectionSwitcherRanking', 'sectionSwitcherBtnRanking', 'sectionSwitcherListRanking');
 
-  // ===== Botones de arriba del dashboard (Kpis / Llamadas / Ventas /
-  // Matemática / Setters / Fuentes) — antes hacían scroll a un ancla,
-  // ahora funcionan como pestañas: muestran un solo bloque a la vez.
+  // ===== Botones de arriba del dashboard — "Vista General" muestra
+  // todo seguido, como estaba antes (un solo scroll con las 6
+  // secciones). Los demás (Kpis / Llamadas / Ventas / Matemática /
+  // Setters / Fuentes) aíslan un solo bloque a la vez, como pestañas.
   // Los datos se siguen cargando igual para todos aunque estén ocultos. =====
   const dashTabNav = document.getElementById('dashTabNav');
   dashTabNav.querySelectorAll('.quick-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       dashTabNav.querySelectorAll('.quick-nav-btn').forEach(b => b.classList.toggle('active', b === btn));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tabPanel === tab));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', tab === 'general' || p.dataset.tabPanel === tab));
     });
   });
 
