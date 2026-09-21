@@ -75,6 +75,7 @@
   .month-list .mi{ padding:10px 12px; border-radius:9px; font-size:14px; cursor:pointer; }
   .month-list .mi:hover{ background:rgba(255,255,255,0.08); }
   .month-list .mi.active{ color:var(--blush); font-weight:700; }
+  .month-list .mi.disabled{ opacity:0.4; cursor:not-allowed; pointer-events:none; }
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:10px;
     padding:16px 28px; border-radius:999px; font-weight:700; font-size:16px;
@@ -448,6 +449,47 @@
   .kpi-delta.up{ color:var(--green); }
   .kpi-delta.down{ color:#f0716c; }
 
+  /* ===== Herramientas: contadores tipo "tally counter" ===== */
+  .counter-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; }
+  @media(max-width:760px){ .counter-grid{ grid-template-columns:repeat(2, 1fr); } }
+  @media(max-width:520px){ .counter-grid{ grid-template-columns:1fr; } }
+  .counter-card{
+    background:var(--card); border:1px solid var(--border); border-radius:18px;
+    padding:20px; display:flex; flex-direction:column; gap:16px;
+  }
+  .counter-card-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .counter-name{ font-size:15px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+  .counter-name-input{
+    font-size:15px; font-weight:700; font-family:inherit; color:var(--cream); width:100%; min-width:0;
+    background:rgba(0,0,0,0.25); border:1px solid var(--blush-2); border-radius:8px; padding:4px 8px;
+  }
+  .counter-menu-wrap{ position:relative; flex-shrink:0; }
+  .counter-menu-wrap .month-list{ top:calc(100% + 6px); left:auto; right:0; min-width:150px; }
+  .counter-menu-btn{
+    background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:18px;
+    line-height:1; padding:4px 8px; border-radius:8px; font-family:inherit;
+  }
+  .counter-menu-btn:hover{ background:rgba(255,255,255,0.08); color:var(--cream); }
+  .counter-value{
+    font-size:52px; font-weight:800; text-align:center; color:var(--blush);
+    font-variant-numeric:tabular-nums;
+  }
+  .counter-btns{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .counter-btn{
+    background:rgba(255,255,255,0.08); border:1px solid var(--border); color:var(--cream);
+    border-radius:12px; padding:14px; font-size:22px; font-weight:700; cursor:pointer;
+    font-family:inherit; transition:background .15s ease, border-color .15s ease;
+  }
+  .counter-btn:hover{ background:rgba(255,255,255,0.16); border-color:var(--blush-2); }
+  .counter-add-card{
+    border:1.5px dashed var(--border); border-radius:18px; background:transparent;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    padding:20px; cursor:pointer; color:var(--text-dim); font-size:14px; font-weight:600;
+    min-height:180px; font-family:inherit; width:100%; transition:border-color .2s ease, color .2s ease;
+  }
+  .counter-add-card:hover{ border-color:var(--blush-2); color:var(--cream); }
+  .counter-add-icon{ font-size:30px; color:var(--blush); line-height:1; }
+
   /* "Matemática del éxito" — SOLO las 4 tasas de conversión del embudo
      (agendado, show, cierre, total). El ticket promedio y el revenue
      por lead son plata, no "matemática del éxito" — van junto al
@@ -604,6 +646,12 @@
           <span class="entry-option-text">
             <span class="entry-option-title">Ranking</span>
             <span class="entry-option-sub">Ver ranking de closers</span>
+          </span>
+        </button>
+        <button type="button" class="entry-option" id="goHerramientasBtn">
+          <span class="entry-option-text">
+            <span class="entry-option-title">Herramientas</span>
+            <span class="entry-option-sub">Contadores y utilidades</span>
           </span>
         </button>
       </div>
@@ -946,6 +994,25 @@
     </div>
   </section>
 
+  <!-- ===================== Herramientas (contadores tipo tally counter,
+       se llega desde "Secciones ▾" igual que Onboarding/Dashboard/Ranking) ===================== -->
+  <section class="screen" id="toolsScreen">
+    <div class="wrap">
+      <header class="dash-header">
+        <div class="section-label" style="margin:0;">Herramientas</div>
+        <div class="dash-header-right">
+          <div class="section-switcher" id="sectionSwitcherTools">
+            <button type="button" class="ghost-link-btn" id="sectionSwitcherBtnTools">Secciones ▾</button>
+            <div class="month-list" id="sectionSwitcherListTools"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="counter-grid" id="counterGrid"></div>
+      <p class="chart-status" style="margin-top:24px; text-align:center;">Los contadores se guardan en este navegador — no se comparten entre setters/closers ni se suben al Sheet.</p>
+    </div>
+  </section>
+
 <script>
   // ===== Navegación entre las 3 pantallas de la maqueta =====
   const loadingScreen = document.getElementById('loadingScreen');
@@ -953,9 +1020,10 @@
   const transitionScreen = document.getElementById('transitionScreen');
   const dashboardScreen = document.getElementById('dashboardScreen');
   const rankingScreen = document.getElementById('rankingScreen');
+  const toolsScreen = document.getElementById('toolsScreen');
 
   function showScreen(el){
-    [loadingScreen, onboardingScreen, transitionScreen, dashboardScreen, rankingScreen].forEach(s => s.classList.remove('active'));
+    [loadingScreen, onboardingScreen, transitionScreen, dashboardScreen, rankingScreen, toolsScreen].forEach(s => s.classList.remove('active'));
     el.classList.add('active');
   }
 
@@ -1014,6 +1082,13 @@
   }
   document.getElementById('goRankingBtn').addEventListener('click', entrarAlRanking);
 
+  function entrarAHerramientas(){
+    cambiarDeSeccion(toolsScreen, 'Herramientas', () => {
+      renderContadores();
+    });
+  }
+  document.getElementById('goHerramientasBtn').addEventListener('click', entrarAHerramientas);
+
   // ===== Selector de secciones — aparece en la cabecera del dashboard,
   // la del onboarding y la del ranking, con la misma lista en las tres.
   // El día que se agregue otra parte a la plataforma, alcanza con
@@ -1022,6 +1097,7 @@
     { id: 'onboarding', label: 'Onboarding', activa: () => onboardingScreen.classList.contains('active'), ir: entrarAlOnboarding },
     { id: 'dashboard', label: 'Dashboard', activa: () => dashboardScreen.classList.contains('active'), ir: entrarAlDashboard },
     { id: 'ranking', label: 'Ranking', activa: () => rankingScreen.classList.contains('active'), ir: entrarAlRanking },
+    { id: 'herramientas', label: 'Herramientas', activa: () => toolsScreen.classList.contains('active'), ir: entrarAHerramientas },
   ];
 
   function cerrarSwitchersSecciones(){
@@ -1058,6 +1134,142 @@
   inicializarSwitcherSecciones('sectionSwitcherDash', 'sectionSwitcherBtnDash', 'sectionSwitcherListDash');
   inicializarSwitcherSecciones('sectionSwitcherOnboarding', 'sectionSwitcherBtnOnboarding', 'sectionSwitcherListOnboarding');
   inicializarSwitcherSecciones('sectionSwitcherRanking', 'sectionSwitcherBtnRanking', 'sectionSwitcherListRanking');
+  inicializarSwitcherSecciones('sectionSwitcherTools', 'sectionSwitcherBtnTools', 'sectionSwitcherListTools');
+
+  // ===== Herramientas: contadores tipo "tally counter" — cada setter/
+  // closer los usa para llevar cuentas propias (ej. llamadas hechas en
+  // el día). Se guardan en localStorage de ESTE navegador; no se
+  // comparten entre dispositivos ni se suben a ningún Sheet. =====
+  const counterGrid = document.getElementById('counterGrid');
+  const COUNTERS_KEY = 'shu_dashboard_counters';
+
+  function cargarContadores(){
+    try {
+      const raw = JSON.parse(localStorage.getItem(COUNTERS_KEY));
+      if(Array.isArray(raw) && raw.length) return raw;
+    } catch(e) {}
+    return [{ id: 'c' + Date.now(), nombre: 'Contador 1', valor: 0 }];
+  }
+  let contadores = cargarContadores();
+
+  function guardarContadores(){
+    try { localStorage.setItem(COUNTERS_KEY, JSON.stringify(contadores)); } catch(e) {}
+  }
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+
+  function renderContadores(){
+    const puedeEliminar = contadores.length > 1;
+    counterGrid.innerHTML = contadores.map(c => `
+      <div class="counter-card" data-id="${c.id}">
+        <div class="counter-card-head">
+          <span class="counter-name" data-action="rename" title="Tocá para renombrar">${escapeHtml(c.nombre)}</span>
+          <div class="counter-menu-wrap">
+            <button type="button" class="counter-menu-btn" data-action="menu">⋮</button>
+            <div class="month-list">
+              <div class="mi" data-action="rename">Renombrar</div>
+              <div class="mi" data-action="reset">Reiniciar a 0</div>
+              <div class="mi${puedeEliminar ? '' : ' disabled'}" data-action="delete">Eliminar</div>
+            </div>
+          </div>
+        </div>
+        <div class="counter-value">${c.valor}</div>
+        <div class="counter-btns">
+          <button type="button" class="counter-btn" data-action="dec">−</button>
+          <button type="button" class="counter-btn" data-action="inc">+</button>
+        </div>
+      </div>
+    `).join('') + `
+      <button type="button" class="counter-add-card" id="counterAddBtn">
+        <span class="counter-add-icon">+</span>
+        Agregar contador
+      </button>
+    `;
+    document.getElementById('counterAddBtn').addEventListener('click', agregarContador);
+  }
+
+  function agregarContador(){
+    contadores.push({ id: 'c' + Date.now(), nombre: 'Contador ' + (contadores.length + 1), valor: 0 });
+    guardarContadores();
+    renderContadores();
+  }
+
+  // Edición del nombre in situ (sin prompt()): el <span> se convierte en un
+  // <input> hasta que se confirma con Enter o pierde el foco.
+  function activarEdicionNombre(card, contador){
+    const nameEl = card.querySelector('.counter-name');
+    if(!nameEl) return;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'counter-name-input';
+    input.value = contador.nombre;
+    input.maxLength = 40;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+    let guardado = false;
+    function guardar(){
+      if(guardado) return;
+      guardado = true;
+      const val = input.value.trim();
+      if(val) contador.nombre = val;
+      guardarContadores();
+      renderContadores();
+    }
+    input.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter') input.blur();
+      else if(e.key === 'Escape'){ guardado = true; renderContadores(); }
+    });
+    input.addEventListener('blur', guardar);
+  }
+
+  counterGrid.addEventListener('click', (ev) => {
+    const menuBtn = ev.target.closest('[data-action="menu"]');
+    if(menuBtn){
+      ev.stopPropagation();
+      const list = menuBtn.nextElementSibling;
+      const yaAbierto = list.classList.contains('open');
+      counterGrid.querySelectorAll('.month-list').forEach(l => l.classList.remove('open'));
+      if(!yaAbierto) list.classList.add('open');
+      return;
+    }
+
+    const card = ev.target.closest('.counter-card');
+    if(!card) return;
+    const id = card.dataset.id;
+    const contador = contadores.find(c => c.id === id);
+    if(!contador) return;
+
+    const action = ev.target.dataset.action;
+    if(action === 'inc'){
+      contador.valor++;
+    } else if(action === 'dec'){
+      contador.valor--;
+    } else if(action === 'rename'){
+      counterGrid.querySelectorAll('.month-list').forEach(l => l.classList.remove('open'));
+      activarEdicionNombre(card, contador);
+      return;
+    } else if(action === 'reset'){
+      contador.valor = 0;
+    } else if(action === 'delete'){
+      if(ev.target.closest('.mi.disabled')) return;
+      contadores = contadores.filter(c => c.id !== id);
+    } else {
+      return;
+    }
+    guardarContadores();
+    renderContadores();
+  });
+
+  document.addEventListener('click', (ev) => {
+    if(!ev.target.closest('.counter-menu-wrap')){
+      counterGrid.querySelectorAll('.month-list').forEach(l => l.classList.remove('open'));
+    }
+  });
+
+  renderContadores();
 
   // ===== Botones de arriba del dashboard — "Vista General" muestra
   // todo seguido, como estaba antes (un solo scroll con las 6
