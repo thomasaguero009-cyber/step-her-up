@@ -28,7 +28,7 @@
       linear-gradient(180deg, var(--wine-2) 0%, var(--wine-1) 40%);
     background-attachment:fixed;
   }
-  .wrap{ max-width:1080px; margin:0 auto; padding:0 24px; }
+  .wrap{ max-width:1320px; margin:0 auto; padding:0 24px; }
   h1,h2,h3{ font-family:"Playfair Display", Georgia, serif; margin:0; }
   a{ color:inherit; }
 
@@ -197,7 +197,7 @@
 
 
   /* ===== Casos de éxito (grilla de videos) ===== */
-  .case-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; max-width:1000px; margin:0 auto; }
+  .case-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:24px; max-width:1240px; margin:0 auto; }
   .case-card{
     background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px;
     display:flex; flex-direction:column; gap:12px;
@@ -223,8 +223,12 @@
   @media (max-width:600px){ .case-grid{ grid-template-columns:1fr; } }
 
   /* ===== Carrusel de capturas (auto, dinámico) ===== */
-  .carousel{ max-width:960px; margin:0 auto; overflow:hidden; }
-  .carousel-track{ display:flex; gap:18px; transition:transform .6s cubic-bezier(.65,0,.35,1); will-change:transform; }
+  .carousel{ max-width:1240px; margin:0 auto; overflow:hidden; }
+  .carousel-track{
+    display:flex; gap:18px; transition:transform .6s cubic-bezier(.65,0,.35,1); will-change:transform;
+    cursor:grab; touch-action:pan-y; user-select:none;
+  }
+  .carousel-track:active{ cursor:grabbing; }
   .carousel-slide{
     flex:0 0 calc((100% - 36px)/3); aspect-ratio:4/3; border-radius:14px;
     background:linear-gradient(160deg, var(--wine-3), var(--wine-1)); border:1px solid var(--border);
@@ -352,10 +356,83 @@
   buildDots();
   update();
 
-  setInterval(() => {
-    index = (index + 1) % pages;
+  // ===== Autoplay: se pausa apenas se arrastra el carrusel a mano y
+  // recién retoma solo después de un rato sin que se lo toque. =====
+  const AUTOPLAY_MS = 3200;
+  const RESUME_AFTER_IDLE_MS = 3500;
+  let autoplayTimer = null;
+  let resumeTimer = null;
+
+  function startAutoplay(){
+    stopAutoplay();
+    autoplayTimer = setInterval(() => {
+      index = (index + 1) % pages;
+      update();
+    }, AUTOPLAY_MS);
+  }
+  function stopAutoplay(){
+    if (autoplayTimer) clearInterval(autoplayTimer);
+    autoplayTimer = null;
+  }
+  function pauseAndScheduleResume(){
+    stopAutoplay();
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(startAutoplay, RESUME_AFTER_IDLE_MS);
+  }
+
+  startAutoplay();
+
+  // ===== Arrastre manual (mouse y touch, vía Pointer Events unificados).
+  // Durante el arrastre se sigue el dedo/mouse en píxeles; al soltar, se
+  // redondea al slide más cercano y vuelve al sistema de porcentajes
+  // que ya usaba update(). =====
+  let dragging = false;
+  let dragMoved = false;
+  let dragStartX = 0;
+  let dragStartOffsetPx = 0;
+
+  function stepPx(){
+    return track.scrollWidth / slides;
+  }
+  function currentOffsetPx(){
+    return stepPx() * index;
+  }
+
+  track.addEventListener("pointerdown", (ev) => {
+    dragging = true;
+    dragMoved = false;
+    dragStartX = ev.clientX;
+    dragStartOffsetPx = currentOffsetPx();
+    track.style.transition = "none";
+    try { track.setPointerCapture(ev.pointerId); } catch (e) {}
+    pauseAndScheduleResume();
+  });
+
+  track.addEventListener("pointermove", (ev) => {
+    if (!dragging) return;
+    const deltaX = ev.clientX - dragStartX;
+    if (Math.abs(deltaX) > 4) dragMoved = true;
+    track.style.transform = `translateX(-${dragStartOffsetPx - deltaX}px)`;
+  });
+
+  function endDrag(ev){
+    if (!dragging) return;
+    dragging = false;
+    track.style.transition = "";
+    const deltaX = ev.clientX - dragStartX;
+    const newIndex = Math.round((dragStartOffsetPx - deltaX) / stepPx());
+    index = Math.max(0, Math.min(pages - 1, newIndex));
     update();
-  }, 3200);
+    pauseAndScheduleResume();
+  }
+  track.addEventListener("pointerup", endDrag);
+  track.addEventListener("pointercancel", endDrag);
+  track.addEventListener("pointerleave", (ev) => { if (dragging) endDrag(ev); });
+
+  // Si hubo arrastre real, que no dispare un click en el slide soltado.
+  track.addEventListener("click", (ev) => {
+    if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); }
+  }, true);
 
   window.addEventListener("resize", () => {
     const p = slidesPerView();
