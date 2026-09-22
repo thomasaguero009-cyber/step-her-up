@@ -221,7 +221,9 @@
   .gate-progress span{ width:24px; height:4px; border-radius:2px; background:rgba(255,255,255,0.14); transition:background .2s ease; }
   .gate-progress span.active{ background:var(--blush); }
   .gate-step{ display:none; }
-  .gate-step.active{ display:block; }
+  .gate-step.active{ display:block; animation:gate-step-in .38s cubic-bezier(.22,.61,.36,1); }
+  @keyframes gate-step-in{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
+  .quiz-other-wrap.open{ animation:gate-step-in .3s cubic-bezier(.22,.61,.36,1); }
   .quiz-q{ font-size:15.5px; font-weight:600; margin-bottom:16px; text-align:center; }
   .quiz-options{ display:flex; flex-direction:column; gap:10px; }
   .quiz-option{
