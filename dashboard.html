@@ -490,6 +490,24 @@
   .counter-add-card:hover{ border-color:var(--blush-2); color:var(--cream); }
   .counter-add-icon{ font-size:30px; color:var(--blush); line-height:1; }
 
+  /* ===== Métricas: formulario donde cada setter/closer carga sus
+     números del día — a diferencia de Herramientas, esto se sube al
+     Sheet y sí se comparte/refleja en el dashboard. ===== */
+  .metricas-card{
+    background:var(--card); border:1px solid var(--border); border-radius:18px;
+    padding:28px; max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:18px;
+  }
+  .metricas-fecha{ font-size:13px; color:var(--text-dim); margin:-8px 0 0; text-align:center; }
+  .metricas-field{ display:flex; flex-direction:column; gap:6px; }
+  .metricas-field label{ font-size:12.5px; color:var(--text-dim); }
+  .metricas-field input{
+    padding:13px 14px; border-radius:10px; border:1px solid var(--border);
+    background:rgba(0,0,0,0.25); color:var(--cream); font-size:14.5px; font-family:inherit;
+  }
+  .metricas-field input::placeholder{ color:rgba(247,236,233,0.4); }
+  .metricas-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media(max-width:520px){ .metricas-grid{ grid-template-columns:1fr; } }
+
   /* "Matemática del éxito" — SOLO las 4 tasas de conversión del embudo
      (agendado, show, cierre, total). El ticket promedio y el revenue
      por lead son plata, no "matemática del éxito" — van junto al
@@ -652,6 +670,12 @@
           <span class="entry-option-text">
             <span class="entry-option-title">Herramientas</span>
             <span class="entry-option-sub">Contadores y utilidades</span>
+          </span>
+        </button>
+        <button type="button" class="entry-option" id="goMetricasBtn">
+          <span class="entry-option-text">
+            <span class="entry-option-title">Métricas</span>
+            <span class="entry-option-sub">Cargá tus números del día</span>
           </span>
         </button>
       </div>
@@ -1013,6 +1037,54 @@
     </div>
   </section>
 
+  <!-- ===================== Métricas (cada setter/closer carga sus
+       números del día; se guarda en el Sheet y alimenta el dashboard) ===================== -->
+  <section class="screen" id="metricasScreen">
+    <div class="wrap">
+      <header class="dash-header">
+        <div class="section-label" style="margin:0;">Métricas</div>
+        <div class="dash-header-right">
+          <div class="section-switcher" id="sectionSwitcherMetricas">
+            <button type="button" class="ghost-link-btn" id="sectionSwitcherBtnMetricas">Secciones ▾</button>
+            <div class="month-list" id="sectionSwitcherListMetricas"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="metricas-card">
+        <div class="metricas-field">
+          <label for="metricasNombre">¿Quién sos?</label>
+          <input type="text" id="metricasNombre" placeholder="Tu nombre">
+        </div>
+        <p class="metricas-fecha" id="metricasFecha"></p>
+        <div class="metricas-grid">
+          <div class="metricas-field">
+            <label for="metricasLlamadas">Llamadas</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasLlamadas" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasAgendadas">Agendadas</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasAgendadas" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasShows">Shows</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasShows" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasCierres">Cierres</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasCierres" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasVentas">Ventas</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasVentas" placeholder="0">
+          </div>
+        </div>
+        <button type="button" class="btn" id="metricasGuardarBtn">Guardar métricas</button>
+        <p class="chart-status" id="metricasStatus" style="text-align:center;"></p>
+      </div>
+    </div>
+  </section>
+
 <script>
   // ===== Navegación entre las 3 pantallas de la maqueta =====
   const loadingScreen = document.getElementById('loadingScreen');
@@ -1021,9 +1093,10 @@
   const dashboardScreen = document.getElementById('dashboardScreen');
   const rankingScreen = document.getElementById('rankingScreen');
   const toolsScreen = document.getElementById('toolsScreen');
+  const metricasScreen = document.getElementById('metricasScreen');
 
   function showScreen(el){
-    [loadingScreen, onboardingScreen, transitionScreen, dashboardScreen, rankingScreen, toolsScreen].forEach(s => s.classList.remove('active'));
+    [loadingScreen, onboardingScreen, transitionScreen, dashboardScreen, rankingScreen, toolsScreen, metricasScreen].forEach(s => s.classList.remove('active'));
     el.classList.add('active');
   }
 
@@ -1089,6 +1162,13 @@
   }
   document.getElementById('goHerramientasBtn').addEventListener('click', entrarAHerramientas);
 
+  function entrarAMetricas(){
+    cambiarDeSeccion(metricasScreen, 'Métricas', () => {
+      prepararPantallaMetricas();
+    });
+  }
+  document.getElementById('goMetricasBtn').addEventListener('click', entrarAMetricas);
+
   // ===== Selector de secciones — aparece en la cabecera del dashboard,
   // la del onboarding y la del ranking, con la misma lista en las tres.
   // El día que se agregue otra parte a la plataforma, alcanza con
@@ -1098,6 +1178,7 @@
     { id: 'dashboard', label: 'Dashboard', activa: () => dashboardScreen.classList.contains('active'), ir: entrarAlDashboard },
     { id: 'ranking', label: 'Ranking', activa: () => rankingScreen.classList.contains('active'), ir: entrarAlRanking },
     { id: 'herramientas', label: 'Herramientas', activa: () => toolsScreen.classList.contains('active'), ir: entrarAHerramientas },
+    { id: 'metricas', label: 'Métricas', activa: () => metricasScreen.classList.contains('active'), ir: entrarAMetricas },
   ];
 
   function cerrarSwitchersSecciones(){
@@ -1135,6 +1216,7 @@
   inicializarSwitcherSecciones('sectionSwitcherOnboarding', 'sectionSwitcherBtnOnboarding', 'sectionSwitcherListOnboarding');
   inicializarSwitcherSecciones('sectionSwitcherRanking', 'sectionSwitcherBtnRanking', 'sectionSwitcherListRanking');
   inicializarSwitcherSecciones('sectionSwitcherTools', 'sectionSwitcherBtnTools', 'sectionSwitcherListTools');
+  inicializarSwitcherSecciones('sectionSwitcherMetricas', 'sectionSwitcherBtnMetricas', 'sectionSwitcherListMetricas');
 
   // ===== Herramientas: contadores tipo "tally counter" — cada setter/
   // closer los usa para llevar cuentas propias (ej. llamadas hechas en
@@ -1719,6 +1801,60 @@
   });
   document.addEventListener('click', (e) => {
     if(!activeMonthPill.contains(e.target)) dashMonthList.classList.remove('open');
+  });
+
+  // ===== Métricas: cada setter/closer carga sus números del día en
+  // este formulario. A diferencia de los contadores de Herramientas,
+  // esto SÍ se guarda como fila nueva en la pestaña Tracker del Sheet
+  // (vía el mismo Apps Script que ya escribe Lecciones — ver
+  // escribirLecciones/LECCIONES_WRITE_URL más abajo) y alimenta el
+  // dashboard igual que si lo hubiera cargado alguien a mano ahí. =====
+  const METRICAS_NOMBRE_KEY = 'shu_metricas_nombre';
+  const METRICAS_CAMPOS = ['metricasLlamadas', 'metricasAgendadas', 'metricasShows', 'metricasCierres', 'metricasVentas'];
+
+  function formatearFechaHoy(){
+    const hoy = new Date();
+    const dd = String(hoy.getDate()).padStart(2, '0');
+    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+    return dd + '/' + mm + '/' + hoy.getFullYear();
+  }
+
+  function prepararPantallaMetricas(){
+    const nombreInput = document.getElementById('metricasNombre');
+    try { nombreInput.value = localStorage.getItem(METRICAS_NOMBRE_KEY) || ''; } catch(e) {}
+    document.getElementById('metricasFecha').textContent = 'Hoy: ' + formatearFechaHoy();
+    METRICAS_CAMPOS.forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('metricasStatus').textContent = '';
+  }
+
+  document.getElementById('metricasGuardarBtn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('metricasStatus');
+    const nombre = document.getElementById('metricasNombre').value.trim();
+    if(!nombre){
+      statusEl.textContent = 'Escribí tu nombre antes de guardar.';
+      return;
+    }
+    try { localStorage.setItem(METRICAS_NOMBRE_KEY, nombre); } catch(e) {}
+
+    const body = {
+      action: 'addMetricas',
+      setter: nombre,
+      fecha: formatearFechaHoy(),
+      llamadas: Number(document.getElementById('metricasLlamadas').value) || 0,
+      agendadas: Number(document.getElementById('metricasAgendadas').value) || 0,
+      shows: Number(document.getElementById('metricasShows').value) || 0,
+      cierres: Number(document.getElementById('metricasCierres').value) || 0,
+      ventas: Number(document.getElementById('metricasVentas').value) || 0,
+    };
+
+    statusEl.textContent = 'Guardando…';
+    try {
+      await escribirLecciones(body);
+      statusEl.textContent = '✓ Guardado — gracias ' + nombre + '.';
+      METRICAS_CAMPOS.forEach(id => { document.getElementById(id).value = ''; });
+    } catch(e) {
+      statusEl.textContent = 'No se pudo guardar: ' + e.message;
+    }
   });
 
   // ===== Conexión al Google Sheet "Step Her Up - Tracker" (pestaña
