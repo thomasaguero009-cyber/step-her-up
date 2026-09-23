@@ -114,6 +114,9 @@
     aspect-ratio:16/9; position:relative; display:flex; align-items:center; justify-content:center;
     background:linear-gradient(160deg, var(--wine-3), #0d0304);
   }
+  .vsl-video:fullscreen, .vsl-video:-webkit-full-screen{
+    aspect-ratio:auto; width:100vw; height:100vh; background:#000;
+  }
   .vsl-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#000; }
   .vsl-play{
     position:relative; z-index:1;
@@ -121,21 +124,50 @@
     display:flex; align-items:center; justify-content:center; font-size:26px; cursor:pointer;
     box-shadow:0 8px 30px rgba(0,0,0,0.4);
   }
-  .vsl-sound{
-    position:absolute; z-index:1; bottom:46px; right:14px; padding:7px 14px; border-radius:999px; font-size:12px;
-    background:rgba(0,0,0,0.5); border:1px solid var(--border); color:var(--cream); cursor:pointer;
-  }
-  /* Barra de progreso propia (rosa SHU), siempre visible arriba del video.
-     No muestra números — el avance visual usa un easing (rápido al
-     principio, más lento después) aunque el % real siga el tiempo real
-     del video 1 a 1. */
+  /* Barra de progreso propia (rosa SHU), pegada justo arriba de los
+     controles. No muestra números — el avance visual usa un easing
+     (rápido al principio, más lento después) aunque el % real siga el
+     tiempo real del video 1 a 1. No es arrastrable a propósito: evita
+     que se salteen el video para desbloquear el botón sin verlo. */
   .vsl-progress{
-    position:absolute; top:0; left:0; right:0; height:5px; z-index:2;
-    background:rgba(255,255,255,0.18);
+    position:absolute; left:0; right:0; bottom:52px; height:5px; z-index:3;
+    background:rgba(255,255,255,0.18); display:none;
   }
   .vsl-progress-fill{
     height:100%; width:0%; background:linear-gradient(90deg,var(--blush-2),var(--blush));
   }
+  .vsl-video.started .vsl-progress{ display:block; }
+
+  /* Controles propios estilo SHU, en vez de los controles nativos del navegador */
+  .vsl-controls{
+    position:absolute; left:0; right:0; bottom:0; height:52px; z-index:3;
+    display:none; align-items:center; gap:4px; padding:0 10px 0 6px;
+    background:linear-gradient(0deg, rgba(13,3,4,0.95), rgba(13,3,4,0.8) 70%, transparent);
+  }
+  .vsl-video.started .vsl-controls{ display:flex; }
+  .vsl-ctrl-btn{
+    width:34px; height:34px; border-radius:50%; border:none; background:transparent; color:var(--cream);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; padding:0;
+    transition:background 0.15s ease, color 0.15s ease;
+  }
+  .vsl-ctrl-btn:hover{ background:rgba(255,255,255,0.14); color:var(--blush); }
+  .vsl-ctrl-btn svg{ width:18px; height:18px; display:block; }
+  .vsl-time{ font-size:12.5px; color:var(--text-dim); white-space:nowrap; padding:0 8px; font-variant-numeric:tabular-nums; }
+  .vsl-controls-spacer{ flex:1; }
+  .vsl-speed{ position:relative; }
+  .vsl-speed-btn{ width:auto; padding:0 11px; border-radius:999px; font-size:12.5px; font-weight:700; }
+  .vsl-speed-menu{
+    position:absolute; bottom:42px; right:0; background:var(--wine-2); border:1px solid var(--border);
+    border-radius:12px; padding:6px; display:none; flex-direction:column; min-width:84px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.5);
+  }
+  .vsl-speed-menu.open{ display:flex; }
+  .vsl-speed-menu button{
+    background:none; border:none; color:var(--cream); font-size:13px; padding:7px 10px; border-radius:8px;
+    text-align:left; cursor:pointer;
+  }
+  .vsl-speed-menu button:hover{ background:rgba(255,255,255,0.08); }
+  .vsl-speed-menu button.active{ color:var(--blush); font-weight:700; }
 
   /* ===== Calendario ===== */
   .calendar-card{
@@ -290,11 +322,27 @@
     <section class="section" id="vsl" style="padding:20px 0 30px;">
       <div class="wrap">
         <div class="vsl-card">
-          <div class="vsl-video">
+          <div class="vsl-video" id="vslVideoWrap">
             <video id="vslVideo" playsinline preload="metadata" controlsList="nodownload noremoteplayback" src="https://step-her-up-videos.b-cdn.net/gianie-april-vsl.mp4"></video>
             <div class="vsl-progress"><div class="vsl-progress-fill" id="vslProgressFill"></div></div>
+            <div class="vsl-controls" id="vslControls">
+              <button type="button" class="vsl-ctrl-btn" id="vslPlayPauseBtn" aria-label="Reproducir / pausar"></button>
+              <span class="vsl-time" id="vslTime">0:00 / 0:00</span>
+              <div class="vsl-controls-spacer"></div>
+              <div class="vsl-speed">
+                <button type="button" class="vsl-ctrl-btn vsl-speed-btn" id="vslSpeedBtn">1x</button>
+                <div class="vsl-speed-menu" id="vslSpeedMenu">
+                  <button type="button" data-rate="0.75">0.75x</button>
+                  <button type="button" data-rate="1" class="active">1x</button>
+                  <button type="button" data-rate="1.25">1.25x</button>
+                  <button type="button" data-rate="1.5">1.5x</button>
+                  <button type="button" data-rate="2">2x</button>
+                </div>
+              </div>
+              <button type="button" class="vsl-ctrl-btn" id="vslMuteBtn" aria-label="Silenciar / activar sonido"></button>
+              <button type="button" class="vsl-ctrl-btn" id="vslFullscreenBtn" aria-label="Pantalla completa"></button>
+            </div>
             <div class="vsl-play" id="vslPlayBtn">▶</div>
-            <span class="vsl-sound" id="vslSoundHint" style="display:none;">🔇 Activar sonido</span>
           </div>
         </div>
       </div>
@@ -383,11 +431,12 @@
   <section class="section">
     <div class="wrap about-grid">
       <div>
-        <div class="eyebrow">[Quién es Gianie]</div>
+        <div class="eyebrow">Quién es Gianie</div>
         <h2 style="margin-bottom:16px;">Por qué podemos <span class="hl">ayudarte</span></h2>
-        <p>[Breve historia de Gianie — quién es, qué la califica para acompañar este proceso, y por qué las clientas confían en ella.]</p>
+        <p>Soy Gianie Milet, estratega en posicionamiento y crecimiento de negocios para mujeres profesionales. Con Step Her Up acompañé a más de 70 mujeres a estructurar su marca, redefinir su oferta y escalar su facturación con resultados concretos, no con promesas genéricas.</p>
+        <p style="margin-top:14px;">Nuestro proceso no es un curso más, es un sistema con diagnóstico, estrategia de posicionamiento y estructura de oferta, diseñado para que factures más sin que tu carga de trabajo crezca al mismo ritmo. Si ya tienes experiencia, clientas y resultados, pero tu negocio todavía no está posicionado ni cobrando al nivel que deberías, es exactamente ahí donde trabajamos.</p>
       </div>
-      <div class="about-photo about-photo-sm">[Foto de Gianie]</div>
+      <img class="about-photo about-photo-sm" src="images/gianie/gianie-foto.jpg" alt="Gianie Milet, fundadora de Step Her Up" style="object-fit:cover;">
     </div>
   </section>
 
@@ -395,7 +444,6 @@
   <section class="section">
     <div class="wrap">
       <div class="section-head">
-        <div class="eyebrow">[Capturas]</div>
         <h2>Fotos de <span class="hl">testimonios</span></h2>
       </div>
 
@@ -420,7 +468,6 @@
   <section class="section">
     <div class="wrap">
       <div class="section-head">
-        <div class="eyebrow">[Reseñas]</div>
         <h2>Lo que <span class="hl">dicen</span> de nosotras</h2>
       </div>
 
@@ -680,16 +727,41 @@
 
   // ===== VSL real (video alojado en CDN propio, sin YouTube) + desbloqueo
   // de "Aplicar al programa" sincronizado con el progreso REAL del video,
-  // no con un timer aparte. Arranca mudo apenas se cierra el gate — así
-  // el autoplay nunca lo bloquea el navegador — y "🔇 Activar sonido" lo
-  // desmutea. "Aplicar al programa" se desbloquea cuando el video
-  // termina. Al desbloquear, el botón pasa a ser un link real a
-  // formulario.html (antes navega a "#" y no hace nada). =====
+  // no con un timer aparte (cambiar la velocidad de reproducción no
+  // rompe la sincronía: todo se calcula sobre currentTime/duration, que
+  // avanzan según el contenido real del video, no según el reloj).
+  // Arranca mudo apenas se cierra el gate — así el autoplay nunca lo
+  // bloquea el navegador. "Aplicar al programa" se desbloquea cuando el
+  // video termina. Al desbloquear, el botón pasa a ser un link real a
+  // formulario.html (antes navega a "#" y no hace nada). Los controles
+  // (play/pausa, volumen, velocidad, pantalla completa) son propios,
+  // con estilo SHU, en vez de los controles nativos del navegador. =====
   const applyBtn = document.getElementById("applyBtn");
   const fill = document.getElementById("ctaFill");
-  const soundHint = document.getElementById("vslSoundHint");
   const vslVideo = document.getElementById("vslVideo");
+  const vslVideoWrap = document.getElementById("vslVideoWrap");
   const progressFill = document.getElementById("vslProgressFill");
+  const controls = document.getElementById("vslControls");
+  const playPauseBtn = document.getElementById("vslPlayPauseBtn");
+  const timeLabel = document.getElementById("vslTime");
+  const muteBtn = document.getElementById("vslMuteBtn");
+  const speedBtn = document.getElementById("vslSpeedBtn");
+  const speedMenu = document.getElementById("vslSpeedMenu");
+  const fullscreenBtn = document.getElementById("vslFullscreenBtn");
+
+  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+  const ICON_VOLUME = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+  const ICON_MUTE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
+  const ICON_EXPAND = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+  const ICON_COMPRESS = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+
+  function formatTime(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, "0");
+    return m + ":" + sec;
+  }
 
   function unlock() {
     fill.style.width = "100%";
@@ -700,6 +772,7 @@
   }
 
   vslVideo.addEventListener("timeupdate", () => {
+    timeLabel.textContent = formatTime(vslVideo.currentTime) + " / " + formatTime(vslVideo.duration);
     if (!vslVideo.duration) return;
     const frac = Math.min(1, vslVideo.currentTime / vslVideo.duration);
     fill.style.width = frac * 100 + "%";
@@ -709,14 +782,51 @@
     const eased = 1 - Math.pow(1 - frac, 2.2);
     progressFill.style.width = eased * 100 + "%";
   });
+  vslVideo.addEventListener("loadedmetadata", () => {
+    timeLabel.textContent = formatTime(vslVideo.currentTime) + " / " + formatTime(vslVideo.duration);
+  });
 
   vslVideo.addEventListener("ended", unlock);
 
-  soundHint.addEventListener("click", () => {
-    vslVideo.muted = false;
-    soundHint.textContent = "🔊 Sonido activado";
-    setTimeout(() => { soundHint.style.display = "none"; }, 1500);
+  playPauseBtn.addEventListener("click", () => {
+    if (vslVideo.paused) vslVideo.play(); else vslVideo.pause();
   });
+  vslVideo.addEventListener("play", () => { playPauseBtn.innerHTML = ICON_PAUSE; });
+  vslVideo.addEventListener("pause", () => { playPauseBtn.innerHTML = ICON_PLAY; });
+
+  muteBtn.addEventListener("click", () => { vslVideo.muted = !vslVideo.muted; });
+  vslVideo.addEventListener("volumechange", () => {
+    muteBtn.innerHTML = vslVideo.muted || vslVideo.volume === 0 ? ICON_MUTE : ICON_VOLUME;
+  });
+
+  speedBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    speedMenu.classList.toggle("open");
+  });
+  speedMenu.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      vslVideo.playbackRate = parseFloat(btn.dataset.rate);
+      speedBtn.textContent = btn.textContent;
+      speedMenu.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      speedMenu.classList.remove("open");
+    });
+  });
+  document.addEventListener("click", (ev) => {
+    if (!speedMenu.contains(ev.target) && ev.target !== speedBtn) speedMenu.classList.remove("open");
+  });
+
+  fullscreenBtn.addEventListener("click", () => {
+    if (!document.fullscreenElement) vslVideoWrap.requestFullscreen();
+    else document.exitFullscreen();
+  });
+  document.addEventListener("fullscreenchange", () => {
+    fullscreenBtn.innerHTML = document.fullscreenElement ? ICON_COMPRESS : ICON_EXPAND;
+  });
+
+  playPauseBtn.innerHTML = ICON_PLAY;
+  muteBtn.innerHTML = ICON_MUTE;
+  fullscreenBtn.innerHTML = ICON_EXPAND;
 
   function startVsl() {
     if (started) return;
@@ -724,8 +834,7 @@
     playBtn.style.display = "none";
     vslVideo.muted = true;
     vslVideo.play();
-    vslVideo.controls = true;
-    soundHint.style.display = "block";
+    vslVideoWrap.classList.add("started");
   }
 
   applyBtn.addEventListener("click", (ev) => {
