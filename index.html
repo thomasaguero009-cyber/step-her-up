@@ -114,16 +114,17 @@
     aspect-ratio:16/9; position:relative; display:flex; align-items:center; justify-content:center;
     background:linear-gradient(160deg, var(--wine-3), #0d0304);
   }
+  .vsl-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#000; }
   .vsl-play{
+    position:relative; z-index:1;
     width:74px; height:74px; border-radius:50%; background:rgba(255,255,255,0.92); color:var(--wine-2);
     display:flex; align-items:center; justify-content:center; font-size:26px; cursor:pointer;
     box-shadow:0 8px 30px rgba(0,0,0,0.4);
   }
   .vsl-sound{
-    position:absolute; bottom:14px; right:14px; padding:7px 14px; border-radius:999px; font-size:12px;
-    background:rgba(0,0,0,0.5); border:1px solid var(--border); color:var(--cream);
+    position:absolute; z-index:1; bottom:14px; right:14px; padding:7px 14px; border-radius:999px; font-size:12px;
+    background:rgba(0,0,0,0.5); border:1px solid var(--border); color:var(--cream); cursor:pointer;
   }
-  .vsl-caption{ text-align:center; padding:20px; color:var(--text-dim); font-size:14px; }
 
   /* ===== Calendario ===== */
   .calendar-card{
@@ -279,10 +280,10 @@
       <div class="wrap">
         <div class="vsl-card">
           <div class="vsl-video">
+            <video id="vslVideo" playsinline preload="metadata" src="https://step-her-up-videos.b-cdn.net/gianie-april-vsl.mp4"></video>
             <div class="vsl-play" id="vslPlayBtn">▶</div>
-            <span class="vsl-sound">🔇 Activar sonido</span>
+            <span class="vsl-sound" id="vslSoundHint" style="display:none;">🔇 Activar sonido</span>
           </div>
-          <p class="vsl-caption">[Video de presentación — 5 a 12 min funciona bien para este formato.]</p>
         </div>
       </div>
     </section>
@@ -665,36 +666,46 @@
   }
   detectCountryCode(gateCodigoPais);
 
-  // ===== Desbloqueo del botón "Aplicar al programa" sincronizado con el
-  // VSL. Ahora mismo el VSL es un placeholder (no hay <video> real
-  // todavía), así que el cronómetro arranca al cerrar el gate. Cuando se
-  // integre el video real (Vimeo/Wistia/YouTube/etc.), reemplazar
-  // startVsl()/unlock() por los eventos "play"/"ended" del reproductor.
-  // Al desbloquear, el botón pasa a ser un link real a formulario.html
-  // (antes navega a "#" y no hace nada). =====
-  const VSL_UNLOCK_SECONDS = 300; // ⏱️ ajustar a la duración real del VSL
+  // ===== VSL real (video alojado en CDN propio, sin YouTube) + desbloqueo
+  // de "Aplicar al programa" sincronizado con el progreso REAL del video,
+  // no con un timer aparte. Arranca mudo apenas se cierra el gate — así
+  // el autoplay nunca lo bloquea el navegador — y "🔇 Activar sonido" lo
+  // desmutea. "Aplicar al programa" se desbloquea cuando el video
+  // termina. Al desbloquear, el botón pasa a ser un link real a
+  // formulario.html (antes navega a "#" y no hace nada). =====
   const applyBtn = document.getElementById("applyBtn");
   const fill = document.getElementById("ctaFill");
-  let vslTimer = null;
+  const soundHint = document.getElementById("vslSoundHint");
+  const vslVideo = document.getElementById("vslVideo");
 
   function unlock() {
-    clearInterval(vslTimer);
     fill.style.width = "100%";
     applyBtn.classList.remove("locked");
     applyBtn.removeAttribute("aria-disabled");
     applyBtn.classList.add("just-unlocked");
   }
 
+  vslVideo.addEventListener("timeupdate", () => {
+    if (!vslVideo.duration) return;
+    const pct = Math.min(100, (vslVideo.currentTime / vslVideo.duration) * 100);
+    fill.style.width = pct + "%";
+  });
+
+  vslVideo.addEventListener("ended", unlock);
+
+  soundHint.addEventListener("click", () => {
+    vslVideo.muted = false;
+    soundHint.textContent = "🔊 Sonido activado";
+    setTimeout(() => { soundHint.style.display = "none"; }, 1500);
+  });
+
   function startVsl() {
     if (started) return;
     started = true;
-    const startedAt = Date.now();
-    vslTimer = setInterval(() => {
-      const elapsed = (Date.now() - startedAt) / 1000;
-      const pct = Math.min(100, (elapsed / VSL_UNLOCK_SECONDS) * 100);
-      fill.style.width = pct + "%";
-      if (elapsed >= VSL_UNLOCK_SECONDS) unlock();
-    }, 250);
+    playBtn.style.display = "none";
+    vslVideo.muted = true;
+    vslVideo.play();
+    soundHint.style.display = "block";
   }
 
   applyBtn.addEventListener("click", (ev) => {
