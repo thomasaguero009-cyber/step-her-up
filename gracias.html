@@ -242,6 +242,26 @@
   @media (max-width:900px){ .carousel-slide{ flex-basis:calc((100% - 18px)/2); } }
   @media (max-width:600px){ .carousel-slide{ flex-basis:100%; } }
 
+  /* ===== Reseñas estilo Google (tarjetas claras, a propósito distintas
+     del resto de la página oscura — para que se lean como prueba social
+     "externa", igual que un widget de reseñas embebido) ===== */
+  .reviews-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; max-width:1240px; margin:0 auto; }
+  .review-card{
+    background:#fff; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:12px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.25);
+  }
+  .review-stars{ color:#fbbc04; font-size:16px; letter-spacing:2px; }
+  .review-text{ color:#3c3c3c; font-size:14.5px; line-height:1.55; margin:0; flex:1; }
+  .review-author{ display:flex; align-items:center; gap:10px; }
+  .review-avatar{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg, var(--blush-2), var(--blush)); color:#2a0a13;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+  }
+  .review-name{ font-size:13.5px; font-weight:700; color:#1a1a1a; }
+  .review-source{ font-size:11.5px; color:#767676; }
+  @media (max-width:900px){ .reviews-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:600px){ .reviews-grid{ grid-template-columns:1fr; } }
 
 </style>
 </head>
@@ -338,6 +358,89 @@
         </div>
       </div>
       <div class="carousel-dots" id="carouselDots"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">[Reseñas]</div>
+        <h2>Lo que <span class="hl">dicen</span> de nosotras</h2>
+      </div>
+
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Muchas gracias por todo!! 🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">V</div>
+            <div>
+              <div class="review-name">Virnalis</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"He tenido un crecimiento gigante en clientas desde mayo... Estoy muy agradecida y emocionada por esta etapa."</p>
+          <div class="review-author">
+            <div class="review-avatar">F</div>
+            <div>
+              <div class="review-name">Fabi</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"De febrero a acá, tengo 51 clientas recurrentes y 16 nuevas 🤩 — solo con contenido orgánico."</p>
+          <div class="review-author">
+            <div class="review-avatar">F</div>
+            <div>
+              <div class="review-name">Fabi</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Amoresss puse una candelita en ig y me salieron 5 ventas."</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">Lizbeth</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"En menos de un mes adquirimos más de 2000 nuevos followers y más de 30 llamadas de clientes interesados en nuestro servicio... 1000% recomendada."</p>
+          <div class="review-author">
+            <div class="review-avatar">?</div>
+            <div>
+              <div class="review-name">Clienta Step Her Up</div>
+              <div class="review-source">Pendiente confirmar nombre</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La gloria es para Dios! Gracias Gianie por darnos todo para crecer 🙌🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">K</div>
+            <div>
+              <div class="review-name">@kelymarmelendez</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
