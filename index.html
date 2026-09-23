@@ -107,7 +107,7 @@
 
   /* ===== VSL ===== */
   .vsl-card{
-    max-width:960px; margin:0 auto; border-radius:18px; overflow:hidden;
+    max-width:1100px; margin:0 auto; border-radius:18px; overflow:hidden;
     border:1px solid var(--border); background:var(--card);
   }
   .vsl-video{
@@ -122,8 +122,19 @@
     box-shadow:0 8px 30px rgba(0,0,0,0.4);
   }
   .vsl-sound{
-    position:absolute; z-index:1; bottom:14px; right:14px; padding:7px 14px; border-radius:999px; font-size:12px;
+    position:absolute; z-index:1; bottom:46px; right:14px; padding:7px 14px; border-radius:999px; font-size:12px;
     background:rgba(0,0,0,0.5); border:1px solid var(--border); color:var(--cream); cursor:pointer;
+  }
+  /* Barra de progreso propia (rosa SHU), siempre visible arriba del video.
+     No muestra números — el avance visual usa un easing (rápido al
+     principio, más lento después) aunque el % real siga el tiempo real
+     del video 1 a 1. */
+  .vsl-progress{
+    position:absolute; top:0; left:0; right:0; height:5px; z-index:2;
+    background:rgba(255,255,255,0.18);
+  }
+  .vsl-progress-fill{
+    height:100%; width:0%; background:linear-gradient(90deg,var(--blush-2),var(--blush));
   }
 
   /* ===== Calendario ===== */
@@ -280,7 +291,8 @@
       <div class="wrap">
         <div class="vsl-card">
           <div class="vsl-video">
-            <video id="vslVideo" playsinline preload="metadata" src="https://step-her-up-videos.b-cdn.net/gianie-april-vsl.mp4"></video>
+            <video id="vslVideo" playsinline preload="metadata" controlsList="nodownload noremoteplayback" src="https://step-her-up-videos.b-cdn.net/gianie-april-vsl.mp4"></video>
+            <div class="vsl-progress"><div class="vsl-progress-fill" id="vslProgressFill"></div></div>
             <div class="vsl-play" id="vslPlayBtn">▶</div>
             <span class="vsl-sound" id="vslSoundHint" style="display:none;">🔇 Activar sonido</span>
           </div>
@@ -677,9 +689,11 @@
   const fill = document.getElementById("ctaFill");
   const soundHint = document.getElementById("vslSoundHint");
   const vslVideo = document.getElementById("vslVideo");
+  const progressFill = document.getElementById("vslProgressFill");
 
   function unlock() {
     fill.style.width = "100%";
+    progressFill.style.width = "100%";
     applyBtn.classList.remove("locked");
     applyBtn.removeAttribute("aria-disabled");
     applyBtn.classList.add("just-unlocked");
@@ -687,8 +701,13 @@
 
   vslVideo.addEventListener("timeupdate", () => {
     if (!vslVideo.duration) return;
-    const pct = Math.min(100, (vslVideo.currentTime / vslVideo.duration) * 100);
-    fill.style.width = pct + "%";
+    const frac = Math.min(1, vslVideo.currentTime / vslVideo.duration);
+    fill.style.width = frac * 100 + "%";
+    // Easing "ease-out": avanza rápido al principio y se frena después,
+    // sin perder la conexión real con el tiempo del video (en frac=1
+    // siempre da 100%, sea cual sea la curva).
+    const eased = 1 - Math.pow(1 - frac, 2.2);
+    progressFill.style.width = eased * 100 + "%";
   });
 
   vslVideo.addEventListener("ended", unlock);
@@ -705,6 +724,7 @@
     playBtn.style.display = "none";
     vslVideo.muted = true;
     vslVideo.play();
+    vslVideo.controls = true;
     soundHint.style.display = "block";
   }
 
