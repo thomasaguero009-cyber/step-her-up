@@ -466,6 +466,9 @@
           <div class="carousel-slide"><img src="images/testimonios/testimonio-6.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
           <div class="carousel-slide"><img src="images/testimonios/testimonio-7.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
           <div class="carousel-slide"><img src="images/testimonios/testimonio-8.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-1.jpeg" alt="" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-2.jpeg" alt="" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-3.jpeg" alt="" loading="lazy"></div>
         </div>
       </div>
       <div class="carousel-dots" id="carouselDots"></div>
@@ -547,6 +550,90 @@
             <div class="review-avatar">K</div>
             <div>
               <div class="review-name">@kelymarmelendez</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Gracias por lo que haces 💗"</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">@lyasesthetic</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La mejor ✨"</p>
+          <div class="review-author">
+            <div class="review-avatar">D</div>
+            <div>
+              <div class="review-name">@dravirnalis</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Bendecida de formar parte de este grupo de mujeres exitosas. 🔥🔥🔥🔥"</p>
+          <div class="review-author">
+            <div class="review-avatar">J</div>
+            <div>
+              <div class="review-name">@jennyfernandezthebroker</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Agradecida con Dios por poner a grandes mujeres que inspiran a seguir creciendo."</p>
+          <div class="review-author">
+            <div class="review-avatar">V</div>
+            <div>
+              <div class="review-name">@valle_y</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Que bendición ser parte de esta gran comunidad 🙏💗"</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">@__lenyram__</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Gracias por tu empatía y siempre dar lo mejor de ti a todas. Bendiciones."</p>
+          <div class="review-author">
+            <div class="review-avatar">T</div>
+            <div>
+              <div class="review-name">@tugestoraenpr</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Que bendición formar parte de este grupo de mujeres que lo están dando todo. Sales motivada si o si ✨🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">Y</div>
+            <div>
+              <div class="review-name">@yadimarsalasphotography</div>
               <div class="review-source">Comentario en Instagram</div>
             </div>
           </div>
@@ -691,7 +778,12 @@
 (function(){
   const track = document.getElementById("carouselTrack");
   const dotsWrap = document.getElementById("carouselDots");
-  const slides = track.children.length;
+  // Al final del track hay clones de las primeras CLONE_COUNT slides
+  // (ver HTML) — sirven para que el autoplay pueda seguir sumando de a
+  // una sin que se note el salto al volver al principio.
+  const CLONE_COUNT = 3;
+  const totalSlides = track.children.length;
+  const realSlides = totalSlides - CLONE_COUNT;
 
   function slidesPerView(){
     if (window.innerWidth <= 600) return 1;
@@ -701,11 +793,11 @@
 
   let index = 0;
   let perView = slidesPerView();
-  let pages = Math.max(1, slides - perView + 1);
+  let pages = Math.max(1, realSlides - perView + 1);
 
   function buildDots(){
     dotsWrap.innerHTML = "";
-    pages = Math.max(1, slides - perView + 1);
+    pages = Math.max(1, realSlides - perView + 1);
     for (let i = 0; i < pages; i++) {
       const d = document.createElement("span");
       d.className = "dot" + (i === index ? " active" : "");
@@ -714,26 +806,52 @@
   }
 
   function update(){
-    const pct = (100 / slides) * index;
+    const pct = (100 / totalSlides) * index;
     track.style.transform = `translateX(-${pct}%)`;
-    [...dotsWrap.children].forEach((d, i) => d.classList.toggle("active", i === index));
+    const dotIndex = Math.min(index, pages - 1);
+    [...dotsWrap.children].forEach((d, i) => d.classList.toggle("active", i === dotIndex));
   }
 
   buildDots();
   update();
 
   // ===== Autoplay: se pausa apenas se arrastra el carrusel a mano y
-  // recién retoma solo después de un rato sin que se lo toque. =====
+  // recién retoma solo después de un rato sin que se lo toque. Cuando
+  // el índice llega a las slides clonadas (idéntico visualmente a las
+  // reales del principio), apenas termina esa transición se reposiciona
+  // sin animación al índice 0 real — el loop queda infinito sin salto. =====
   const AUTOPLAY_MS = 3200;
   const RESUME_AFTER_IDLE_MS = 3500;
   let autoplayTimer = null;
   let resumeTimer = null;
+  let bridgeResetHandler = null;
+
+  function cancelBridgeReset(){
+    if (bridgeResetHandler) {
+      track.removeEventListener("transitionend", bridgeResetHandler);
+      bridgeResetHandler = null;
+    }
+  }
+
+  function armBridgeReset(){
+    cancelBridgeReset();
+    bridgeResetHandler = () => {
+      bridgeResetHandler = null;
+      track.style.transition = "none";
+      index = 0;
+      update();
+      void track.offsetWidth;
+      track.style.transition = "";
+    };
+    track.addEventListener("transitionend", bridgeResetHandler, { once: true });
+  }
 
   function startAutoplay(){
     stopAutoplay();
     autoplayTimer = setInterval(() => {
-      index = (index + 1) % pages;
+      index += 1;
       update();
+      if (index >= realSlides) armBridgeReset();
     }, AUTOPLAY_MS);
   }
   function stopAutoplay(){
@@ -758,13 +876,21 @@
   let dragStartOffsetPx = 0;
 
   function stepPx(){
-    return track.scrollWidth / slides;
+    return track.scrollWidth / totalSlides;
   }
   function currentOffsetPx(){
     return stepPx() * index;
   }
 
   track.addEventListener("pointerdown", (ev) => {
+    cancelBridgeReset();
+    if (index >= realSlides) {
+      track.style.transition = "none";
+      index = 0;
+      update();
+      void track.offsetWidth;
+      track.style.transition = "";
+    }
     dragging = true;
     dragMoved = false;
     dragStartX = ev.clientX;
