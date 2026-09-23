@@ -57,7 +57,7 @@
      carga, pero es el botón mismo, no una franja chica adentro). Al
      llegar al 100% queda igual al botón final ya desbloqueado. ===== */
   .btn-cta{
-    position:relative; overflow:hidden; padding:26px 56px; font-size:21px;
+    position:relative; overflow:hidden; padding:15px 40px; font-size:16px;
     background:var(--card); border:1px solid var(--blush-2); color:var(--cream);
   }
   .btn-cta .cta-label{ position:relative; z-index:2; text-shadow:0 1px 4px rgba(0,0,0,0.5); }
@@ -120,15 +120,25 @@
   .vsl-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#000; cursor:pointer; }
   .vsl-play{
     position:relative; z-index:1;
-    width:74px; height:74px; border-radius:50%;
+    width:88px; height:88px; border-radius:50%;
     background:linear-gradient(135deg,var(--blush-2),var(--blush)); color:#2a0a13;
-    display:flex; align-items:center; justify-content:center; font-size:26px; cursor:pointer;
-    box-shadow:0 8px 30px rgba(232,138,168,0.45);
-    animation:vsl-play-pulse 1.8s ease-in-out infinite;
+    display:flex; align-items:center; justify-content:center; font-size:32px; cursor:pointer;
+    box-shadow:0 8px 34px rgba(232,138,168,0.55);
+    animation:vsl-play-pulse 1.6s ease-in-out infinite;
   }
+  .vsl-play::before, .vsl-play::after{
+    content:""; position:absolute; inset:0; border-radius:50%;
+    border:2.5px solid var(--blush); opacity:0; pointer-events:none;
+    animation:vsl-play-ring 1.8s ease-out infinite;
+  }
+  .vsl-play::after{ animation-delay:0.6s; }
   @keyframes vsl-play-pulse{
-    0%,100%{ transform:scale(1); box-shadow:0 8px 26px rgba(232,138,168,0.45), 0 0 0 0 rgba(240,168,190,0.35); }
-    50%{ transform:scale(1.08); box-shadow:0 8px 30px rgba(232,138,168,0.6), 0 0 0 14px rgba(240,168,190,0); }
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.12); }
+  }
+  @keyframes vsl-play-ring{
+    0%{ transform:scale(1); opacity:0.7; }
+    100%{ transform:scale(2.1); opacity:0; }
   }
   /* Controles propios estilo SHU: la barra rosa es el "piso" del video
      (pegada al borde inferior) y encima, en la misma franja, quedan
@@ -670,8 +680,8 @@
 
   let started = false;
   playBtn.addEventListener("click", () => {
-    if (started) return;
-    openGate();
+    if (!started) { openGate(); return; }
+    vslVideo.play();
   });
   gateClose.addEventListener("click", closeGate);
   gateOverlay.addEventListener("click", (ev) => {
@@ -777,6 +787,15 @@
   // Tocar el video directamente lo pausa/reanuda (sin botón dedicado).
   vslVideo.addEventListener("click", () => {
     if (vslVideo.paused) vslVideo.play(); else vslVideo.pause();
+  });
+
+  // Al pausar (ya arrancado el video) reaparece el botón rosa grande,
+  // para que quede claro que está en pausa y cómo reanudar.
+  vslVideo.addEventListener("pause", () => {
+    if (started) playBtn.style.display = "flex";
+  });
+  vslVideo.addEventListener("play", () => {
+    if (started) playBtn.style.display = "none";
   });
 
   muteBtn.addEventListener("click", () => { vslVideo.muted = !vslVideo.muted; });
