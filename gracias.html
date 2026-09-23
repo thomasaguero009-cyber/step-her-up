@@ -547,9 +547,17 @@
 
   let index = 0;
 
+  // Todo en píxeles, siempre con la MISMA cuenta (track.scrollWidth /
+  // totalSlides) — antes update() posicionaba en porcentaje mientras el
+  // arrastre calculaba en píxeles, y esos dos sistemas no coincidían
+  // exactamente; el desfasaje se iba acumulando de a poco con cada slide
+  // hasta notarse como un "tirón" después de unas cuantas fotos.
+  function stepPx(){
+    return track.scrollWidth / totalSlides;
+  }
+
   function update(){
-    const pct = (100 / totalSlides) * index;
-    track.style.transform = `translateX(-${pct}%)`;
+    track.style.transform = `translateX(-${stepPx() * index}px)`;
   }
 
   update();
@@ -615,9 +623,6 @@
   let dragStartX = 0;
   let dragStartOffsetPx = 0;
 
-  function stepPx(){
-    return track.scrollWidth / totalSlides;
-  }
   function currentOffsetPx(){
     // Usa la posición visual REAL (vía computed style), no la posición
     // "destino" de index — si el autoplay está a mitad de una animación
