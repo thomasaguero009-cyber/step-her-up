@@ -117,34 +117,42 @@
   .vsl-video:fullscreen, .vsl-video:-webkit-full-screen{
     aspect-ratio:auto; width:100vw; height:100vh; background:#000;
   }
-  .vsl-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#000; }
+  .vsl-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#000; cursor:pointer; }
   .vsl-play{
     position:relative; z-index:1;
-    width:74px; height:74px; border-radius:50%; background:rgba(255,255,255,0.92); color:var(--wine-2);
+    width:74px; height:74px; border-radius:50%;
+    background:linear-gradient(135deg,var(--blush-2),var(--blush)); color:#2a0a13;
     display:flex; align-items:center; justify-content:center; font-size:26px; cursor:pointer;
-    box-shadow:0 8px 30px rgba(0,0,0,0.4);
+    box-shadow:0 8px 30px rgba(232,138,168,0.45);
+    animation:vsl-play-pulse 1.8s ease-in-out infinite;
   }
-  /* Barra de progreso propia (rosa SHU), pegada justo arriba de los
-     controles. No muestra números — el avance visual usa un easing
-     (rápido al principio, más lento después) aunque el % real siga el
-     tiempo real del video 1 a 1. No es arrastrable a propósito: evita
-     que se salteen el video para desbloquear el botón sin verlo. */
+  @keyframes vsl-play-pulse{
+    0%,100%{ transform:scale(1); box-shadow:0 8px 26px rgba(232,138,168,0.45), 0 0 0 0 rgba(240,168,190,0.35); }
+    50%{ transform:scale(1.08); box-shadow:0 8px 30px rgba(232,138,168,0.6), 0 0 0 14px rgba(240,168,190,0); }
+  }
+  /* Controles propios estilo SHU: la barra rosa es el "piso" del video
+     (pegada al borde inferior) y encima, en la misma franja, quedan
+     mute/velocidad/pantalla completa — nada más (sin botón de pausa ni
+     reloj: el video se pausa tocándolo directamente). No muestra
+     números — el avance visual usa un easing (rápido al principio, más
+     lento después) aunque el % real siga el tiempo real del video 1 a
+     1. La barra no es arrastrable a propósito: evita que se salteen el
+     video para desbloquear el botón sin verlo. */
+  .vsl-controls{
+    position:absolute; left:0; right:0; bottom:0; z-index:3;
+    display:none; align-items:center; justify-content:flex-end; gap:4px; padding:10px 8px 12px;
+    background:linear-gradient(0deg, rgba(13,3,4,0.95), rgba(13,3,4,0.8) 70%, transparent);
+    pointer-events:none;
+  }
+  .vsl-controls > *{ pointer-events:auto; }
+  .vsl-video.started .vsl-controls{ display:flex; }
   .vsl-progress{
-    position:absolute; left:0; right:0; bottom:52px; height:5px; z-index:3;
-    background:rgba(255,255,255,0.18); display:none;
+    position:absolute; left:0; right:0; bottom:0; height:4px; z-index:1;
+    background:rgba(255,255,255,0.18);
   }
   .vsl-progress-fill{
     height:100%; width:0%; background:linear-gradient(90deg,var(--blush-2),var(--blush));
   }
-  .vsl-video.started .vsl-progress{ display:block; }
-
-  /* Controles propios estilo SHU, en vez de los controles nativos del navegador */
-  .vsl-controls{
-    position:absolute; left:0; right:0; bottom:0; height:52px; z-index:3;
-    display:none; align-items:center; gap:4px; padding:0 10px 0 6px;
-    background:linear-gradient(0deg, rgba(13,3,4,0.95), rgba(13,3,4,0.8) 70%, transparent);
-  }
-  .vsl-video.started .vsl-controls{ display:flex; }
   .vsl-ctrl-btn{
     width:34px; height:34px; border-radius:50%; border:none; background:transparent; color:var(--cream);
     display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; padding:0;
@@ -152,8 +160,6 @@
   }
   .vsl-ctrl-btn:hover{ background:rgba(255,255,255,0.14); color:var(--blush); }
   .vsl-ctrl-btn svg{ width:18px; height:18px; display:block; }
-  .vsl-time{ font-size:12.5px; color:var(--text-dim); white-space:nowrap; padding:0 8px; font-variant-numeric:tabular-nums; }
-  .vsl-controls-spacer{ flex:1; }
   .vsl-speed{ position:relative; }
   .vsl-speed-btn{ width:auto; padding:0 11px; border-radius:999px; font-size:12.5px; font-weight:700; }
   .vsl-speed-menu{
@@ -323,11 +329,9 @@
         <div class="vsl-card">
           <div class="vsl-video" id="vslVideoWrap">
             <video id="vslVideo" playsinline preload="metadata" controlsList="nodownload noremoteplayback" src="https://step-her-up-videos.b-cdn.net/gianie-april-vsl.mp4"></video>
-            <div class="vsl-progress"><div class="vsl-progress-fill" id="vslProgressFill"></div></div>
             <div class="vsl-controls" id="vslControls">
-              <button type="button" class="vsl-ctrl-btn" id="vslPlayPauseBtn" aria-label="Reproducir / pausar"></button>
-              <span class="vsl-time" id="vslTime">0:00 / 0:00</span>
-              <div class="vsl-controls-spacer"></div>
+              <div class="vsl-progress"><div class="vsl-progress-fill" id="vslProgressFill"></div></div>
+              <button type="button" class="vsl-ctrl-btn" id="vslMuteBtn" aria-label="Silenciar / activar sonido"></button>
               <div class="vsl-speed">
                 <button type="button" class="vsl-ctrl-btn vsl-speed-btn" id="vslSpeedBtn">1x</button>
                 <div class="vsl-speed-menu" id="vslSpeedMenu">
@@ -338,7 +342,6 @@
                   <button type="button" data-rate="2">2x</button>
                 </div>
               </div>
-              <button type="button" class="vsl-ctrl-btn" id="vslMuteBtn" aria-label="Silenciar / activar sonido"></button>
               <button type="button" class="vsl-ctrl-btn" id="vslFullscreenBtn" aria-label="Pantalla completa"></button>
             </div>
             <div class="vsl-play" id="vslPlayBtn">▶</div>
@@ -419,8 +422,8 @@
        a formulario.html (quiz de calificación por estrellas). Desde ahí
        el flujo sigue a calendario.html y termina en gracias.html. -->
   <section class="section" id="aplicar" style="padding:20px 0 50px;">
-    <div class="wrap" style="text-align:center;">
-      <a class="btn btn-cta locked" id="applyBtn" href="formulario.html" aria-disabled="true">
+    <div class="wrap" style="max-width:1100px;">
+      <a class="btn btn-cta locked" id="applyBtn" href="formulario.html" aria-disabled="true" style="display:flex; width:100%; justify-content:center; box-sizing:border-box;">
         <span class="cta-label">Aplicar al programa →</span>
         <span class="cta-fill" id="ctaFill"></span>
       </a>
@@ -732,34 +735,23 @@
   // bloquea el navegador. "Aplicar al programa" se desbloquea cuando el
   // video termina. Al desbloquear, el botón pasa a ser un link real a
   // formulario.html (antes navega a "#" y no hace nada). Los controles
-  // (play/pausa, volumen, velocidad, pantalla completa) son propios,
-  // con estilo SHU, en vez de los controles nativos del navegador. =====
+  // (volumen, velocidad, pantalla completa) son propios, con estilo
+  // SHU, en vez de los controles nativos del navegador — no hay botón
+  // de pausa ni reloj: tocar el video directamente lo pausa/reanuda. =====
   const applyBtn = document.getElementById("applyBtn");
   const fill = document.getElementById("ctaFill");
   const vslVideo = document.getElementById("vslVideo");
   const vslVideoWrap = document.getElementById("vslVideoWrap");
   const progressFill = document.getElementById("vslProgressFill");
-  const controls = document.getElementById("vslControls");
-  const playPauseBtn = document.getElementById("vslPlayPauseBtn");
-  const timeLabel = document.getElementById("vslTime");
   const muteBtn = document.getElementById("vslMuteBtn");
   const speedBtn = document.getElementById("vslSpeedBtn");
   const speedMenu = document.getElementById("vslSpeedMenu");
   const fullscreenBtn = document.getElementById("vslFullscreenBtn");
 
-  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
-  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
   const ICON_VOLUME = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
   const ICON_MUTE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
   const ICON_EXPAND = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
   const ICON_COMPRESS = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
-
-  function formatTime(s) {
-    if (!isFinite(s) || s < 0) s = 0;
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60).toString().padStart(2, "0");
-    return m + ":" + sec;
-  }
 
   function unlock() {
     fill.style.width = "100%";
@@ -770,7 +762,6 @@
   }
 
   vslVideo.addEventListener("timeupdate", () => {
-    timeLabel.textContent = formatTime(vslVideo.currentTime) + " / " + formatTime(vslVideo.duration);
     if (!vslVideo.duration) return;
     const frac = Math.min(1, vslVideo.currentTime / vslVideo.duration);
     fill.style.width = frac * 100 + "%";
@@ -780,17 +771,13 @@
     const eased = 1 - Math.pow(1 - frac, 2.2);
     progressFill.style.width = eased * 100 + "%";
   });
-  vslVideo.addEventListener("loadedmetadata", () => {
-    timeLabel.textContent = formatTime(vslVideo.currentTime) + " / " + formatTime(vslVideo.duration);
-  });
 
   vslVideo.addEventListener("ended", unlock);
 
-  playPauseBtn.addEventListener("click", () => {
+  // Tocar el video directamente lo pausa/reanuda (sin botón dedicado).
+  vslVideo.addEventListener("click", () => {
     if (vslVideo.paused) vslVideo.play(); else vslVideo.pause();
   });
-  vslVideo.addEventListener("play", () => { playPauseBtn.innerHTML = ICON_PAUSE; });
-  vslVideo.addEventListener("pause", () => { playPauseBtn.innerHTML = ICON_PLAY; });
 
   muteBtn.addEventListener("click", () => { vslVideo.muted = !vslVideo.muted; });
   vslVideo.addEventListener("volumechange", () => {
@@ -822,7 +809,6 @@
     fullscreenBtn.innerHTML = document.fullscreenElement ? ICON_COMPRESS : ICON_EXPAND;
   });
 
-  playPauseBtn.innerHTML = ICON_PLAY;
   muteBtn.innerHTML = ICON_MUTE;
   fullscreenBtn.innerHTML = ICON_EXPAND;
 
