@@ -236,11 +236,10 @@
   /* ===== Quién es Gianie ===== */
   .about-grid{ display:grid; grid-template-columns:1.3fr 0.7fr; gap:44px; align-items:center; max-width:920px; margin:0 auto; }
   .about-photo{
-    aspect-ratio:4/5; border-radius:18px; background:linear-gradient(160deg, var(--wine-3), var(--wine-1));
-    border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
-    color:var(--text-dim); font-size:13px; text-align:center; padding:0 20px;
+    aspect-ratio:4/5; object-fit:cover; display:block; border-radius:16px;
+    filter:drop-shadow(0 20px 50px rgba(0,0,0,0.45));
   }
-  .about-photo-sm{ aspect-ratio:1; max-width:220px; margin:0 0 0 auto; }
+  .about-photo-sm{ max-width:320px; margin:0 0 0 auto; }
   .about-grid p{ color:var(--text-dim); font-size:15px; }
   .about-grid p b{ color:var(--cream); }
   @media (max-width:700px){ .about-grid{ grid-template-columns:1fr; } .about-photo-sm{ margin:0 auto; } }
@@ -431,12 +430,11 @@
   <section class="section">
     <div class="wrap about-grid">
       <div>
-        <div class="eyebrow">Quién es Gianie</div>
         <h2 style="margin-bottom:16px;">Por qué podemos <span class="hl">ayudarte</span></h2>
         <p>Soy Gianie Milet, estratega en posicionamiento y crecimiento de negocios para mujeres profesionales. Con Step Her Up acompañé a más de 70 mujeres a estructurar su marca, redefinir su oferta y escalar su facturación con resultados concretos, no con promesas genéricas.</p>
         <p style="margin-top:14px;">Nuestro proceso no es un curso más, es un sistema con diagnóstico, estrategia de posicionamiento y estructura de oferta, diseñado para que factures más sin que tu carga de trabajo crezca al mismo ritmo. Si ya tienes experiencia, clientas y resultados, pero tu negocio todavía no está posicionado ni cobrando al nivel que deberías, es exactamente ahí donde trabajamos.</p>
       </div>
-      <img class="about-photo about-photo-sm" src="images/gianie/gianie-foto.jpg" alt="Gianie Milet, fundadora de Step Her Up" style="object-fit:cover;">
+      <img class="about-photo about-photo-sm" src="images/gianie/gianie-foto.jpg" alt="Gianie Milet, fundadora de Step Her Up">
     </div>
   </section>
 
