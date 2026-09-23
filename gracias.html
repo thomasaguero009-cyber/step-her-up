@@ -644,7 +644,7 @@
     if (!dragging) return;
     const deltaX = ev.clientX - dragStartX;
     if (Math.abs(deltaX) > 4) dragMoved = true;
-    track.style.transform = `translateX(-${dragStartOffsetPx + deltaX}px)`;
+    track.style.transform = `translateX(-${dragStartOffsetPx - deltaX}px)`;
   });
 
   function endDrag(ev){
@@ -652,7 +652,7 @@
     dragging = false;
     track.style.transition = "";
     const deltaX = ev.clientX - dragStartX;
-    const newIndex = Math.round((dragStartOffsetPx + deltaX) / stepPx());
+    const newIndex = Math.round((dragStartOffsetPx - deltaX) / stepPx());
     index = Math.max(0, Math.min(realSlides, newIndex));
     update();
     if (index >= realSlides) armBridgeReset();
