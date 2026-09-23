@@ -883,7 +883,13 @@
     track.style.transition = "none";
     track.style.transform = `translateX(-${dragStartOffsetPx}px)`;
     try { track.setPointerCapture(ev.pointerId); } catch (e) {}
-    pauseAndScheduleResume();
+    // Solo pausa acá — la cuenta regresiva para retomar el autoplay
+    // arranca recién cuando se suelta (endDrag), no desde que se toca.
+    // Si arrancaba desde acá, un arrastre largo (más de RESUME_AFTER_IDLE_MS
+    // sin soltar) hacía que el autoplay se reactivara solo A MITAD del
+    // arrastre y peleara por el transform contra el dedo/mouse.
+    stopAutoplay();
+    if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
   });
 
   track.addEventListener("pointermove", (ev) => {
