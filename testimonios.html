@@ -594,7 +594,12 @@
     return track.scrollWidth / totalSlides;
   }
   function currentOffsetPx(){
-    return stepPx() * index;
+    // Usa la posición visual REAL (vía computed style), no la posición
+    // "destino" de index — si el autoplay está a mitad de una animación
+    // cuando arrancás a arrastrar, ambas no coinciden, y usar el destino
+    // en vez de dónde está de verdad provoca un salto brusco al agarrarlo.
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(track).transform);
+    return -matrix.m41;
   }
 
   track.addEventListener("pointerdown", (ev) => {
@@ -610,7 +615,12 @@
     dragMoved = false;
     dragStartX = ev.clientX;
     dragStartOffsetPx = currentOffsetPx();
+    // Clava el transform exactamente en la posición visual que ya tenía
+    // (aunque el autoplay estuviera a mitad de una animación) ANTES de
+    // apagar la transición — si no, apagarla solita ya provoca un salto
+    // al valor "destino" de esa animación en curso.
     track.style.transition = "none";
+    track.style.transform = `translateX(-${dragStartOffsetPx}px)`;
     try { track.setPointerCapture(ev.pointerId); } catch (e) {}
     pauseAndScheduleResume();
   });
