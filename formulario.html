@@ -224,11 +224,11 @@
   .gate-step.active{ display:block; animation:gate-step-in .38s cubic-bezier(.22,.61,.36,1); }
   @keyframes gate-step-in{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
   .quiz-other-wrap.open{ animation:gate-step-in .3s cubic-bezier(.22,.61,.36,1); }
-  .quiz-q{ font-size:15.5px; font-weight:600; margin-bottom:16px; text-align:center; }
+  .quiz-q{ font-size:19px; font-weight:600; margin-bottom:16px; text-align:center; }
   .quiz-options{ display:flex; flex-direction:column; gap:10px; }
   .quiz-option{
-    width:100%; text-align:left; padding:14px 16px; border-radius:12px; border:1px solid var(--border);
-    background:rgba(0,0,0,0.2); color:var(--cream); font-size:14px; font-family:inherit; cursor:pointer;
+    width:100%; text-align:left; padding:17px 18px; border-radius:12px; border:1px solid var(--border);
+    background:rgba(0,0,0,0.2); color:var(--cream); font-size:16.5px; font-family:inherit; cursor:pointer;
     transition:background .15s ease, border-color .15s ease;
   }
   .quiz-option:hover{ border-color:var(--blush-2); background:rgba(240,168,190,0.08); }
@@ -380,7 +380,6 @@
           </div>
         </div>
 
-        <span class="gate-back" id="formBack">← Volver</span>
       </div>
     </div>
   </section>
@@ -394,7 +393,6 @@
 (function () {
   const formSteps = document.querySelectorAll(".gate-step");
   const formProgressDots = document.querySelectorAll("#formProgress span");
-  const formBack = document.getElementById("formBack");
   let stepIndex = 0;
   const answers = {};
 
@@ -402,11 +400,7 @@
     stepIndex = i;
     formSteps.forEach((step, idx) => step.classList.toggle("active", idx === i));
     formProgressDots.forEach((dot, idx) => dot.classList.toggle("active", idx <= i));
-    formBack.style.display = i === 0 ? "none" : "block";
   }
-  formBack.addEventListener("click", () => {
-    if (stepIndex > 0) showStep(stepIndex - 1);
-  });
 
   function finish() {
     let contacto = {};
