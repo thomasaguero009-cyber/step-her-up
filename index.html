@@ -72,12 +72,19 @@
     animation:none;
   }
   .btn-cta:not(.locked):hover{ box-shadow:0 14px 36px rgba(232,138,168,0.5); }
-  .btn-cta.just-unlocked{ animation:cta-pulse .7s ease; }
+  /* Al desbloquear: un "pop" único (cta-pulse) y, apenas termina, un
+     glow que respira en loop (cta-glow) para que el botón siga llamando
+     la atención hasta que lo toquen. */
+  .btn-cta.just-unlocked{ animation:cta-pulse .7s ease, cta-glow 1.8s ease-in-out 0.7s infinite; }
   @keyframes cta-breathe{ 0%,100%{ opacity:1; } 50%{ opacity:0.85; } }
   @keyframes cta-pulse{
     0%{ transform:scale(1); box-shadow:0 10px 30px rgba(232,138,168,0.3); }
     45%{ transform:scale(1.07); box-shadow:0 0 0 14px rgba(240,168,190,0.22); }
     100%{ transform:scale(1); box-shadow:0 10px 30px rgba(232,138,168,0.3); }
+  }
+  @keyframes cta-glow{
+    0%,100%{ transform:scale(1); box-shadow:0 10px 30px rgba(232,138,168,0.35), 0 0 0 0 rgba(240,168,190,0.4); }
+    50%{ transform:scale(1.035); box-shadow:0 10px 34px rgba(232,138,168,0.55), 0 0 0 12px rgba(240,168,190,0); }
   }
   .hero .checklist{ margin:0; padding:0; list-style:none; font-size:15px; color:var(--text-dim); }
   .hero .checklist li{ padding:5px 0; }
@@ -431,7 +438,7 @@
   <!-- Al terminar el video se desbloquea "Aplicar al programa", que lleva
        a formulario.html (quiz de calificación por estrellas). Desde ahí
        el flujo sigue a calendario.html y termina en gracias.html. -->
-  <section class="section" id="aplicar" style="padding:20px 0 50px;">
+  <section class="section" id="aplicar" style="padding:20px 0 90px;">
     <div class="wrap" style="text-align:center;">
       <a class="btn btn-cta locked" id="applyBtn" href="formulario.html" aria-disabled="true">
         <span class="cta-label">Aplicar al programa →</span>
