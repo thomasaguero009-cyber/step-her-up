@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de links UTM — Step Her Up</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wine-1:#1a0509; --wine-2:#3d0f1f; --wine-3:#5a1626;
+    --blush:#f0a8be; --blush-2:#e88aa8;
+    --cream:#f7ece9; --text-dim:rgba(247,236,233,0.72);
+    --card:rgba(255,255,255,0.06); --border:rgba(255,255,255,0.14);
+    --ok:#8fd19e; --bad:#e8909a;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; color:var(--cream);
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+    line-height:1.5;
+    background:
+      radial-gradient(ellipse 1100px 700px at 82% 0%, rgba(90,22,38,0.5), transparent 55%),
+      radial-gradient(ellipse 900px 600px at 15% 60%, rgba(90,22,38,0.35), transparent 55%),
+      linear-gradient(180deg, var(--wine-2) 0%, var(--wine-1) 40%);
+    background-attachment:fixed;
+    padding:40px 20px 80px;
+  }
+  h1{ font-family:"Playfair Display",serif; font-weight:700; font-size:28px; margin:0 0 6px; }
+  .sub{ color:var(--text-dim); font-size:14px; margin:0 0 34px; }
+  .wrap{ max-width:980px; margin:0 auto; }
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:16px;
+    padding:26px; margin-bottom:24px;
+  }
+  .card h2{ font-size:17px; margin:0 0 4px; }
+  .card .hint{ color:var(--text-dim); font-size:13px; margin:0 0 18px; }
+  label{ display:block; font-size:12.5px; color:var(--text-dim); margin-bottom:6px; }
+  input, select{
+    width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--border);
+    background:rgba(0,0,0,0.25); color:var(--cream); font-family:inherit; font-size:14px;
+  }
+  input:focus, select:focus{ outline:none; border-color:var(--blush-2); }
+  .row{ display:grid; gap:14px; margin-bottom:14px; }
+  .row-3{ grid-template-columns:1fr 1fr 1fr; }
+  .row-4{ grid-template-columns:1fr 1fr 1fr auto; align-items:end; }
+  .row-5{ grid-template-columns:1fr 1fr 1fr 1fr auto; align-items:end; }
+  @media (max-width:800px){ .row-3, .row-4, .row-5{ grid-template-columns:1fr; } }
+  .btn{
+    padding:11px 20px; border-radius:10px; border:none; cursor:pointer; font-weight:700;
+    font-size:13.5px; font-family:inherit; white-space:nowrap;
+    background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13;
+  }
+  .btn:hover{ filter:brightness(1.06); }
+  .btn-ghost{
+    background:transparent; border:1px solid var(--border); color:var(--cream); font-weight:600;
+  }
+  .btn-ghost:hover{ border-color:var(--blush-2); }
+  .btn-sm{ padding:7px 12px; font-size:12.5px; }
+  table{ width:100%; border-collapse:collapse; margin-top:6px; }
+  th, td{ text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
+  th{ color:var(--text-dim); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:0.4px; }
+  td.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--text-dim); max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  tr:last-child td{ border-bottom:none; }
+  .empty{ color:var(--text-dim); font-size:13px; padding:14px 0; }
+  .pill{ display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:700; background:rgba(240,168,190,0.15); color:var(--blush); }
+  .actions{ display:flex; gap:6px; }
+  .result{
+    display:none; margin-top:18px; padding:16px; border-radius:12px;
+    background:rgba(240,168,190,0.08); border:1px solid var(--blush-2);
+  }
+  .result.show{ display:block; }
+  .result .url{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; word-break:break-all; color:var(--cream); margin-bottom:12px; }
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--cream); color:#2a0a13; padding:10px 20px; border-radius:999px;
+    font-size:13px; font-weight:600; opacity:0; transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none; z-index:10;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Generador de links UTM</h1>
+    <p class="sub">Herramienta interna — no está enlazada desde el sitio público. Todo se guarda solo en este navegador.</p>
+
+    <div class="card">
+      <h2>URL base</h2>
+      <p class="hint">La landing a la que van a apuntar los links. Cambiala acá el día que conectes el dominio propio — no hace falta tocar nada más.</p>
+      <input type="text" id="baseUrl" placeholder="https://tudominio.com/">
+    </div>
+
+    <div class="card">
+      <h2>Cuentas</h2>
+      <p class="hint">Cada cuenta de contenido (Instagram, TikTok, Facebook, YouTube, etc.) que suba links a la landing.</p>
+      <div class="row row-4">
+        <div>
+          <label>Plataforma</label>
+          <select id="accPlatform">
+            <option value="ig">Instagram</option>
+            <option value="tk">TikTok</option>
+            <option value="fb">Facebook</option>
+            <option value="yt">YouTube</option>
+            <option value="google">Google</option>
+            <option value="chatgpt">ChatGPT</option>
+          </select>
+        </div>
+        <div>
+          <label>Handle / nombre de la cuenta</label>
+          <input type="text" id="accHandle" placeholder="tino.mossuclips">
+        </div>
+        <div>
+          <label>Código</label>
+          <input type="text" id="accCode" placeholder="ct01">
+        </div>
+        <button class="btn" id="addAccountBtn">+ Agregar</button>
+      </div>
+      <table id="accountsTable">
+        <thead><tr><th>Código</th><th>Plataforma</th><th>Cuenta</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="accountsEmpty">Todavía no agregaste ninguna cuenta.</p>
+    </div>
+
+    <div class="card">
+      <h2>Setters</h2>
+      <p class="hint">Quien atiende los mensajes/DMs y agenda las llamadas. Opcional hasta que arranquen con esto.</p>
+      <div class="row row-3">
+        <div>
+          <label>Nombre</label>
+          <input type="text" id="setterName" placeholder="Sara">
+        </div>
+        <div>
+          <label>Código</label>
+          <input type="text" id="setterCode" placeholder="st01">
+        </div>
+        <button class="btn" id="addSetterBtn">+ Agregar</button>
+      </div>
+      <table id="settersTable">
+        <thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="settersEmpty">Todavía no agregaste ningún setter.</p>
+    </div>
+
+    <div class="card">
+      <h2>Generar link</h2>
+      <div class="row row-5">
+        <div>
+          <label>Cuenta</label>
+          <select id="genAccount"></select>
+        </div>
+        <div>
+          <label>Medio</label>
+          <select id="genMedium">
+            <option value="org">Orgánico</option>
+            <option value="cpc">Pago (cpc)</option>
+          </select>
+        </div>
+        <div>
+          <label>Setter</label>
+          <select id="genSetter">
+            <option value="">Sin asignar</option>
+          </select>
+        </div>
+        <div>
+          <label>Destino</label>
+          <select id="genDestino">
+            <option value="">Landing (raíz)</option>
+            <option value="formulario.html">Formulario</option>
+            <option value="calendario.html">Calendario</option>
+          </select>
+        </div>
+        <button class="btn" id="generateBtn">Generar</button>
+      </div>
+      <div class="result" id="result">
+        <div class="url" id="resultUrl"></div>
+        <button class="btn btn-sm" id="copyBtn">Copiar link</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Links generados</h2>
+      <table id="linksTable">
+        <thead><tr><th>Fecha</th><th>Cuenta</th><th>Medio</th><th>Setter</th><th>URL</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="empty" id="linksEmpty">Todavía no generaste ningún link.</p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copiado</div>
+
+<script>
+(function () {
+  const PLATFORM_LABELS = { ig:"Instagram", tk:"TikTok", fb:"Facebook", yt:"YouTube", google:"Google", chatgpt:"ChatGPT" };
+  const DEFAULT_BASE_URL = location.origin + location.pathname.replace(/utm-generator\.html$/, "");
+
+  const store = {
+    get(key, fallback) {
+      try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; }
+      catch (e) { return fallback; }
+    },
+    set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} },
+  };
+
+  let accounts = store.get("shu_utm_accounts", []);
+  let setters = store.get("shu_utm_setters", []);
+  let links = store.get("shu_utm_links", []);
+
+  const baseUrlInput = document.getElementById("baseUrl");
+  baseUrlInput.value = store.get("shu_utm_baseurl", DEFAULT_BASE_URL);
+  baseUrlInput.addEventListener("input", () => store.set("shu_utm_baseurl", baseUrlInput.value.trim()));
+
+  function nextCode(list, prefix) {
+    const nums = list
+      .map((it) => it.code)
+      .filter((c) => c && c.startsWith(prefix))
+      .map((c) => parseInt(c.slice(prefix.length), 10))
+      .filter((n) => !isNaN(n));
+    const next = (nums.length ? Math.max(...nums) : 0) + 1;
+    return prefix + String(next).padStart(2, "0");
+  }
+
+  // ===== Cuentas =====
+  const accPlatform = document.getElementById("accPlatform");
+  const accHandle = document.getElementById("accHandle");
+  const accCode = document.getElementById("accCode");
+  const accountsBody = document.querySelector("#accountsTable tbody");
+  const accountsEmpty = document.getElementById("accountsEmpty");
+  const genAccount = document.getElementById("genAccount");
+
+  function refreshAccountCodePlaceholder() {
+    accCode.placeholder = nextCode(accounts, "ct");
+  }
+
+  function renderAccounts() {
+    accountsBody.innerHTML = "";
+    accounts.forEach((a, idx) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><span class="pill">${a.code}</span></td>
+        <td>${PLATFORM_LABELS[a.platform] || a.platform}</td>
+        <td>${a.handle}</td>
+        <td class="actions"><button class="btn btn-ghost btn-sm" data-del="${idx}">Eliminar</button></td>
+      `;
+      accountsBody.appendChild(tr);
+    });
+    accountsEmpty.style.display = accounts.length ? "none" : "block";
+    genAccount.innerHTML = accounts
+      .map((a) => `<option value="${a.code}">${a.code} — ${a.handle} (${PLATFORM_LABELS[a.platform] || a.platform})</option>`)
+      .join("") || `<option value="">Agregá una cuenta primero</option>`;
+    refreshAccountCodePlaceholder();
+  }
+
+  document.getElementById("addAccountBtn").addEventListener("click", () => {
+    const handle = accHandle.value.trim();
+    if (!handle) { accHandle.focus(); return; }
+    const code = (accCode.value.trim() || nextCode(accounts, "ct"));
+    accounts.push({ code, platform: accPlatform.value, handle });
+    store.set("shu_utm_accounts", accounts);
+    accHandle.value = "";
+    accCode.value = "";
+    renderAccounts();
+  });
+
+  accountsBody.addEventListener("click", (ev) => {
+    const idx = ev.target.getAttribute("data-del");
+    if (idx == null) return;
+    accounts.splice(Number(idx), 1);
+    store.set("shu_utm_accounts", accounts);
+    renderAccounts();
+  });
+
+  // ===== Setters =====
+  const setterName = document.getElementById("setterName");
+  const setterCode = document.getElementById("setterCode");
+  const settersBody = document.querySelector("#settersTable tbody");
+  const settersEmpty = document.getElementById("settersEmpty");
+  const genSetter = document.getElementById("genSetter");
+
+  function renderSetters() {
+    settersBody.innerHTML = "";
+    setters.forEach((s, idx) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><span class="pill">${s.code}</span></td>
+        <td>${s.name}</td>
+        <td class="actions"><button class="btn btn-ghost btn-sm" data-del="${idx}">Eliminar</button></td>
+      `;
+      settersBody.appendChild(tr);
+    });
+    settersEmpty.style.display = setters.length ? "none" : "block";
+    genSetter.innerHTML = `<option value="">Sin asignar</option>` +
+      setters.map((s) => `<option value="${s.code}">${s.code} — ${s.name}</option>`).join("");
+    setterCode.placeholder = nextCode(setters, "st");
+  }
+
+  document.getElementById("addSetterBtn").addEventListener("click", () => {
+    const name = setterName.value.trim();
+    if (!name) { setterName.focus(); return; }
+    const code = (setterCode.value.trim() || nextCode(setters, "st"));
+    setters.push({ code, name });
+    store.set("shu_utm_setters", setters);
+    setterName.value = "";
+    setterCode.value = "";
+    renderSetters();
+  });
+
+  settersBody.addEventListener("click", (ev) => {
+    const idx = ev.target.getAttribute("data-del");
+    if (idx == null) return;
+    setters.splice(Number(idx), 1);
+    store.set("shu_utm_setters", setters);
+    renderSetters();
+  });
+
+  // ===== Generador =====
+  const genMedium = document.getElementById("genMedium");
+  const genDestino = document.getElementById("genDestino");
+  const result = document.getElementById("result");
+  const resultUrl = document.getElementById("resultUrl");
+  const linksBody = document.querySelector("#linksTable tbody");
+  const linksEmpty = document.getElementById("linksEmpty");
+
+  function buildUrl() {
+    const accCodeVal = genAccount.value;
+    const account = accounts.find((a) => a.code === accCodeVal);
+    if (!account) return null;
+    const base = (baseUrlInput.value.trim() || DEFAULT_BASE_URL).replace(/\/?$/, "/");
+    const path = genDestino.value;
+    const params = new URLSearchParams({
+      utm_source: account.platform,
+      utm_medium: genMedium.value,
+      utm_campaign: account.code,
+    });
+    if (genSetter.value) params.set("utm_content", genSetter.value);
+    return { url: base + path + "?" + params.toString(), account, setterCode: genSetter.value };
+  }
+
+  function renderLinks() {
+    linksBody.innerHTML = "";
+    links.slice().reverse().forEach((l) => {
+      const tr = document.createElement("tr");
+      const setterLabel = l.setterCode ? (setters.find((s) => s.code === l.setterCode)?.name || l.setterCode) : "—";
+      tr.innerHTML = `
+        <td>${l.date}</td>
+        <td><span class="pill">${l.accountCode}</span></td>
+        <td>${l.medium === "cpc" ? "Pago" : "Orgánico"}</td>
+        <td>${setterLabel}</td>
+        <td class="mono" title="${l.url}">${l.url}</td>
+        <td class="actions">
+          <button class="btn btn-ghost btn-sm" data-copy="${encodeURIComponent(l.url)}">Copiar</button>
+        </td>
+      `;
+      linksBody.appendChild(tr);
+    });
+    linksEmpty.style.display = links.length ? "none" : "block";
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 1400);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => showToast("Copiado")).catch(() => showToast("No se pudo copiar"));
+    } else {
+      showToast("No se pudo copiar");
+    }
+  }
+
+  document.getElementById("generateBtn").addEventListener("click", () => {
+    const built = buildUrl();
+    if (!built) { genAccount.focus(); return; }
+    resultUrl.textContent = built.url;
+    result.classList.add("show");
+    links.push({
+      date: new Date().toLocaleDateString("es-AR"),
+      accountCode: built.account.code,
+      medium: genMedium.value,
+      setterCode: built.setterCode,
+      url: built.url,
+    });
+    store.set("shu_utm_links", links);
+    renderLinks();
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", () => copyText(resultUrl.textContent));
+  linksBody.addEventListener("click", (ev) => {
+    const encoded = ev.target.getAttribute("data-copy");
+    if (encoded == null) return;
+    copyText(decodeURIComponent(encoded));
+  });
+
+  renderAccounts();
+  renderSetters();
+  renderLinks();
+})();
+</script>
+</body>
+</html>
