@@ -271,7 +271,7 @@
   .carousel-slide{
     flex:0 0 calc((100% - 36px)/3); aspect-ratio:369/705; border-radius:14px;
     background:linear-gradient(160deg, var(--wine-3), var(--wine-1)); border:1px solid var(--border);
-    overflow:hidden;
+    overflow:hidden; touch-action:pan-y;
   }
   .carousel-slide img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
   .carousel-caption{ text-align:center; color:var(--text-dim); font-size:12px; margin-top:18px; }
@@ -774,11 +774,13 @@
   vslVideo.addEventListener("timeupdate", () => {
     if (!vslVideo.duration) return;
     const frac = Math.min(1, vslVideo.currentTime / vslVideo.duration);
-    fill.style.width = frac * 100 + "%";
     // Easing "ease-out": avanza rápido al principio y se frena después,
     // sin perder la conexión real con el tiempo del video (en frac=1
-    // siempre da 100%, sea cual sea la curva).
+    // siempre da 100%, sea cual sea la curva). Las dos barras (la del
+    // video y la del botón) usan el mismo valor para que se vean
+    // siempre sincronizadas entre sí.
     const eased = 1 - Math.pow(1 - frac, 2.2);
+    fill.style.width = eased * 100 + "%";
     progressFill.style.width = eased * 100 + "%";
   });
 
@@ -820,9 +822,20 @@
     if (!speedMenu.contains(ev.target) && ev.target !== speedBtn) speedMenu.classList.remove("open");
   });
 
+  // Safari en iPhone no soporta la Fullscreen API estándar sobre un
+  // <div> (solo sobre <video>, vía la API vieja webkitEnterFullscreen) —
+  // sin este fallback, el botón no hacía nada en iPhone.
   fullscreenBtn.addEventListener("click", () => {
-    if (!document.fullscreenElement) vslVideoWrap.requestFullscreen();
-    else document.exitFullscreen();
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (vslVideoWrap.requestFullscreen) {
+      vslVideoWrap.requestFullscreen().catch(() => {
+        if (vslVideo.webkitEnterFullscreen) vslVideo.webkitEnterFullscreen();
+      });
+    } else if (vslVideo.webkitEnterFullscreen) {
+      vslVideo.webkitEnterFullscreen();
+    } else if (vslVideo.requestFullscreen) {
+      vslVideo.requestFullscreen();
+    }
   });
   document.addEventListener("fullscreenchange", () => {
     fullscreenBtn.innerHTML = document.fullscreenElement ? ICON_COMPRESS : ICON_EXPAND;
@@ -975,6 +988,11 @@
 
   track.addEventListener("pointermove", (ev) => {
     if (!dragging) return;
+    // En mobile, si no se cancela el evento acá, el navegador puede
+    // interpretar el arrastre como scroll vertical de la página a mitad
+    // de camino y quedarse con el gesto — eso es lo que impedía deslizar
+    // el carrusel con el dedo.
+    ev.preventDefault();
     const deltaX = ev.clientX - dragStartX;
     if (Math.abs(deltaX) > 4) dragMoved = true;
     track.style.transform = `translateX(-${dragStartOffsetPx - deltaX}px)`;
