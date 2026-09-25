@@ -131,7 +131,7 @@
        pasa de mostrar fecha+horario juntos a mostrarlos en pasos
        separados (elegís día, después te lleva a otra pantalla con los
        horarios) — que es como lo pidieron. */
-    max-width:460px; margin:0 auto; border-radius:22px; border:1px solid var(--border);
+    max-width:600px; margin:0 auto; border-radius:22px; border:1px solid var(--border);
     background:var(--card); padding:16px; overflow:hidden;
     box-shadow:0 0 70px rgba(240,168,190,0.16), 0 25px 60px rgba(0,0,0,0.45);
   }
@@ -259,6 +259,27 @@
         if (!query) return;
         const frame = document.getElementById("oqdvXTW2FT1ZbOo0sio2_1790361573315");
         if (frame) frame.src = frame.src + "?" + query;
+      })();
+      </script>
+      <!-- TEMPORAL: mientras confirmamos qué mensaje manda GHL al
+           terminar de agendar, este cuadrito muestra cualquier evento
+           "raro" que llegue (no los de auto-resize, esos se ignoran) —
+           sacarlo apenas quede confirmado el mensaje real. -->
+      <pre id="ghlDebug" style="display:none; text-align:left; max-width:600px; margin:14px auto 0; padding:12px 14px; border-radius:10px; background:rgba(0,0,0,0.4); border:1px solid var(--border); color:var(--text-dim); font-size:11px; white-space:pre-wrap; word-break:break-all;"></pre>
+      <script>
+      (function () {
+        const debugBox = document.getElementById("ghlDebug");
+        window.addEventListener("message", function (ev) {
+          const data = ev.data;
+          if (typeof data === "string" && data.startsWith("[iFrameSizer]")) return; // solo resize, ignorar
+          debugBox.style.display = "block";
+          debugBox.textContent += JSON.stringify({ origin: ev.origin, data: data }, null, 2) + "\n\n";
+          const texto = JSON.stringify(data).toLowerCase();
+          const pistaDeReserva = ["appointment", "booked", "booking", "confirm", "schedul"].some((p) => texto.includes(p));
+          if (pistaDeReserva) {
+            window.top.location.href = "gracias.html";
+          }
+        });
       })();
       </script>
       <a class="btn btn-solid" id="calendarDoneBtn" href="gracias.html" target="_top" style="max-width:340px; margin:24px auto 0; justify-content:center;">Ya agendé mi llamada →</a>
