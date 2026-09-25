@@ -1,0 +1,712 @@
+<!-- ============================================================
+       PLANTILLA de landing — estilo/estructura inspirados en el
+       formato "webinar gratuito" (hero → VSL → calendario →
+       formulario → beneficios → quiénes somos). Todo el TEXTO entre
+       corchetes [ ] es placeholder: reemplazar cuando esté definido
+       el negocio/oferta real. La paleta (borgoña + blush) y la
+       tipografía (Playfair Display + Cormorant + Inter) sí quedan
+       fijas como identidad de esta base.
+       ============================================================ -->
+
+  <div>
+    <header class="top">
+      <img class="logo-img" src="https://thomasaguero009-cyber.github.io/step-her-up/images/brand/logo.png" alt="Step Her Up">
+    </header>
+
+    <section class="hero">
+      <div class="wrap" style="max-width:760px; text-align:center;">
+        <h1>De experta invisible a <span class="hl">autoridad pagada</span>. El método para posicionar <span class="hl">tu servicio</span>, atraer clientas ideales y <span class="hl">cobrar lo que vales</span> — sin trabajar más horas.</h1>
+        <p style="margin:24px 0 6px; font-weight:600;">En este entrenamiento vas a entender:</p>
+        <ul class="checklist" style="display:inline-block; text-align:left;">
+          <li>Por qué tu negocio no está creciendo aunque trabajas más que nunca.</li>
+          <li>Los 3 ajustes de posicionamiento que convierten tu servicio en una oferta irresistible.</li>
+          <li>Cómo vender con autoridad y estrategia — sin bajar precios ni aceptar clientas tóxicas.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="vsl" style="padding:20px 0 30px;">
+      <div class="wrap">
+        <div class="vsl-card">
+          <div class="vsl-video" id="vslVideoWrap">
+            <video id="vslVideo" playsinline preload="metadata" controlsList="nodownload noremoteplayback" src="https://step-her-up-videos.b-cdn.net/gianie-april-vsl.mp4"></video>
+            <div class="vsl-controls" id="vslControls">
+              <div class="vsl-progress"><div class="vsl-progress-fill" id="vslProgressFill"></div></div>
+              <button type="button" class="vsl-ctrl-btn" id="vslMuteBtn" aria-label="Silenciar / activar sonido"></button>
+              <div class="vsl-speed">
+                <button type="button" class="vsl-ctrl-btn vsl-speed-btn" id="vslSpeedBtn">1x</button>
+                <div class="vsl-speed-menu" id="vslSpeedMenu">
+                  <button type="button" data-rate="0.75">0.75x</button>
+                  <button type="button" data-rate="1" class="active">1x</button>
+                  <button type="button" data-rate="1.25">1.25x</button>
+                  <button type="button" data-rate="1.5">1.5x</button>
+                  <button type="button" data-rate="2">2x</button>
+                </div>
+              </div>
+              <button type="button" class="vsl-ctrl-btn" id="vslFullscreenBtn" aria-label="Pantalla completa"></button>
+            </div>
+            <div class="vsl-play" id="vslPlayBtn">▶</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Encuesta previa al VSL — aparece al tocar play, antes de arrancar
+         el video. El código de país del celular se autocompleta según la
+         IP (ver detectCountryCode() más abajo); el resto de los datos
+         todavía no se envía a ningún backend (placeholder, ver script). -->
+    <div class="vsl-gate-overlay" id="vslGateOverlay">
+      <div class="form-card vsl-gate-card">
+        <button type="button" class="vsl-gate-close" id="vslGateClose" aria-label="Cerrar">✕</button>
+        <h3>Antes de ver el video…</h3>
+        <p class="sub">Dejanos tus datos para guardarte tu lugar.</p>
+        <form id="vslGateForm">
+          <div class="field">
+            <label for="gateNombre">Nombre</label>
+            <input type="text" id="gateNombre" placeholder="Tu nombre" autocomplete="given-name" required>
+          </div>
+          <div class="field">
+            <label for="gateEmail">Correo electrónico</label>
+            <input type="email" id="gateEmail" placeholder="tu@email.com" autocomplete="email" required>
+          </div>
+          <div class="field">
+            <label for="gateTelefono">Celular</label>
+            <div class="phone-row">
+              <select id="gateCodigoPais" autocomplete="tel-country-code">
+                <option value="+54" data-cc="AR">🇦🇷 +54 Argentina</option>
+                <option value="+34" data-cc="ES">🇪🇸 +34 España</option>
+                <option value="+52" data-cc="MX">🇲🇽 +52 México</option>
+                <option value="+56" data-cc="CL">🇨🇱 +56 Chile</option>
+                <option value="+57" data-cc="CO">🇨🇴 +57 Colombia</option>
+                <option value="+598" data-cc="UY">🇺🇾 +598 Uruguay</option>
+                <option value="+51" data-cc="PE">🇵🇪 +51 Perú</option>
+                <option value="+593" data-cc="EC">🇪🇨 +593 Ecuador</option>
+                <option value="+58" data-cc="VE">🇻🇪 +58 Venezuela</option>
+                <option value="+591" data-cc="BO">🇧🇴 +591 Bolivia</option>
+                <option value="+595" data-cc="PY">🇵🇾 +595 Paraguay</option>
+                <option value="+507" data-cc="PA">🇵🇦 +507 Panamá</option>
+                <option value="+506" data-cc="CR">🇨🇷 +506 Costa Rica</option>
+                <option value="+502" data-cc="GT">🇬🇹 +502 Guatemala</option>
+                <option value="+504" data-cc="HN">🇭🇳 +504 Honduras</option>
+                <option value="+503" data-cc="SV">🇸🇻 +503 El Salvador</option>
+                <option value="+505" data-cc="NI">🇳🇮 +505 Nicaragua</option>
+                <option value="+1" data-cc="DO">🇩🇴 +1 República Dominicana</option>
+                <option value="+1" data-cc="PR">🇵🇷 +1 Puerto Rico</option>
+                <option value="+53" data-cc="CU">🇨🇺 +53 Cuba</option>
+                <option value="+351" data-cc="PT">🇵🇹 +351 Portugal</option>
+                <option value="+55" data-cc="BR">🇧🇷 +55 Brasil</option>
+                <option value="+1" data-cc="US">🇺🇸 +1 Estados Unidos</option>
+                <option value="+1" data-cc="CA">🇨🇦 +1 Canadá</option>
+                <option value="+44" data-cc="GB">🇬🇧 +44 Reino Unido</option>
+                <option value="+49" data-cc="DE">🇩🇪 +49 Alemania</option>
+                <option value="+33" data-cc="FR">🇫🇷 +33 Francia</option>
+                <option value="+39" data-cc="IT">🇮🇹 +39 Italia</option>
+                <option value="+31" data-cc="NL">🇳🇱 +31 Países Bajos</option>
+                <option value="+41" data-cc="CH">🇨🇭 +41 Suiza</option>
+                <option value="+61" data-cc="AU">🇦🇺 +61 Australia</option>
+                <option value="+64" data-cc="NZ">🇳🇿 +64 Nueva Zelanda</option>
+                <option value="+81" data-cc="JP">🇯🇵 +81 Japón</option>
+                <option value="+86" data-cc="CN">🇨🇳 +86 China</option>
+                <option value="+91" data-cc="IN">🇮🇳 +91 India</option>
+                <option value="+971" data-cc="AE">🇦🇪 +971 Emiratos Árabes Unidos</option>
+              </select>
+              <input type="tel" id="gateTelefono" placeholder="11 2345 6789" autocomplete="tel-national" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-solid">Ver el video →</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Al terminar el video se desbloquea "Aplicar al programa", que lleva
+       a formulario.html (quiz de calificación por estrellas). Desde ahí
+       el flujo sigue a calendario.html y termina en gracias.html. -->
+  <section class="section" id="aplicar" style="padding:20px 0 90px;">
+    <div class="wrap" style="text-align:center;">
+      <a class="btn btn-cta locked" id="applyBtn" href="formulario.html" aria-disabled="true">
+        <span class="cta-label">Aplicar al programa →</span>
+        <span class="cta-fill" id="ctaFill"></span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap about-grid">
+      <div>
+        <h2 style="margin-bottom:16px;">Por qué podemos <span class="hl">ayudarte</span></h2>
+        <p>Soy Gianie Milet, estratega en posicionamiento y crecimiento de negocios para mujeres profesionales. Con Step Her Up acompañé a más de 70 mujeres a estructurar su marca, redefinir su oferta y escalar su facturación con resultados concretos, no con promesas genéricas.</p>
+        <p style="margin-top:14px;">Nuestro proceso no es un curso más, es un sistema con diagnóstico, estrategia de posicionamiento y estructura de oferta, diseñado para que factures más sin que tu carga de trabajo crezca al mismo ritmo. Si ya tienes experiencia, clientas y resultados, pero tu negocio todavía no está posicionado ni cobrando al nivel que deberías, es exactamente ahí donde trabajamos.</p>
+      </div>
+      <img class="about-photo about-photo-sm" src="images/gianie/gianie-foto.jpg" alt="Gianie Milet, fundadora de Step Her Up">
+    </div>
+  </section>
+
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Fotos de <span class="hl">testimonios</span></h2>
+      </div>
+
+      <div class="carousel">
+        <div class="carousel-track" id="carouselTrack">
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-1.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-2.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-3.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-4.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-5.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-6.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-7.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-8.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-1.jpeg" alt="" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-2.jpeg" alt="" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-3.jpeg" alt="" loading="lazy"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Lo que <span class="hl">dicen</span> de nosotras</h2>
+      </div>
+
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Muchas gracias por todo!! 🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">V</div>
+            <div>
+              <div class="review-name">Virnalis</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"He tenido un crecimiento gigante en clientas desde mayo... Estoy muy agradecida y emocionada por esta etapa."</p>
+          <div class="review-author">
+            <div class="review-avatar">F</div>
+            <div>
+              <div class="review-name">Fabi</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"De febrero a acá, tengo 51 clientas recurrentes y 16 nuevas 🤩 — solo con contenido orgánico."</p>
+          <div class="review-author">
+            <div class="review-avatar">F</div>
+            <div>
+              <div class="review-name">Fabi</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Amoresss puse una candelita en ig y me salieron 5 ventas."</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">Lizbeth</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"En menos de un mes adquirimos más de 2000 nuevos followers y más de 30 llamadas de clientes interesados en nuestro servicio... 1000% recomendada."</p>
+          <div class="review-author">
+            <div class="review-avatar">?</div>
+            <div>
+              <div class="review-name">Clienta Step Her Up</div>
+              <div class="review-source">Pendiente confirmar nombre</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La gloria es para Dios! Gracias Gianie por darnos todo para crecer 🙌🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">K</div>
+            <div>
+              <div class="review-name">@kelymarmelendez</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Gracias por lo que haces 💗"</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">@lyasesthetic</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La mejor ✨"</p>
+          <div class="review-author">
+            <div class="review-avatar">D</div>
+            <div>
+              <div class="review-name">@dravirnalis</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Bendecida de formar parte de este grupo de mujeres exitosas. 🔥🔥🔥🔥"</p>
+          <div class="review-author">
+            <div class="review-avatar">J</div>
+            <div>
+              <div class="review-name">@jennyfernandezthebroker</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Agradecida con Dios por poner a grandes mujeres que inspiran a seguir creciendo."</p>
+          <div class="review-author">
+            <div class="review-avatar">V</div>
+            <div>
+              <div class="review-name">@valle_y</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Que bendición ser parte de esta gran comunidad 🙏💗"</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">@__lenyram__</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Gracias por tu empatía y siempre dar lo mejor de ti a todas. Bendiciones."</p>
+          <div class="review-author">
+            <div class="review-avatar">T</div>
+            <div>
+              <div class="review-name">@tugestoraenpr</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Que bendición formar parte de este grupo de mujeres que lo están dando todo. Sales motivada si o si ✨🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">Y</div>
+            <div>
+              <div class="review-name">@yadimarsalasphotography</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <img class="logo-img" src="https://thomasaguero009-cyber.github.io/step-her-up/images/brand/logo.png" alt="Step Her Up">
+    <p>© 2025 – 2026 Step Her Up™. Todos los derechos reservados.</p>
+    <p>Step Her Up™ es un programa educativo y de desarrollo profesional diseñado para acompañar a mujeres en la estructuración de su crecimiento a través de estrategia, claridad y acompañamiento guiado. No somos una institución financiera, clínica psicológica ni organización religiosa. Este programa tiene fines exclusivamente educativos.</p>
+    <p>Los resultados no están garantizados y pueden variar según el compromiso, esfuerzo y situación personal de cada participante.</p>
+  </footer>
+
+<script>
+(function () {
+  function getUTMs() {
+    const params = new URLSearchParams(location.search);
+    return {
+      utm_source: params.get("utm_source") || "",
+      utm_medium: params.get("utm_medium") || "",
+      utm_campaign: params.get("utm_campaign") || "",
+    };
+  }
+
+  // ===== Gate previo al VSL: solo nombre/email/teléfono. Al enviar, el
+  // lead (+ UTMs) se guarda como placeholder y arranca el cronómetro del
+  // video. Conectar a GHL cuando esté el webhook real (ver TODO abajo). =====
+  const gateOverlay = document.getElementById("vslGateOverlay");
+  const gateForm = document.getElementById("vslGateForm");
+  const gateClose = document.getElementById("vslGateClose");
+  const gateCodigoPais = document.getElementById("gateCodigoPais");
+  const playBtn = document.getElementById("vslPlayBtn");
+
+  function openGate() {
+    gateOverlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeGate() {
+    gateOverlay.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  let started = false;
+  playBtn.addEventListener("click", () => {
+    if (!started) { openGate(); return; }
+    vslVideo.play();
+  });
+  gateClose.addEventListener("click", closeGate);
+  gateOverlay.addEventListener("click", (ev) => {
+    if (ev.target === gateOverlay) closeGate();
+  });
+
+  gateForm.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const lead = {
+      nombre: document.getElementById("gateNombre").value.trim(),
+      email: document.getElementById("gateEmail").value.trim(),
+      telefono: gateCodigoPais.value + " " + document.getElementById("gateTelefono").value.trim(),
+      ...getUTMs(),
+      pagina: location.href,
+      fecha: new Date().toISOString(),
+    };
+    // TODO: acá todavía no hay webhook de GHL definido — por ahora el lead
+    // solo queda en consola/localStorage. Conectar cuando esté la
+    // credencial/webhook real de GHL.
+    console.log("Lead VSL:", lead);
+    try {
+      localStorage.setItem("shu_vsl_lead", JSON.stringify(lead));
+    } catch (e) {}
+    closeGate();
+    startVsl();
+  });
+
+  // Autocompleta el código de país del celular según la IP del visitante
+  // (geolocalización por IP, no requiere permisos del navegador). Si falla
+  // (red, bloqueador, CORS) queda el default (Argentina) y se puede elegir
+  // a mano — nunca bloquea el formulario.
+  async function detectCountryCode(selectEl) {
+    try {
+      const res = await fetch("https://ipapi.co/json/");
+      if (!res.ok) return;
+      const data = await res.json();
+      const cc = data.country_code;
+      const dial = data.country_calling_code;
+      if (!dial) return;
+      let opt = [...selectEl.options].find((o) => o.dataset.cc === cc);
+      if (!opt) {
+        opt = document.createElement("option");
+        opt.value = dial;
+        opt.textContent = dial + " " + (data.country_name || cc);
+        opt.dataset.cc = cc;
+        selectEl.insertBefore(opt, selectEl.firstChild);
+      }
+      selectEl.value = opt.value;
+    } catch (e) {
+      // silencioso: si falla, queda el default y el usuario elige a mano
+    }
+  }
+  detectCountryCode(gateCodigoPais);
+
+  // ===== VSL real (video alojado en CDN propio, sin YouTube) + desbloqueo
+  // de "Aplicar al programa" sincronizado con el progreso REAL del video,
+  // no con un timer aparte (cambiar la velocidad de reproducción no
+  // rompe la sincronía: todo se calcula sobre currentTime/duration, que
+  // avanzan según el contenido real del video, no según el reloj).
+  // Arranca mudo apenas se cierra el gate — así el autoplay nunca lo
+  // bloquea el navegador. "Aplicar al programa" se desbloquea cuando el
+  // video termina. Al desbloquear, el botón pasa a ser un link real a
+  // formulario.html (antes navega a "#" y no hace nada). Los controles
+  // (volumen, velocidad, pantalla completa) son propios, con estilo
+  // SHU, en vez de los controles nativos del navegador — no hay botón
+  // de pausa ni reloj: tocar el video directamente lo pausa/reanuda. =====
+  const applyBtn = document.getElementById("applyBtn");
+  const fill = document.getElementById("ctaFill");
+  const vslVideo = document.getElementById("vslVideo");
+  const vslVideoWrap = document.getElementById("vslVideoWrap");
+  const progressFill = document.getElementById("vslProgressFill");
+  const muteBtn = document.getElementById("vslMuteBtn");
+  const speedBtn = document.getElementById("vslSpeedBtn");
+  const speedMenu = document.getElementById("vslSpeedMenu");
+  const fullscreenBtn = document.getElementById("vslFullscreenBtn");
+
+  const ICON_VOLUME = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+  const ICON_MUTE = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
+  const ICON_EXPAND = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+  const ICON_COMPRESS = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+
+  function unlock() {
+    fill.style.width = "100%";
+    progressFill.style.width = "100%";
+    applyBtn.classList.remove("locked");
+    applyBtn.removeAttribute("aria-disabled");
+    applyBtn.classList.add("just-unlocked");
+  }
+
+  vslVideo.addEventListener("timeupdate", () => {
+    if (!vslVideo.duration) return;
+    const frac = Math.min(1, vslVideo.currentTime / vslVideo.duration);
+    // Easing "ease-out": avanza rápido al principio y se frena después,
+    // sin perder la conexión real con el tiempo del video (en frac=1
+    // siempre da 100%, sea cual sea la curva). Las dos barras (la del
+    // video y la del botón) usan el mismo valor para que se vean
+    // siempre sincronizadas entre sí.
+    const eased = 1 - Math.pow(1 - frac, 2.2);
+    fill.style.width = eased * 100 + "%";
+    progressFill.style.width = eased * 100 + "%";
+  });
+
+  vslVideo.addEventListener("ended", unlock);
+
+  // Tocar el video directamente lo pausa/reanuda (sin botón dedicado).
+  vslVideo.addEventListener("click", () => {
+    if (vslVideo.paused) vslVideo.play(); else vslVideo.pause();
+  });
+
+  // Al pausar (ya arrancado el video) reaparece el botón rosa grande,
+  // para que quede claro que está en pausa y cómo reanudar.
+  vslVideo.addEventListener("pause", () => {
+    if (started) playBtn.style.display = "flex";
+  });
+  vslVideo.addEventListener("play", () => {
+    if (started) playBtn.style.display = "none";
+  });
+
+  muteBtn.addEventListener("click", () => { vslVideo.muted = !vslVideo.muted; });
+  vslVideo.addEventListener("volumechange", () => {
+    muteBtn.innerHTML = vslVideo.muted || vslVideo.volume === 0 ? ICON_MUTE : ICON_VOLUME;
+  });
+
+  speedBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    speedMenu.classList.toggle("open");
+  });
+  speedMenu.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      vslVideo.playbackRate = parseFloat(btn.dataset.rate);
+      speedBtn.textContent = btn.textContent;
+      speedMenu.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      speedMenu.classList.remove("open");
+    });
+  });
+  document.addEventListener("click", (ev) => {
+    if (!speedMenu.contains(ev.target) && ev.target !== speedBtn) speedMenu.classList.remove("open");
+  });
+
+  // Safari en iPhone no soporta la Fullscreen API estándar sobre un
+  // <div> (solo sobre <video>, vía la API vieja webkitEnterFullscreen) —
+  // sin este fallback, el botón no hacía nada en iPhone.
+  fullscreenBtn.addEventListener("click", () => {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    if (vslVideoWrap.requestFullscreen) {
+      vslVideoWrap.requestFullscreen().catch(() => {
+        if (vslVideo.webkitEnterFullscreen) vslVideo.webkitEnterFullscreen();
+      });
+    } else if (vslVideo.webkitEnterFullscreen) {
+      vslVideo.webkitEnterFullscreen();
+    } else if (vslVideo.requestFullscreen) {
+      vslVideo.requestFullscreen();
+    }
+  });
+  document.addEventListener("fullscreenchange", () => {
+    fullscreenBtn.innerHTML = document.fullscreenElement ? ICON_COMPRESS : ICON_EXPAND;
+  });
+
+  muteBtn.innerHTML = ICON_MUTE;
+  fullscreenBtn.innerHTML = ICON_EXPAND;
+
+  function startVsl() {
+    if (started) return;
+    started = true;
+    playBtn.style.display = "none";
+    vslVideo.muted = true;
+    vslVideo.play();
+    vslVideoWrap.classList.add("started");
+  }
+
+  applyBtn.addEventListener("click", (ev) => {
+    if (applyBtn.classList.contains("locked")) ev.preventDefault();
+  });
+})();
+</script>
+
+<script>
+(function(){
+  const track = document.getElementById("carouselTrack");
+  // Al final del track hay clones de las primeras CLONE_COUNT slides
+  // (ver HTML) — sirven para que el carrusel pueda seguir avanzando,
+  // a mano o solo, más allá de la última foto real sin que se note el
+  // salto al volver al principio.
+  const CLONE_COUNT = 3;
+  const totalSlides = track.children.length;
+  const realSlides = totalSlides - CLONE_COUNT;
+
+  let index = 0;
+
+  // Todo en píxeles, siempre con la MISMA cuenta (track.scrollWidth /
+  // totalSlides) — antes update() posicionaba en porcentaje mientras el
+  // arrastre calculaba en píxeles, y esos dos sistemas no coincidían
+  // exactamente; el desfasaje se iba acumulando de a poco con cada slide
+  // hasta notarse como un "tirón" después de unas cuantas fotos.
+  function stepPx(){
+    return track.scrollWidth / totalSlides;
+  }
+
+  function update(){
+    track.style.transform = `translateX(-${stepPx() * index}px)`;
+  }
+
+  update();
+
+  // ===== Autoplay: se pausa apenas se arrastra el carrusel a mano y
+  // recién retoma solo después de un rato sin que se lo toque. Cuando
+  // el índice llega a las slides clonadas (idéntico visualmente a las
+  // reales del principio), apenas termina esa transición se reposiciona
+  // sin animación al índice 0 real — el loop queda infinito sin salto. =====
+  const AUTOPLAY_MS = 3200;
+  const RESUME_AFTER_IDLE_MS = 3500;
+  let autoplayTimer = null;
+  let resumeTimer = null;
+  let bridgeResetHandler = null;
+
+  function cancelBridgeReset(){
+    if (bridgeResetHandler) {
+      track.removeEventListener("transitionend", bridgeResetHandler);
+      bridgeResetHandler = null;
+    }
+  }
+
+  function armBridgeReset(){
+    cancelBridgeReset();
+    bridgeResetHandler = () => {
+      bridgeResetHandler = null;
+      track.style.transition = "none";
+      index = 0;
+      update();
+      void track.offsetWidth;
+      track.style.transition = "";
+    };
+    track.addEventListener("transitionend", bridgeResetHandler, { once: true });
+  }
+
+  function startAutoplay(){
+    stopAutoplay();
+    autoplayTimer = setInterval(() => {
+      index += 1;
+      update();
+      if (index >= realSlides) armBridgeReset();
+    }, AUTOPLAY_MS);
+  }
+  function stopAutoplay(){
+    if (autoplayTimer) clearInterval(autoplayTimer);
+    autoplayTimer = null;
+  }
+  function pauseAndScheduleResume(){
+    stopAutoplay();
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(startAutoplay, RESUME_AFTER_IDLE_MS);
+  }
+
+  startAutoplay();
+
+  // ===== Arrastre manual (mouse y touch, vía Pointer Events unificados).
+  // El contenido sigue el dedo/mouse: arrastrar hacia la izquierda
+  // retrocede, hacia la derecha avanza. Si el arrastre pasa la última
+  // foto real, entra en la misma zona de clones que usa el autoplay y
+  // hace el mismo salto invisible de vuelta al principio. =====
+  let dragging = false;
+  let dragMoved = false;
+  let dragStartX = 0;
+  let dragStartOffsetPx = 0;
+
+  function currentOffsetPx(){
+    // Usa la posición visual REAL (vía computed style), no la posición
+    // "destino" de index — si el autoplay está a mitad de una animación
+    // cuando arrancás a arrastrar, ambas no coinciden, y usar el destino
+    // en vez de dónde está de verdad provoca un salto brusco al agarrarlo.
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(track).transform);
+    return -matrix.m41;
+  }
+
+  track.addEventListener("pointerdown", (ev) => {
+    cancelBridgeReset();
+    if (index >= realSlides) {
+      track.style.transition = "none";
+      index = 0;
+      update();
+      void track.offsetWidth;
+      track.style.transition = "";
+    }
+    dragging = true;
+    dragMoved = false;
+    dragStartX = ev.clientX;
+    dragStartOffsetPx = currentOffsetPx();
+    // Clava el transform exactamente en la posición visual que ya tenía
+    // (aunque el autoplay estuviera a mitad de una animación) ANTES de
+    // apagar la transición — si no, apagarla solita ya provoca un salto
+    // al valor "destino" de esa animación en curso.
+    track.style.transition = "none";
+    track.style.transform = `translateX(-${dragStartOffsetPx}px)`;
+    try { track.setPointerCapture(ev.pointerId); } catch (e) {}
+    // Solo pausa acá — la cuenta regresiva para retomar el autoplay
+    // arranca recién cuando se suelta (endDrag), no desde que se toca.
+    // Si arrancaba desde acá, un arrastre largo (más de RESUME_AFTER_IDLE_MS
+    // sin soltar) hacía que el autoplay se reactivara solo A MITAD del
+    // arrastre y peleara por el transform contra el dedo/mouse.
+    stopAutoplay();
+    if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
+  });
+
+  track.addEventListener("pointermove", (ev) => {
+    if (!dragging) return;
+    // En mobile, si no se cancela el evento acá, el navegador puede
+    // interpretar el arrastre como scroll vertical de la página a mitad
+    // de camino y quedarse con el gesto — eso es lo que impedía deslizar
+    // el carrusel con el dedo.
+    ev.preventDefault();
+    const deltaX = ev.clientX - dragStartX;
+    if (Math.abs(deltaX) > 4) dragMoved = true;
+    track.style.transform = `translateX(-${dragStartOffsetPx - deltaX}px)`;
+  });
+
+  function endDrag(ev){
+    if (!dragging) return;
+    dragging = false;
+    track.style.transition = "";
+    const deltaX = ev.clientX - dragStartX;
+    const newIndex = Math.round((dragStartOffsetPx - deltaX) / stepPx());
+    index = Math.max(0, Math.min(realSlides, newIndex));
+    update();
+    if (index >= realSlides) armBridgeReset();
+    pauseAndScheduleResume();
+  }
+  track.addEventListener("pointerup", endDrag);
+  track.addEventListener("pointercancel", endDrag);
+  track.addEventListener("pointerleave", (ev) => { if (dragging) endDrag(ev); });
+
+  // Si hubo arrastre real, que no dispare un click en el slide soltado.
+  track.addEventListener("click", (ev) => {
+    if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); }
+  }, true);
+})();
+</script>
