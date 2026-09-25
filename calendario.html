@@ -238,7 +238,7 @@
           Acá se va a embeber el calendario de GoHighLevel una vez que esté configurado en la cuenta.
         </div>
       </div>
-      <a class="btn btn-solid" id="calendarDoneBtn" href="gracias.html" style="max-width:340px; margin:24px auto 0; justify-content:center;">Ya agendé mi llamada →</a>
+      <a class="btn btn-solid" id="calendarDoneBtn" href="gracias.html" target="_top" style="max-width:340px; margin:24px auto 0; justify-content:center;">Ya agendé mi llamada →</a>
     </div>
   </section>
   <footer>
@@ -247,5 +247,19 @@
     <p>Step Her Up™ es un programa educativo y de desarrollo profesional diseñado para acompañar a mujeres en la estructuración de su crecimiento a través de estrategia, claridad y acompañamiento guiado. No somos una institución financiera, clínica psicológica ni organización religiosa. Este programa tiene fines exclusivamente educativos.</p>
     <p>Los resultados no están garantizados y pueden variar según el compromiso, esfuerzo y situación personal de cada participante.</p>
   </footer>
+<script>
+(function () {
+  // Reporta la altura real de la página al padre (si está embebida en un
+  // iframe, p.ej. dentro de ClickFunnels) para que el iframe se ajuste
+  // solo, sin scroll interno ni espacio vacío.
+  function reportHeight() {
+    if (window.parent === window) return;
+    window.parent.postMessage({ shuFrameHeight: document.documentElement.scrollHeight }, "*");
+  }
+  window.addEventListener("load", reportHeight);
+  window.addEventListener("resize", reportHeight);
+  new ResizeObserver(reportHeight).observe(document.body);
+})();
+</script>
 </body>
 </html>

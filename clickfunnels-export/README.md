@@ -1,40 +1,42 @@
-# Exportado para ClickFunnels
+# Exportado para ClickFunnels (vía iframe)
 
-Un par de archivos por página: `-head.html` (fuentes + estilos) y `-body.html`
-(todo el contenido + el JS). Las imágenes del logo ya no son base64 — apuntan
-a `https://thomasaguero009-cyber.github.io/step-her-up/images/brand/`, así
-que los archivos son livianos para pegar y el logo se sigue viendo aunque el
-sitio viva en ClickFunnels.
+Cambiamos de enfoque respecto a la primera versión: en vez de pegar todo el
+código (head + body) dentro de ClickFunnels, cada página de ClickFunnels
+muestra la página real embebida — sigue viviendo en nuestro repo, no en
+ClickFunnels.
 
-## Cómo pegarlos en ClickFunnels (por cada página del funnel)
+**Por qué así:** si pegás el código a mano dentro de ClickFunnels, cada vez
+que hagamos un cambio en el diseño (algo que va a seguir pasando seguido) hay
+que volver a copiar y pegar todo de nuevo. Con el iframe, nosotros seguimos
+editando acá, pusheamos, y el cambio aparece solo en ClickFunnels — nadie
+tiene que volver a tocar nada ahí.
+
+## Cómo usarlo (por cada página del funnel)
 
 1. Creá la página en blanco en ClickFunnels.
-2. En la configuración de la página (Settings → Tracking Code / Custom Code,
-   el que inyecta código en el `<head>`), pegá el contenido de `*-head.html`.
-3. Agregá un elemento **Custom HTML** que ocupe toda la página y pegá ahí el
-   contenido de `*-body.html` completo (incluye el `<script>` al final).
+2. Agregá un elemento **Custom HTML** que ocupe toda la página.
+3. Pegá ahí el contenido completo del archivo `*-embed.html` correspondiente
+   — son solo unas pocas líneas, no hace falta tocar nada más de esa página
+   en ClickFunnels (ni "head code" ni nada).
+4. La página se ajusta sola de alto automáticamente, no queda con scroll
+   doble ni espacio vacío abajo.
 
 ## Mapeo de páginas
 
-| Archivo de acá | Página del funnel |
+| Archivo | Página del funnel |
 |---|---|
-| `index-*` | Landing / VSL |
-| `testimonios-*` | Testimonios |
-| `formulario-*` | Quiz de calificación |
-| `calendario-*` | Calendario |
-| `gracias-*` | Gracias |
+| `landing-embed.html` | Landing / VSL |
+| `testimonios-embed.html` | Testimonios |
+| `formulario-embed.html` | Quiz de calificación |
+| `calendario-embed.html` | Calendario |
+| `gracias-embed.html` | Gracias |
 
-## Links que hay que actualizar a mano (3 en total)
+## Un solo paso pendiente: avisarme las URLs finales
 
-Estos archivos tienen un link "duro" a otra página del sitio, escrito como
-nombre de archivo (`formulario.html`, etc.) — hay que cambiarlos por la URL
-real que le asigne ClickFunnels a cada página:
-
-- **`index-body.html`** — el botón "Aplicar al programa" apunta a
-  `formulario.html`.
-- **`formulario-body.html`** (línea ~174) — al terminar el quiz, un
-  `window.location.href = "calendario.html";` en el JS.
-- **`calendario-body.html`** — el link de "Gracias" apunta a `gracias.html`.
-
-Buscá esas 3 líneas en cada archivo y reemplazá el nombre de archivo por la
-URL final de esa página dentro de ClickFunnels.
+El botón "Aplicar al programa" (landing → formulario), el paso que redirige
+al calendario al terminar el quiz, y el botón de "Ya agendé mi llamada"
+(calendario → gracias) necesitan saber la URL real que ClickFunnels le pone
+a cada página para poder navegar ahí. Una vez que tengas las 5 páginas
+creadas en ClickFunnels, pasame esas URLs y actualizo esos 3 links en el
+código — no hay que tocar nada dentro de ClickFunnels para eso, se
+actualiza solo en cuanto lo publico.

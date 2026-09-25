@@ -1,0 +1,19 @@
+<div id="shuFrameWrap" style="margin:0;">
+  <iframe
+    id="shuFrame"
+    src="https://thomasaguero009-cyber.github.io/step-her-up/index.html"
+    title="Step Her Up"
+    style="width:100%;height:100vh;border:none;display:block;"
+    scrolling="no"
+  ></iframe>
+</div>
+<script>
+(function () {
+  var frame = document.getElementById("shuFrame");
+  window.addEventListener("message", function (ev) {
+    if (ev.data && ev.data.shuFrameHeight) {
+      frame.style.height = ev.data.shuFrameHeight + "px";
+    }
+  });
+})();
+</script>

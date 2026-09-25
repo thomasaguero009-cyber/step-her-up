@@ -440,7 +440,7 @@
        el flujo sigue a calendario.html y termina en gracias.html. -->
   <section class="section" id="aplicar" style="padding:20px 0 90px;">
     <div class="wrap" style="text-align:center;">
-      <a class="btn btn-cta locked" id="applyBtn" href="formulario.html" aria-disabled="true">
+      <a class="btn btn-cta locked" id="applyBtn" href="formulario.html" target="_top" aria-disabled="true">
         <span class="cta-label">Aplicar al programa →</span>
         <span class="cta-fill" id="ctaFill"></span>
       </a>
@@ -1024,6 +1024,20 @@
   track.addEventListener("click", (ev) => {
     if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); }
   }, true);
+})();
+</script>
+<script>
+(function () {
+  // Reporta la altura real de la página al padre (si está embebida en un
+  // iframe, p.ej. dentro de ClickFunnels) para que el iframe se ajuste
+  // solo, sin scroll interno ni espacio vacío.
+  function reportHeight() {
+    if (window.parent === window) return;
+    window.parent.postMessage({ shuFrameHeight: document.documentElement.scrollHeight }, "*");
+  }
+  window.addEventListener("load", reportHeight);
+  window.addEventListener("resize", reportHeight);
+  new ResizeObserver(reportHeight).observe(document.body);
 })();
 </script>
 </body>

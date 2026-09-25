@@ -419,7 +419,7 @@
     try {
       localStorage.setItem("shu_application_lead", JSON.stringify(application));
     } catch (e) {}
-    window.location.href = "calendario.html";
+    window.top.location.href = "calendario.html";
   }
 
   function recordAndAdvance(question, label) {
@@ -483,6 +483,20 @@
       });
     }
   });
+})();
+</script>
+<script>
+(function () {
+  // Reporta la altura real de la página al padre (si está embebida en un
+  // iframe, p.ej. dentro de ClickFunnels) para que el iframe se ajuste
+  // solo, sin scroll interno ni espacio vacío.
+  function reportHeight() {
+    if (window.parent === window) return;
+    window.parent.postMessage({ shuFrameHeight: document.documentElement.scrollHeight }, "*");
+  }
+  window.addEventListener("load", reportHeight);
+  window.addEventListener("resize", reportHeight);
+  new ResizeObserver(reportHeight).observe(document.body);
 })();
 </script>
 </body>
