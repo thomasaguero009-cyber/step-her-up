@@ -1,0 +1,14 @@
+name = "step-her-up-calendar"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# El único secret real (nunca va acá, se carga con
+# `npx wrangler secret put GHL_API_KEY`): el token "pit-..." de la Private
+# Integration. locationId y calendarId son identificadores, no credenciales,
+# así que van como vars normales.
+
+[vars]
+# Orígenes permitidos a llamar este Worker (CORS).
+ALLOWED_ORIGINS = "https://thomasaguero009-cyber.github.io,http://localhost:8934"
+GHL_LOCATION_ID = "6cXs7Gwtzk0m50TZkWPg"
+GHL_CALENDAR_ID = "oqdvXTW2FT1ZbOo0sio2"
