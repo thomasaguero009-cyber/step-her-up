@@ -177,6 +177,9 @@
 
   .cal-status{ text-align:center; padding:34px 10px; color:var(--text-dim); font-size:14.5px; }
   .cal-status.error{ color:var(--blush); }
+  .cal-done{ text-align:center; padding:20px 10px; }
+  .cal-done h3{ font-size:20px; margin:0 0 10px; color:var(--cream); }
+  .cal-done p{ margin:0; color:var(--text-dim); font-size:14.5px; }
   /* ===== Formulario ===== */
   .form-card{
     max-width:460px; margin:0 auto; border-radius:18px; border:1px solid var(--border);
@@ -417,6 +420,18 @@
       document.getElementById("calConfirmar").addEventListener("click", reservar);
     }
 
+    // TEMPORAL: hasta que esté el video de "gracias.html", la confirmación
+    // se muestra acá mismo en vez de redirigir a esa página. Para
+    // reconectarla más adelante, cambiar esta función por:
+    //   window.top.location.href = "gracias.html";
+    function renderReservado() {
+      root.innerHTML =
+        '<div class="cal-done">' +
+        "<h3>¡Listo, quedó agendada tu llamada!</h3>" +
+        "<p>" + formatFechaLarga(selectedDate) + " a las <b>" + selectedSlot.time + "</b>. Te vamos a contactar para confirmar.</p>" +
+        "</div>";
+    }
+
     async function reservar() {
       const confirmarBtn = document.getElementById("calConfirmar");
       const cancelarBtn = document.getElementById("calCancelar");
@@ -437,7 +452,7 @@
         });
         const body = await res.json();
         if (body.ok) {
-          window.top.location.href = "gracias.html";
+          renderReservado();
           return;
         }
         if (body.error === "slot_taken") {
