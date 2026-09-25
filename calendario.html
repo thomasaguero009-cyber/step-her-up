@@ -130,12 +130,11 @@
     /* Angosta a propósito: por debajo de cierto ancho, el widget de GHL
        pasa de mostrar fecha+horario juntos a mostrarlos en pasos
        separados (elegís día, después te lleva a otra pantalla con los
-       horarios) — que es como lo pidieron. */
-    max-width:600px; margin:0 auto; border-radius:22px; border:1px solid var(--border);
-    background:var(--card); padding:16px; overflow:hidden;
-    box-shadow:0 0 70px rgba(240,168,190,0.16), 0 25px 60px rgba(0,0,0,0.45);
+       horarios) — que es como lo pidieron. Sin tarjeta propia: el widget
+       ya trae su fondo oscuro y sus bordes redondeados. */
+    max-width:600px; margin:0 auto;
   }
-  .calendar-card iframe{ border-radius:14px; }
+  .calendar-card iframe{ border-radius:22px; width:100%; }
   /* ===== Formulario ===== */
   .form-card{
     max-width:460px; margin:0 auto; border-radius:18px; border:1px solid var(--border);
