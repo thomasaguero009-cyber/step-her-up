@@ -402,6 +402,20 @@
     formProgressDots.forEach((dot, idx) => dot.classList.toggle("active", idx <= i));
   }
 
+  // Mismo Workflow de GHL ("Inbound Webhook") que el gate del VSL — como
+  // manda el mismo email/teléfono, GHL actualiza el contacto que ya se
+  // había creado ahí, en vez de duplicarlo.
+  const GHL_WEBHOOK_URL = "https://services.leadconnectorhq.com/hooks/6cXs7Gwtzk0m50TZkWPg/webhook-trigger/344a0f5f-9189-44f3-a172-f63b018ac48c";
+  function sendToGHL(payload) {
+    try {
+      fetch(GHL_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
   function finish() {
     let contacto = {};
     try {
@@ -412,13 +426,25 @@
       respuestas: answers,
       fecha: new Date().toISOString(),
     };
-    // TODO: acá todavía no hay webhook de GHL definido — por ahora la
-    // aplicación completa (contacto + respuestas del formulario) queda en
-    // consola/localStorage. Conectar cuando esté la credencial/webhook real de GHL.
-    console.log("Aplicación:", application);
     try {
       localStorage.setItem("shu_application_lead", JSON.stringify(application));
     } catch (e) {}
+    const respuestasTexto = Object.entries(answers)
+      .map(([pregunta, respuesta]) => `${pregunta}: ${respuesta}`)
+      .join("\n");
+    sendToGHL({
+      first_name: contacto.nombre || "",
+      full_name: contacto.nombre || "",
+      email: contacto.email || "",
+      phone: contacto.telefono || "",
+      utm_source: contacto.utm_source || "",
+      utm_medium: contacto.utm_medium || "",
+      utm_campaign: contacto.utm_campaign || "",
+      utm_content: contacto.utm_content || "",
+      respuestas_quiz: respuestasTexto,
+      pagina_origen: "formulario",
+      fecha: application.fecha,
+    });
     window.top.location.href = "calendario.html";
   }
 

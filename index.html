@@ -664,12 +664,27 @@
       utm_source: params.get("utm_source") || "",
       utm_medium: params.get("utm_medium") || "",
       utm_campaign: params.get("utm_campaign") || "",
+      utm_content: params.get("utm_content") || "",
     };
   }
 
+  // Webhook del Workflow de GHL ("Inbound Webhook") — cada lead se manda
+  // acá además de guardarse en localStorage. No se espera la respuesta
+  // (fire-and-forget): si la red falla, no queremos trabar el gate ni el
+  // video por eso.
+  const GHL_WEBHOOK_URL = "https://services.leadconnectorhq.com/hooks/6cXs7Gwtzk0m50TZkWPg/webhook-trigger/344a0f5f-9189-44f3-a172-f63b018ac48c";
+  function sendToGHL(payload) {
+    try {
+      fetch(GHL_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
   // ===== Gate previo al VSL: solo nombre/email/teléfono. Al enviar, el
-  // lead (+ UTMs) se guarda como placeholder y arranca el cronómetro del
-  // video. Conectar a GHL cuando esté el webhook real (ver TODO abajo). =====
+  // lead (+ UTMs) se manda a GHL y arranca el video. =====
   const gateOverlay = document.getElementById("vslGateOverlay");
   const gateForm = document.getElementById("vslGateForm");
   const gateClose = document.getElementById("vslGateClose");
@@ -697,21 +712,30 @@
 
   gateForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
+    const nombre = document.getElementById("gateNombre").value.trim();
+    const email = document.getElementById("gateEmail").value.trim();
+    const telefono = gateCodigoPais.value + " " + document.getElementById("gateTelefono").value.trim();
     const lead = {
-      nombre: document.getElementById("gateNombre").value.trim(),
-      email: document.getElementById("gateEmail").value.trim(),
-      telefono: gateCodigoPais.value + " " + document.getElementById("gateTelefono").value.trim(),
+      nombre,
+      email,
+      telefono,
       ...getUTMs(),
       pagina: location.href,
       fecha: new Date().toISOString(),
     };
-    // TODO: acá todavía no hay webhook de GHL definido — por ahora el lead
-    // solo queda en consola/localStorage. Conectar cuando esté la
-    // credencial/webhook real de GHL.
-    console.log("Lead VSL:", lead);
     try {
       localStorage.setItem("shu_vsl_lead", JSON.stringify(lead));
     } catch (e) {}
+    sendToGHL({
+      first_name: nombre,
+      full_name: nombre,
+      email,
+      phone: telefono,
+      ...getUTMs(),
+      pagina_origen: "landing",
+      pagina: location.href,
+      fecha: lead.fecha,
+    });
     closeGate();
     startVsl();
   });
