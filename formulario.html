@@ -395,6 +395,10 @@
   const formProgressDots = document.querySelectorAll("#formProgress span");
   let stepIndex = 0;
   const answers = {};
+  // Además de `answers` (clave corta → respuesta), guardamos el texto
+  // real de cada pregunta en orden — así el resumen que llega a GHL dice
+  // "¿Cuál es tu rango de edad?: 27 - 30 años" en vez de "edad: 27 - 30 años".
+  const answeredLog = [];
 
   function showStep(i) {
     stepIndex = i;
@@ -416,22 +420,18 @@
     } catch (e) {}
   }
 
-  function finish() {
+  // Manda el progreso a GHL después de CADA respuesta, no solo al
+  // terminar — así, si alguien abandona el quiz a mitad de camino, lo que
+  // ya contestó queda guardado igual (no se pierde por no llegar al final).
+  function sendProgressToGHL() {
     let contacto = {};
     try {
       contacto = JSON.parse(localStorage.getItem("shu_vsl_lead")) || {};
     } catch (e) {}
-    const application = {
-      ...contacto,
-      respuestas: answers,
-      fecha: new Date().toISOString(),
-    };
-    try {
-      localStorage.setItem("shu_application_lead", JSON.stringify(application));
-    } catch (e) {}
-    const respuestasTexto = Object.entries(answers)
-      .map(([pregunta, respuesta]) => `${pregunta}: ${respuesta}`)
+    const respuestasTexto = answeredLog
+      .map(({ pregunta, respuesta }) => `${pregunta}: ${respuesta}`)
       .join("\n");
+    const completo = answeredLog.length >= formSteps.length;
     sendToGHL({
       first_name: contacto.nombre || "",
       full_name: contacto.nombre || "",
@@ -442,14 +442,30 @@
       utm_campaign: contacto.utm_campaign || "",
       utm_content: contacto.utm_content || "",
       respuestas_quiz: respuestasTexto,
-      pagina_origen: "formulario",
-      fecha: application.fecha,
+      pagina_origen: completo ? "formulario" : `formulario (parcial ${answeredLog.length}/${formSteps.length})`,
+      fecha: new Date().toISOString(),
     });
+  }
+
+  function finish() {
+    let contacto = {};
+    try {
+      contacto = JSON.parse(localStorage.getItem("shu_vsl_lead")) || {};
+    } catch (e) {}
+    try {
+      localStorage.setItem("shu_application_lead", JSON.stringify({
+        ...contacto,
+        respuestas: answers,
+        fecha: new Date().toISOString(),
+      }));
+    } catch (e) {}
     window.top.location.href = "calendario.html";
   }
 
-  function recordAndAdvance(question, label) {
+  function recordAndAdvance(question, questionText, label) {
     answers[question] = label;
+    answeredLog.push({ pregunta: questionText, respuesta: label });
+    sendProgressToGHL();
     const isLastStep = stepIndex === formSteps.length - 1;
     setTimeout(() => {
       if (isLastStep) finish();
@@ -461,6 +477,7 @@
     const group = step.querySelector(".quiz-options");
     if (!group) return;
     const question = group.dataset.question;
+    const questionText = step.querySelector(".quiz-q")?.textContent.trim() || question;
 
     if (step.dataset.type === "multi") {
       const continueBtn = step.querySelector(".quiz-continue-btn");
@@ -473,7 +490,7 @@
       continueBtn.addEventListener("click", () => {
         const selected = [...group.querySelectorAll(".quiz-option.selected")];
         if (!selected.length) return;
-        recordAndAdvance(question, selected.map((b) => b.dataset.label).join(", "));
+        recordAndAdvance(question, questionText, selected.map((b) => b.dataset.label).join(", "));
       });
       return;
     }
@@ -483,7 +500,7 @@
       btn.addEventListener("click", () => {
         group.querySelectorAll(".quiz-option").forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
-        recordAndAdvance(question, btn.dataset.label);
+        recordAndAdvance(question, questionText, btn.dataset.label);
       });
     });
 
@@ -501,7 +518,7 @@
       function submitOther() {
         const val = otherInput.value.trim();
         if (!val) return;
-        recordAndAdvance(question, val);
+        recordAndAdvance(question, questionText, val);
       }
       otherSubmit.addEventListener("click", submitOther);
       otherInput.addEventListener("keydown", (e) => {
