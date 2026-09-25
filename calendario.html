@@ -127,15 +127,9 @@
 
   /* ===== Calendario ===== */
   .calendar-card{
-    max-width:520px; margin:0 auto; border-radius:18px; border:1px solid var(--border);
-    background:var(--card); padding:30px;
+    max-width:900px; margin:0 auto; border-radius:18px; border:1px solid var(--border);
+    background:var(--card); padding:10px; overflow:hidden;
   }
-  .calendar-placeholder{
-    border:1.5px dashed var(--border); border-radius:14px; padding:50px 20px; text-align:center;
-    color:var(--text-dim); font-size:14px;
-  }
-  .calendar-placeholder b{ display:block; color:var(--cream); font-size:15px; margin-bottom:6px; }
-
   /* ===== Formulario ===== */
   .form-card{
     max-width:460px; margin:0 auto; border-radius:18px; border:1px solid var(--border);
@@ -230,14 +224,16 @@
 
   <section class="section" style="padding:20px 0 60px; text-align:center;">
     <div class="wrap">
-      <!-- Placeholder visual: acá va el embed del calendario nativo de GHL
-           (decidido, pendiente hasta tener el link/código de la cuenta). -->
       <div class="calendar-card">
-        <div class="calendar-placeholder">
-          <b>Calendario nativo de GHL</b>
-          Acá se va a embeber el calendario de GoHighLevel una vez que esté configurado en la cuenta.
-        </div>
+        <iframe
+          src="https://api.leadconnectorhq.com/widget/booking/oqdvXTW2FT1ZbOo0sio2"
+          allow="payment"
+          style="width:100%; min-height:820px; border:none; overflow:hidden; display:block;"
+          scrolling="no"
+          id="oqdvXTW2FT1ZbOo0sio2_1790361573315"
+        ></iframe>
       </div>
+      <script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript"></script>
       <a class="btn btn-solid" id="calendarDoneBtn" href="gracias.html" target="_top" style="max-width:340px; margin:24px auto 0; justify-content:center;">Ya agendé mi llamada →</a>
     </div>
   </section>
