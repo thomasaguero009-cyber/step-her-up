@@ -135,7 +135,10 @@
     background:var(--card); padding:16px; overflow:hidden;
     box-shadow:0 0 70px rgba(240,168,190,0.16), 0 25px 60px rgba(0,0,0,0.45);
   }
-  .calendar-card iframe{ border-radius:14px; }
+  /* GHL widget viene en azul: no podemos re-diseñar su CSS interno (es de
+     otro sitio), así que le aplicamos un filtro de color al iframe entero
+     para correr el acento azul hacia el rosa/vino de la marca. */
+  .calendar-card iframe{ border-radius:14px; filter:hue-rotate(108deg) saturate(1.1); }
   /* ===== Formulario ===== */
   .form-card{
     max-width:460px; margin:0 auto; border-radius:18px; border:1px solid var(--border);
