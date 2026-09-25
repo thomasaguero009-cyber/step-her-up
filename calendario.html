@@ -264,19 +264,17 @@
         if (frame) frame.src = frame.src + "?" + query;
       })();
       </script>
-      <!-- TEMPORAL: mientras confirmamos qué mensaje manda GHL al
-           terminar de agendar, este cuadrito muestra cualquier evento
-           "raro" que llegue (no los de auto-resize, esos se ignoran) —
-           sacarlo apenas quede confirmado el mensaje real. -->
-      <pre id="ghlDebug" style="display:none; text-align:left; max-width:600px; margin:14px auto 0; padding:12px 14px; border-radius:10px; background:rgba(0,0,0,0.4); border:1px solid var(--border); color:var(--text-dim); font-size:11px; white-space:pre-wrap; word-break:break-all;"></pre>
       <script>
+      // Detecta el mensaje que manda GHL al terminar de agendar y redirige
+      // sola a "gracias" — se loguea en consola (invisible para el
+      // visitante) en vez de mostrarse en pantalla, para poder diagnosticar
+      // el formato exacto sin exponer nada técnico en el sitio.
       (function () {
-        const debugBox = document.getElementById("ghlDebug");
         window.addEventListener("message", function (ev) {
           const data = ev.data;
-          if (typeof data === "string" && data.startsWith("[iFrameSizer]")) return; // solo resize, ignorar
-          debugBox.style.display = "block";
-          debugBox.textContent += JSON.stringify({ origin: ev.origin, data: data }, null, 2) + "\n\n";
+          if (typeof data === "string" && data.startsWith("[iFrameSizer]")) return;
+          if (Array.isArray(data) && data[0] === "highlevel.setHeight") return;
+          console.log("[calendario] mensaje recibido:", { origin: ev.origin, data: data });
           const texto = JSON.stringify(data).toLowerCase();
           const pistaDeReserva = ["appointment", "booked", "booking", "confirm", "schedul"].some((p) => texto.includes(p));
           if (pistaDeReserva) {
