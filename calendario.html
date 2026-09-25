@@ -127,7 +127,11 @@
 
   /* ===== Calendario ===== */
   .calendar-card{
-    max-width:900px; margin:0 auto; border-radius:22px; border:1px solid var(--border);
+    /* Angosta a propósito: por debajo de cierto ancho, el widget de GHL
+       pasa de mostrar fecha+horario juntos a mostrarlos en pasos
+       separados (elegís día, después te lleva a otra pantalla con los
+       horarios) — que es como lo pidieron. */
+    max-width:460px; margin:0 auto; border-radius:22px; border:1px solid var(--border);
     background:var(--card); padding:16px; overflow:hidden;
     box-shadow:0 0 70px rgba(240,168,190,0.16), 0 25px 60px rgba(0,0,0,0.45);
   }
@@ -236,6 +240,27 @@
         ></iframe>
       </div>
       <script src="https://link.msgsndr.com/js/form_embed.js" type="text/javascript"></script>
+      <script>
+      // Precarga nombre/email/teléfono en el calendario de GHL, ya los
+      // pedimos en el gate del VSL — así no se los vuelve a pedir acá.
+      (function () {
+        let contacto = {};
+        try { contacto = JSON.parse(localStorage.getItem("shu_vsl_lead")) || {}; } catch (e) {}
+        const nombre = (contacto.nombre || "").trim();
+        const espacio = nombre.indexOf(" ");
+        const firstName = espacio === -1 ? nombre : nombre.slice(0, espacio);
+        const lastName = espacio === -1 ? "" : nombre.slice(espacio + 1);
+        const params = new URLSearchParams();
+        if (firstName) params.set("first_name", firstName);
+        if (lastName) params.set("last_name", lastName);
+        if (contacto.email) params.set("email", contacto.email);
+        if (contacto.telefono) params.set("phone", contacto.telefono.replace(/\s+/g, ""));
+        const query = params.toString();
+        if (!query) return;
+        const frame = document.getElementById("oqdvXTW2FT1ZbOo0sio2_1790361573315");
+        if (frame) frame.src = frame.src + "?" + query;
+      })();
+      </script>
       <a class="btn btn-solid" id="calendarDoneBtn" href="gracias.html" target="_top" style="max-width:340px; margin:24px auto 0; justify-content:center;">Ya agendé mi llamada →</a>
     </div>
   </section>
