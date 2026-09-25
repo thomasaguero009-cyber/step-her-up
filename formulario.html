@@ -429,8 +429,8 @@
       contacto = JSON.parse(localStorage.getItem("shu_vsl_lead")) || {};
     } catch (e) {}
     const respuestasTexto = answeredLog
-      .map(({ pregunta, respuesta }) => `${pregunta}: ${respuesta}`)
-      .join("\n");
+      .map(({ pregunta, respuesta }, idx) => `${idx + 1}) ${pregunta}\n${respuesta}`)
+      .join("\n\n");
     const completo = answeredLog.length >= formSteps.length;
     sendToGHL({
       first_name: contacto.nombre || "",
