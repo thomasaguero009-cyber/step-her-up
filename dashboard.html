@@ -259,6 +259,23 @@
     background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:12px;
     padding:13px 18px; font-size:14px; font-weight:700; margin-bottom:14px;
   }
+  /* Pistas independientes de onboarding (Setters / Closers / Llamadas
+     de ventas / general) — cada una con su propia lista de lecciones. */
+  .pista-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .pista-tab{
+    background:transparent; border:1px solid var(--border); border-radius:999px;
+    padding:8px 16px; font-size:12.5px; font-weight:600; color:var(--text-dim);
+    cursor:pointer; font-family:inherit; transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .pista-tab:hover{ background:rgba(255,255,255,0.06); color:var(--cream); }
+  .pista-tab.active{ background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; border-color:transparent; }
+  /* Separador de módulo/capítulo dentro de la lista de lecciones de una
+     pista — solo aparece si la lección trae algo cargado en "modulo". */
+  .lesson-module-header{
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); font-weight:700;
+    padding:10px 2px 2px;
+  }
+  .lesson-module-header:first-child{ padding-top:0; }
   .btn-small{
     display:inline-flex; align-items:center; justify-content:center; border:none; cursor:pointer;
     border-radius:999px; font-weight:700; font-size:13px; padding:9px 18px; font-family:inherit;
@@ -699,6 +716,7 @@
           </div>
         </div>
       </div>
+      <div class="pista-tabs" id="pistaTabs"></div>
       <div class="onboarding-lesson-title" id="onboardingLessonTitle">1. Bienvenida a Step Her Up</div>
 
       <div class="lesson-admin-controls" id="lessonAdminControls">
@@ -1133,6 +1151,7 @@
 
   function entrarAlOnboarding(){
     cambiarDeSeccion(onboardingScreen, 'Onboarding', async () => {
+      renderPistaTabs();
       await cargarLeccionesDesdeSheet();
       seleccionarLeccion(leccionActivaId);
     });
@@ -1367,18 +1386,60 @@
     });
   });
 
-  // ===== Lecciones del onboarding — la fuente de verdad es la pestaña
-  // "Lecciones" del Google Sheet (Orden | Titulo | VideoURL |
-  // Descripcion), mismo criterio que Tracker/Ranking: así lo que se
-  // carga ahí lo ve TODA la gente que entra al dashboard, no solo el
+  // ===== Lecciones del onboarding — la fuente de verdad es una pestaña
+  // del Google Sheet por PISTA (Orden | Titulo | VideoURL | Descripcion
+  // | Modulo), mismo criterio que Tracker/Ranking: así lo que se carga
+  // ahí lo ve TODA la gente que entra al dashboard, no solo el
   // navegador de quien lo subió. Arranca con un placeholder que se
   // reemplaza apenas responde el Sheet (ver cargarLeccionesDesdeSheet
   // más abajo, junto a obtenerFilasLecciones).
+  //
+  // PISTAS_ONBOARDING (mini-onboardings independientes: Setters,
+  // Closers, Llamadas de ventas, más el general de siempre) se define
+  // más abajo, junto a SHEET_LECCIONES_CSV_URL — acá solo el estado que
+  // depende de ella en tiempo de ejecución, no al cargar el script.
+  let pistaActivaId = 'general';
+  const pistaActual = () => PISTAS_ONBOARDING.find(p => p.id === pistaActivaId);
+  // LECCIONES/leccionActivaId siempre representan la pista activa; al
+  // cambiar de pista se guardan en este caché y se restauran/recargan.
+  const LECCIONES_CACHE_PISTA = {}; // { [pistaId]: { lista, activaId } }
+
   let LECCIONES = [
-    { id: 'l1', titulo: 'Cargando…', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null },
+    { id: 'l1', titulo: 'Cargando…', modulo: '', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null },
   ];
   let leccionActivaId = LECCIONES[0].id;
   const obtenerLeccion = (id) => LECCIONES.find(l => l.id === id);
+
+  const pistaTabsEl = document.getElementById('pistaTabs');
+  function renderPistaTabs(){
+    pistaTabsEl.innerHTML = PISTAS_ONBOARDING.map(p =>
+      `<button type="button" class="pista-tab${p.id === pistaActivaId ? ' active' : ''}" data-id="${p.id}">${escapeHtml(p.label)}</button>`
+    ).join('');
+    pistaTabsEl.querySelectorAll('.pista-tab').forEach(btn => {
+      btn.addEventListener('click', () => cambiarPista(btn.dataset.id));
+    });
+  }
+  async function cambiarPista(id){
+    if(id === pistaActivaId) return;
+    LECCIONES_CACHE_PISTA[pistaActivaId] = { lista: LECCIONES, activaId: leccionActivaId };
+    pistaActivaId = id;
+    renderPistaTabs();
+    const cache = LECCIONES_CACHE_PISTA[id];
+    if(cache){
+      LECCIONES = cache.lista;
+      leccionActivaId = cache.activaId;
+      seleccionarLeccion(leccionActivaId);
+      return;
+    }
+    LECCIONES = [
+      { id: 'l1', titulo: 'Cargando…', modulo: '', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null },
+    ];
+    leccionActivaId = LECCIONES[0].id;
+    seleccionarLeccion(leccionActivaId);
+    await cargarLeccionesDesdeSheet();
+    leccionActivaId = LECCIONES[0].id;
+    seleccionarLeccion(leccionActivaId);
+  }
 
   const onboardingLessonTitle = document.getElementById('onboardingLessonTitle');
   const onboardingLessonList = document.getElementById('onboardingLessonList');
@@ -1539,14 +1600,25 @@
   }
 
   function renderLeccionList(){
-    onboardingLessonList.innerHTML = LECCIONES.map(lec => `
+    // Agrupa por módulo: cada vez que el módulo de una lección difiere
+    // del de la anterior, se inserta un separador con su nombre. Sin
+    // módulo cargado (columna vacía) no aparece ningún separador, así
+    // las pistas que no usan módulos se siguen viendo como lista plana.
+    let moduloAnterior = null;
+    onboardingLessonList.innerHTML = LECCIONES.map(lec => {
+      const modulo = (lec.modulo || '').trim();
+      const header = (modulo && modulo !== moduloAnterior)
+        ? `<div class="lesson-module-header">${escapeHtml(modulo)}</div>` : '';
+      moduloAnterior = modulo;
+      return header + `
       <div class="lesson-item${lec.id === leccionActivaId ? ' active' : ''}" data-id="${lec.id}" draggable="${modoEdicion}">
         ${modoEdicion ? '<span class="drag-handle">' + ICONO_DRAG + '</span>' : ''}
         <span class="lesson-item-label">${escapeHtml(lec.titulo)}</span>
         ${!lec.videoUrl ? '<span class="lesson-item-dot" title="Sin video todavía"></span>' : ''}
         ${modoEdicion ? '<button type="button" class="lesson-item-delete" title="Eliminar lección">✕</button>' : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     onboardingLessonList.querySelectorAll('.lesson-item').forEach(item => {
       item.addEventListener('click', (e) => {
@@ -1597,8 +1669,8 @@
   // ya cargado, traiga la versión real y actualizada del Sheet.
   async function guardarOrdenLecciones(nuevoOrdenTitulos){
     try {
-      await escribirLecciones({ action: 'reorderLessons', orden: nuevoOrdenTitulos });
-      filasLeccionesCache = null;
+      await escribirLecciones({ action: 'reorderLessons', orden: nuevoOrdenTitulos, sheetName: pistaActual().sheetName });
+      filasLeccionesCachePorPista[pistaActivaId] = null;
       LECCIONES = nuevoOrdenTitulos.map(titulo => LECCIONES.find(l => l.titulo === titulo)).filter(Boolean);
       renderLeccionList();
     } catch(e){
@@ -1616,8 +1688,8 @@
     }
     if(!confirm('¿Eliminar "' + lec.titulo + '"? Se borra para todo el equipo y no se puede deshacer.')) return;
     try {
-      await escribirLecciones({ action: 'deleteLesson', titulo: lec.titulo });
-      filasLeccionesCache = null;
+      await escribirLecciones({ action: 'deleteLesson', titulo: lec.titulo, sheetName: pistaActual().sheetName });
+      filasLeccionesCachePorPista[pistaActivaId] = null;
       LECCIONES = LECCIONES.filter(l => l.id !== id);
       if(leccionActivaId === id) leccionActivaId = LECCIONES[0].id;
       seleccionarLeccion(leccionActivaId);
@@ -1629,12 +1701,13 @@
   lessonAddBtn.addEventListener('click', async () => {
     const titulo = lessonNewTitulo.value.trim();
     if(!titulo) return;
+    const modulo = (prompt('Módulo/capítulo (opcional, dejalo vacío si no aplica):', '') || '').trim();
     lessonAddBtn.disabled = true;
     try {
-      await escribirLecciones({ action: 'addLesson', titulo });
+      await escribirLecciones({ action: 'addLesson', titulo, modulo, sheetName: pistaActual().sheetName });
       lessonNewTitulo.value = '';
-      filasLeccionesCache = null;
-      LECCIONES = [...LECCIONES, { id: 'nuevo' + Date.now(), titulo, videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null }];
+      filasLeccionesCachePorPista[pistaActivaId] = null;
+      LECCIONES = [...LECCIONES, { id: 'nuevo' + Date.now(), titulo, modulo, videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null }];
       seleccionarLeccion(LECCIONES[LECCIONES.length - 1].id);
     } catch(e){
       alert('No se pudo agregar: ' + e.message);
@@ -1884,6 +1957,18 @@
   // tiene VideoURL, esa lección queda "sin video todavía".
   const SHEET_LECCIONES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=1088004922&single=true&output=csv';
 
+  // Pistas de onboarding independientes (Setters, Closers, Llamadas de
+  // ventas, más la general de siempre) — cada una es una pestaña
+  // separada del mismo Sheet, publicada a la web como CSV igual que
+  // SHEET_LECCIONES_CSV_URL arriba. csvUrl vacío = esa pista todavía no
+  // se publicó, y aparece sin lecciones hasta que se complete acá.
+  const PISTAS_ONBOARDING = [
+    { id: 'general', label: 'Onboarding general', csvUrl: SHEET_LECCIONES_CSV_URL, sheetName: 'Lecciones' },
+    { id: 'setters', label: 'Setters', csvUrl: '', sheetName: 'Lecciones_Setters' },
+    { id: 'closers', label: 'Closers', csvUrl: '', sheetName: 'Lecciones_Closers' },
+    { id: 'ventas', label: 'Llamadas de ventas', csvUrl: '', sheetName: 'Lecciones_Ventas' },
+  ];
+
   // Backend chico (Apps Script, ver apps_script_lecciones.gs) que escribe
   // directo en la pestaña "Lecciones" — solo para agregar, eliminar y
   // reordenar desde el botón "Editar" (título/video/descripción de una
@@ -2044,11 +2129,14 @@
     return filasRankingCache;
   }
 
-  let filasLeccionesCache = null;
-  async function obtenerFilasLecciones(){
-    if(filasLeccionesCache) return filasLeccionesCache;
+  // Una caché de filas por pista (no una sola global) — cada pista es
+  // una pestaña/CSV distinta del Sheet.
+  const filasLeccionesCachePorPista = {};
+  async function obtenerFilasLecciones(pista){
+    if(filasLeccionesCachePorPista[pista.id]) return filasLeccionesCachePorPista[pista.id];
+    if(!pista.csvUrl){ filasLeccionesCachePorPista[pista.id] = []; return []; }
     try {
-      const texto = await fetchTextConTimeout(SHEET_LECCIONES_CSV_URL, 8000);
+      const texto = await fetchTextConTimeout(pista.csvUrl, 8000);
       const filas = parseCSVSheet(texto);
       const header = (filas[0] || []).map(h => h.trim().toLowerCase());
       const idx = {
@@ -2056,6 +2144,7 @@
         titulo: header.indexOf('titulo'),
         video: header.indexOf('videourl'),
         descripcion: header.indexOf('descripcion'),
+        modulo: header.indexOf('modulo'),
       };
       const datos = [];
       for(let i=1;i<filas.length;i++){
@@ -2067,31 +2156,42 @@
           titulo,
           videoUrl: (idx.video > -1 ? (r[idx.video] || '').trim() : '') || null,
           descripcion: idx.descripcion > -1 ? (r[idx.descripcion] || '').trim() : '',
+          modulo: idx.modulo > -1 ? (r[idx.modulo] || '').trim() : '',
         });
       }
       datos.sort((a, b) => a.orden - b.orden);
-      filasLeccionesCache = datos;
+      filasLeccionesCachePorPista[pista.id] = datos;
     } catch(e){
-      console.warn('No se pudo leer la pestaña Lecciones del Google Sheet:', e);
-      filasLeccionesCache = [];
+      console.warn('No se pudo leer la pestaña de lecciones de "' + pista.label + '":', e);
+      filasLeccionesCachePorPista[pista.id] = [];
     }
-    return filasLeccionesCache;
+    return filasLeccionesCachePorPista[pista.id];
   }
 
   async function cargarLeccionesDesdeSheet(){
-    const filas = await obtenerFilasLecciones();
+    const pista = pistaActual();
+    const filas = await obtenerFilasLecciones(pista);
     if(filas.length){
       LECCIONES = filas.map((f, i) => ({
         id: 'l' + (i + 1),
         titulo: f.titulo,
+        modulo: f.modulo,
         videoUrl: f.videoUrl,
         poster: null,
         descripcion: f.descripcion,
         inicio: null,
         fin: null,
       }));
-      if(!obtenerLeccion(leccionActivaId)) leccionActivaId = LECCIONES[0].id;
+    } else {
+      // Pista sin csvUrl (todavía no publicada) o pestaña vacía — no
+      // dejar la pantalla trabada en "Cargando…" para siempre.
+      LECCIONES = [{
+        id: 'l1',
+        titulo: pista.csvUrl ? 'Todavía no hay lecciones cargadas en esta pista.' : 'Esta pista todavía no está conectada al Sheet.',
+        modulo: '', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null,
+      }];
     }
+    if(!obtenerLeccion(leccionActivaId)) leccionActivaId = LECCIONES[0].id;
   }
 
   function mesElegidoAYyyyMm(){

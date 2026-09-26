@@ -1,18 +1,25 @@
-// Backend chico para la pestaña "Lecciones" del Sheet — solo maneja
-// agregar, eliminar y reordenar filas (el título se define al agregar;
-// video y descripción se siguen cargando a mano en el Sheet). Se pega
-// en Extensiones → Apps Script DEL MISMO Sheet (queda "bound", así
-// SpreadsheetApp.getActiveSpreadsheet() ya apunta solo).
+// Backend chico para las pestañas de lecciones del Sheet — maneja
+// agregar, eliminar y reordenar filas (el título y el módulo se definen
+// al agregar; video y descripción se siguen cargando a mano en el
+// Sheet). Se pega en Extensiones → Apps Script DEL MISMO Sheet (queda
+// "bound", así SpreadsheetApp.getActiveSpreadsheet() ya apunta solo).
+//
+// Soporta varias pistas de onboarding (Setters, Closers, etc.), cada
+// una en su propia pestaña del Sheet — el cliente manda qué pestaña
+// tocar en body.sheetName. Si no lo manda, usa "Lecciones" (la pista
+// general de siempre), así los llamados viejos sin ese campo siguen
+// funcionando igual.
 
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Lecciones');
-    if (!sheet) throw new Error('No existe la pestaña "Lecciones"');
+    var sheetName = body.sheetName || 'Lecciones';
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+    if (!sheet) throw new Error('No existe la pestaña "' + sheetName + '"');
 
     var resultado;
     if (body.action === 'addLesson') {
-      resultado = addLesson(sheet, body.titulo);
+      resultado = addLesson(sheet, body.titulo, body.modulo);
     } else if (body.action === 'deleteLesson') {
       resultado = deleteLesson(sheet, body.titulo);
     } else if (body.action === 'reorderLessons') {
@@ -37,29 +44,37 @@ function responder(data) {
 
 // Lee las filas actuales con sus índices REALES de fila del sheet (1-based,
 // incluyendo el header) — hace falta para poder editar/borrar la fila
-// correcta después.
+// correcta después. idx.modulo puede ser -1 en pestañas que todavía no
+// tengan esa columna (no rompe nada, simplemente no se usa).
 function leerFilas(sheet) {
   var values = sheet.getDataRange().getValues();
   var header = values[0].map(function (h) { return String(h).trim().toLowerCase(); });
   var idx = {
     orden: header.indexOf('orden'),
     titulo: header.indexOf('titulo'),
+    modulo: header.indexOf('modulo'),
   };
   var filas = [];
   for (var i = 1; i < values.length; i++) {
     var r = values[i];
     if (!r[idx.titulo]) continue;
-    filas.push({ rowIndex: i + 1, orden: r[idx.orden], titulo: r[idx.titulo] });
+    filas.push({
+      rowIndex: i + 1,
+      orden: r[idx.orden],
+      titulo: r[idx.titulo],
+      modulo: idx.modulo > -1 ? r[idx.modulo] : '',
+    });
   }
   return { idx: idx, filas: filas };
 }
 
-function addLesson(sheet, titulo) {
+function addLesson(sheet, titulo, modulo) {
   titulo = String(titulo || '').trim();
+  modulo = String(modulo || '').trim();
   if (!titulo) throw new Error('Falta el título de la lección');
   var data = leerFilas(sheet);
   var maxOrden = data.filas.reduce(function (m, f) { return Math.max(m, Number(f.orden) || 0); }, 0);
-  sheet.appendRow([maxOrden + 1, titulo, '', '']);
+  sheet.appendRow([maxOrden + 1, titulo, '', '', modulo]);
   return {};
 }
 
