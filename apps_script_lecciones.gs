@@ -23,7 +23,7 @@ function doPost(e) {
     } else if (body.action === 'deleteLesson') {
       resultado = deleteLesson(sheet, body.titulo);
     } else if (body.action === 'reorderLessons') {
-      resultado = reorderLessons(sheet, body.orden);
+      resultado = reorderLessons(sheet, body.orden, body.moduloCambiado);
     } else {
       throw new Error('Acción desconocida: ' + body.action);
     }
@@ -90,14 +90,21 @@ function deleteLesson(sheet, titulo) {
 
 // El cliente manda el ARRAY COMPLETO de títulos en el orden nuevo —
 // se reescribe la columna Orden 1..N siguiendo ese orden, evitando
-// depender de números de fila que puedan haber cambiado.
-function reorderLessons(sheet, ordenTitulos) {
+// depender de números de fila que puedan haber cambiado. moduloCambiado
+// (opcional) es { titulo, modulo } cuando arrastrar la lección también
+// la movió a otro módulo/capítulo — así el drag-and-drop sirve para
+// reordenar Y para cambiar de módulo en un solo gesto.
+function reorderLessons(sheet, ordenTitulos, moduloCambiado) {
   if (!Array.isArray(ordenTitulos) || !ordenTitulos.length) throw new Error('Orden inválido');
   var data = leerFilas(sheet);
   ordenTitulos.forEach(function (titulo, i) {
     var fila = data.filas.filter(function (f) { return String(f.titulo).trim() === String(titulo).trim(); })[0];
     if (fila) sheet.getRange(fila.rowIndex, data.idx.orden + 1).setValue(i + 1);
   });
+  if (moduloCambiado && data.idx.modulo > -1) {
+    var filaMod = data.filas.filter(function (f) { return String(f.titulo).trim() === String(moduloCambiado.titulo).trim(); })[0];
+    if (filaMod) sheet.getRange(filaMod.rowIndex, data.idx.modulo + 1).setValue(moduloCambiado.modulo || '');
+  }
   return {};
 }
 
