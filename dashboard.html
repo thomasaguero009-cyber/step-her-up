@@ -265,16 +265,22 @@
   .pista-group{ display:flex; flex-direction:column; }
   .pista-group-header{
     display:flex; align-items:center; gap:10px; width:100%; text-align:left;
-    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    background:var(--card); border:1.5px solid var(--pista-color, var(--border)); border-radius:12px;
     padding:14px 16px; cursor:pointer; font-family:inherit;
     transition:background .15s ease, border-color .15s ease;
   }
   .pista-group-header:hover{ background:rgba(255,255,255,0.07); }
   .pista-group-header.drop-target, .lesson-item.drop-target{ border-color:var(--blush-2); background:rgba(240,168,190,0.14); }
-  .pista-group-title{ flex:1; min-width:0; font-size:15px; font-weight:700; color:var(--cream); }
+  .pista-group-title{ flex:1; min-width:0; font-size:15px; font-weight:700; color:var(--pista-color, var(--cream)); }
   .pista-group-count{ flex-shrink:0; font-size:11.5px; color:var(--text-dim); }
-  .pista-group-caret{ flex-shrink:0; font-size:11px; color:var(--text-dim); }
-  .pista-group-lessons{ display:flex; flex-direction:column; gap:8px; padding:8px 0 4px 14px; }
+  .pista-group-caret{ flex-shrink:0; font-size:11px; color:var(--pista-color, var(--text-dim)); }
+  /* Franja del color de la pista a la izquierda de sus lecciones, para
+     que se lean como un solo grupo debajo del header — como el boceto
+     del usuario, con cada pista en un color distinto. */
+  .pista-group-lessons{
+    display:flex; flex-direction:column; gap:6px; margin:8px 0 4px 10px;
+    padding:2px 0 2px 12px; border-left:2px solid var(--pista-color, var(--border));
+  }
   /* Separador de módulo/capítulo dentro de la lista de lecciones de una
      pista — solo aparece si la lección trae algo cargado en "modulo". */
   .lesson-module-header{
@@ -324,12 +330,13 @@
   .lesson-item-delete:hover{ color:#f0716c; background:rgba(240,113,108,0.14); }
   .lesson-item{
     display:flex; align-items:center; gap:11px; text-align:left; background:var(--card);
-    border:1px solid var(--border); border-radius:12px;
+    border:1px solid color-mix(in srgb, var(--pista-color, var(--border)) 40%, transparent); border-radius:12px;
     padding:16px 18px; font-size:15.5px; color:var(--text-dim); cursor:pointer; font-family:inherit;
     transition:background .15s ease, color .15s ease, border-color .15s ease;
   }
   .lesson-item:hover{ background:rgba(255,255,255,0.07); color:var(--cream); }
   .lesson-item.active{ background:rgba(240,168,190,0.14); border-color:var(--blush-2); color:var(--cream); font-weight:700; }
+  .lesson-item.completed .lesson-item-label{ color:var(--text-dim); }
   .lesson-item.dragging{ opacity:0.35; }
   .lesson-item-label{ flex:1; min-width:0; }
   .lesson-item .drag-handle{ flex-shrink:0; opacity:0.55; cursor:grab; display:flex; }
@@ -337,6 +344,17 @@
   .lesson-item-dot{
     flex-shrink:0; width:7px; height:7px; border-radius:50%; background:var(--blush-2); opacity:0.8;
   }
+  /* Tilde de "vista" — personal de cada quien, guardada solo en su
+     propio navegador (localStorage), no se sube al Sheet ni la ve el
+     resto del equipo. */
+  .lesson-item-check{
+    flex-shrink:0; width:21px; height:21px; border-radius:50%; padding:0;
+    border:1.5px solid var(--text-dim); background:transparent; color:transparent; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-family:inherit;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .lesson-item-check:hover{ border-color:#4caf6f; }
+  .lesson-item-check.done{ background:#4caf6f; border-color:#4caf6f; color:#0d1b12; }
   .onboarding-player-col{ flex:1; display:flex; flex-direction:column; gap:12px; min-height:0; min-width:0; }
   .onboarding-player{
     flex:1; border-radius:16px; position:relative; min-height:280px;
@@ -1413,6 +1431,22 @@
   const leccionesDePista = (id) => LECCIONES_POR_PISTA[id] || (LECCIONES_POR_PISTA[id] = []);
   const obtenerLeccion = (pistaId, id) => leccionesDePista(pistaId).find(l => l.id === id);
 
+  // ===== Lecciones "vistas" — tilde personal de cada quien mira el
+  // onboarding, guardada solo en su propio navegador (localStorage).
+  // No se sube al Sheet ni la ve el resto del equipo: cada persona
+  // marca su propio progreso. Se identifica por pista+título (no por
+  // id de lección, que puede correrse si se reordena/mueve). =====
+  let leccionesCompletadas = new Set();
+  try { leccionesCompletadas = new Set(JSON.parse(localStorage.getItem('shu_onboarding_vistas') || '[]')); } catch(e){}
+  const claveCompletada = (pistaId, titulo) => pistaId + '::' + titulo;
+  const estaCompletada = (pistaId, titulo) => leccionesCompletadas.has(claveCompletada(pistaId, titulo));
+  function alternarCompletada(pistaId, titulo){
+    const clave = claveCompletada(pistaId, titulo);
+    if(leccionesCompletadas.has(clave)) leccionesCompletadas.delete(clave);
+    else leccionesCompletadas.add(clave);
+    try { localStorage.setItem('shu_onboarding_vistas', JSON.stringify([...leccionesCompletadas])); } catch(e){}
+  }
+
   const onboardingLessonTitle = document.getElementById('onboardingLessonTitle');
   const onboardingLessonList = document.getElementById('onboardingLessonList');
   const lessonAdminControls = document.getElementById('lessonAdminControls');
@@ -1425,6 +1459,7 @@
   const videoDescription = document.getElementById('videoDescription');
 
   const ICONO_DRAG = '<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="8" cy="6" r="1.6" fill="currentColor"></circle><circle cx="8" cy="12" r="1.6" fill="currentColor"></circle><circle cx="8" cy="18" r="1.6" fill="currentColor"></circle><circle cx="16" cy="6" r="1.6" fill="currentColor"></circle><circle cx="16" cy="12" r="1.6" fill="currentColor"></circle><circle cx="16" cy="18" r="1.6" fill="currentColor"></circle></svg>';
+  const ICONO_CHECK = '<svg viewBox="0 0 24 24" width="12" height="12"><polyline points="4,13 9,18 20,6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>';
 
   // ===== Modo edición — gateado con una contraseña simple. Ojo: esto
   // NO es seguridad real (el sitio es estático, cualquiera puede leer
@@ -1588,9 +1623,11 @@
         ? `<div class="lesson-module-header">${escapeHtml(modulo)}</div>` : '';
       moduloAnterior = modulo;
       const activa = pista.id === leccionActivaPista && lec.id === leccionActivaId;
+      const completada = estaCompletada(pista.id, lec.titulo);
       return header + `
-      <div class="lesson-item${activa ? ' active' : ''}" data-id="${lec.id}" data-pista="${pista.id}" data-modulo="${escapeHtml(modulo)}" draggable="${modoEdicion}">
+      <div class="lesson-item${activa ? ' active' : ''}${completada ? ' completed' : ''}" data-id="${lec.id}" data-pista="${pista.id}" data-modulo="${escapeHtml(modulo)}" draggable="${modoEdicion}">
         ${modoEdicion ? '<span class="drag-handle">' + ICONO_DRAG + '</span>' : ''}
+        <button type="button" class="lesson-item-check${completada ? ' done' : ''}" title="${completada ? 'Marcada como vista' : 'Marcar como vista'}">${completada ? ICONO_CHECK : ''}</button>
         <span class="lesson-item-label">${escapeHtml(lec.titulo)}</span>
         ${!lec.videoUrl ? '<span class="lesson-item-dot" title="Sin video todavía"></span>' : ''}
         ${modoEdicion ? '<button type="button" class="lesson-item-delete" title="Eliminar lección">✕</button>' : ''}
@@ -1606,7 +1643,7 @@
     onboardingLessonList.innerHTML = PISTAS_ONBOARDING.map(pista => {
       const lecciones = leccionesDePista(pista.id);
       const expandida = pistasExpandidas.has(pista.id);
-      let html = `<div class="pista-group">
+      let html = `<div class="pista-group" style="--pista-color:${pista.color}">
         <button type="button" class="pista-group-header" data-pista="${pista.id}">
           <span class="pista-group-title">${escapeHtml(pista.label)}</span>
           <span class="pista-group-count">${lecciones.length} video${lecciones.length === 1 ? '' : 's'}</span>
@@ -1653,7 +1690,7 @@
     // para reordenar / cambiar de módulo / mudar de pista. ---
     onboardingLessonList.querySelectorAll('.lesson-item').forEach(item => {
       item.addEventListener('click', (e) => {
-        if(e.target.closest('.drag-handle') || e.target.closest('.lesson-item-delete')) return;
+        if(e.target.closest('.drag-handle') || e.target.closest('.lesson-item-delete') || e.target.closest('.lesson-item-check')) return;
         seleccionarLeccion(item.dataset.pista, item.dataset.id);
       });
       const delBtn = item.querySelector('.lesson-item-delete');
@@ -1662,6 +1699,17 @@
           e.stopPropagation();
           const pista = PISTAS_ONBOARDING.find(p => p.id === item.dataset.pista);
           if(pista) eliminarLeccion(pista, item.dataset.id);
+        });
+      }
+      const checkBtn = item.querySelector('.lesson-item-check');
+      if(checkBtn){
+        checkBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const lec = obtenerLeccion(item.dataset.pista, item.dataset.id);
+          if(lec){
+            alternarCompletada(item.dataset.pista, lec.titulo);
+            renderArbolPistas();
+          }
         });
       }
       if(!modoEdicion) return;
@@ -2070,11 +2118,13 @@
   // separada del mismo Sheet, publicada a la web como CSV igual que
   // SHEET_LECCIONES_CSV_URL arriba. csvUrl vacío = esa pista todavía no
   // se publicó, y aparece sin lecciones hasta que se complete acá.
+  // "color" es solo visual — un color propio por pista para que su
+  // header y sus lecciones se vean agrupados (pedido del usuario).
   const PISTAS_ONBOARDING = [
-    { id: 'general', label: 'Onboarding general', csvUrl: SHEET_LECCIONES_CSV_URL, sheetName: 'Lecciones' },
-    { id: 'setters', label: 'Setters', csvUrl: '', sheetName: 'Lecciones_Setters' },
-    { id: 'closers', label: 'Closers', csvUrl: '', sheetName: 'Lecciones_Closers' },
-    { id: 'ventas', label: 'Llamadas de ventas', csvUrl: '', sheetName: 'Lecciones_Ventas' },
+    { id: 'general', label: 'Onboarding general', csvUrl: SHEET_LECCIONES_CSV_URL, sheetName: 'Lecciones', color: '#e88aa8' },
+    { id: 'setters', label: 'Setters', csvUrl: '', sheetName: 'Lecciones_Setters', color: '#e0a458' },
+    { id: 'closers', label: 'Closers', csvUrl: '', sheetName: 'Lecciones_Closers', color: '#6fbf9e' },
+    { id: 'ventas', label: 'Llamadas de ventas', csvUrl: '', sheetName: 'Lecciones_Ventas', color: '#8aa8e8' },
   ];
 
   // Backend chico (Apps Script, ver apps_script_lecciones.gs) que escribe
