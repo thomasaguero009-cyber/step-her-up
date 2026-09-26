@@ -138,7 +138,11 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
       contactId,
       startTime,
       title: `Llamada de aplicación — ${firstName} ${lastName || ""}`.trim(),
-      appointmentStatus: "confirmed",
+      // "new" en la API = "Unconfirmed" en GHL. El lead la reserva sola
+      // (nadie del equipo la validó todavía); queda pendiente hasta que
+      // alguien la pase a "Confirmed" a mano en GHL, lo que dispara el
+      // workflow que manda el mail de confirmación.
+      appointmentStatus: "new",
     }),
   });
 
