@@ -260,15 +260,21 @@
     padding:13px 18px; font-size:14px; font-weight:700; margin-bottom:14px;
   }
   /* Pistas independientes de onboarding (Setters / Closers / Llamadas
-     de ventas / general) — cada una con su propia lista de lecciones. */
-  .pista-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .pista-tab{
-    background:transparent; border:1px solid var(--border); border-radius:999px;
-    padding:8px 16px; font-size:12.5px; font-weight:600; color:var(--text-dim);
-    cursor:pointer; font-family:inherit; transition:background .15s ease, color .15s ease, border-color .15s ease;
+     de ventas / general) — árbol tipo acordeón en el panel izquierdo,
+     cada pista se despliega para mostrar sus propias lecciones. */
+  .pista-group{ display:flex; flex-direction:column; }
+  .pista-group-header{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:14px 16px; cursor:pointer; font-family:inherit;
+    transition:background .15s ease, border-color .15s ease;
   }
-  .pista-tab:hover{ background:rgba(255,255,255,0.06); color:var(--cream); }
-  .pista-tab.active{ background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; border-color:transparent; }
+  .pista-group-header:hover{ background:rgba(255,255,255,0.07); }
+  .pista-group-header.drop-target, .lesson-item.drop-target{ border-color:var(--blush-2); background:rgba(240,168,190,0.14); }
+  .pista-group-title{ flex:1; min-width:0; font-size:15px; font-weight:700; color:var(--cream); }
+  .pista-group-count{ flex-shrink:0; font-size:11.5px; color:var(--text-dim); }
+  .pista-group-caret{ flex-shrink:0; font-size:11px; color:var(--text-dim); }
+  .pista-group-lessons{ display:flex; flex-direction:column; gap:8px; padding:8px 0 4px 14px; }
   /* Separador de módulo/capítulo dentro de la lista de lecciones de una
      pista — solo aparece si la lección trae algo cargado en "modulo". */
   .lesson-module-header{
@@ -715,15 +721,10 @@
           </div>
         </div>
       </div>
-      <div class="pista-tabs" id="pistaTabs"></div>
       <div class="onboarding-lesson-title" id="onboardingLessonTitle">1. Bienvenida a Step Her Up</div>
 
       <div class="lesson-admin-controls" id="lessonAdminControls">
-        <div class="lesson-add-row">
-          <input type="text" id="lessonNewTitulo" placeholder="Título de la nueva lección">
-          <button type="button" class="lesson-add-btn" id="lessonAddBtn">+ Agregar</button>
-        </div>
-        <div class="lesson-admin-hint">Arrastrá una lección (a la izquierda) para reordenarla, o tocá la ✕ para eliminarla. El video, la descripción o el título de una ya creada se editan en la pestaña "Lecciones" del Google Sheet.</div>
+        <div class="lesson-admin-hint">Tocá una pista (a la izquierda) para desplegarla. Arrastrá una lección para reordenarla, cambiarla de módulo, o soltarla sobre otra pista para mudarla ahí. El "+ Agregar" para sumar una lección nueva está dentro de cada pista desplegada; la ✕ la elimina. El video, la descripción o el título de una ya creada se editan en la pestaña de esa pista en el Google Sheet.</div>
       </div>
 
       <div class="onboarding-body">
@@ -1150,9 +1151,13 @@
 
   function entrarAlOnboarding(){
     cambiarDeSeccion(onboardingScreen, 'Onboarding', async () => {
-      renderPistaTabs();
-      await cargarLeccionesDesdeSheet();
-      seleccionarLeccion(leccionActivaId);
+      renderArbolPistas(); // primero con lo que haya en caché, para que no se vea vacío
+      await cargarTodasLasPistas();
+      if(!obtenerLeccion(leccionActivaPista, leccionActivaId)){
+        const primera = leccionesDePista(leccionActivaPista)[0];
+        leccionActivaId = primera ? primera.id : null;
+      }
+      seleccionarLeccion(leccionActivaPista, leccionActivaId);
     });
   }
   document.getElementById('goOnboardingBtn').addEventListener('click', entrarAlOnboarding);
@@ -1389,62 +1394,28 @@
   // del Google Sheet por PISTA (Orden | Titulo | VideoURL | Descripcion
   // | Modulo), mismo criterio que Tracker/Ranking: así lo que se carga
   // ahí lo ve TODA la gente que entra al dashboard, no solo el
-  // navegador de quien lo subió. Arranca con un placeholder que se
-  // reemplaza apenas responde el Sheet (ver cargarLeccionesDesdeSheet
-  // más abajo, junto a obtenerFilasLecciones).
+  // navegador de quien lo subió.
   //
   // PISTAS_ONBOARDING (mini-onboardings independientes: Setters,
   // Closers, Llamadas de ventas, más el general de siempre) se define
   // más abajo, junto a SHEET_LECCIONES_CSV_URL — acá solo el estado que
   // depende de ella en tiempo de ejecución, no al cargar el script.
-  let pistaActivaId = 'general';
-  const pistaActual = () => PISTAS_ONBOARDING.find(p => p.id === pistaActivaId);
-  // LECCIONES/leccionActivaId siempre representan la pista activa; al
-  // cambiar de pista se guardan en este caché y se restauran/recargan.
-  const LECCIONES_CACHE_PISTA = {}; // { [pistaId]: { lista, activaId } }
-
-  let LECCIONES = [
-    { id: 'l1', titulo: 'Cargando…', modulo: '', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null },
-  ];
-  let leccionActivaId = LECCIONES[0].id;
-  const obtenerLeccion = (id) => LECCIONES.find(l => l.id === id);
-
-  const pistaTabsEl = document.getElementById('pistaTabs');
-  function renderPistaTabs(){
-    pistaTabsEl.innerHTML = PISTAS_ONBOARDING.map(p =>
-      `<button type="button" class="pista-tab${p.id === pistaActivaId ? ' active' : ''}" data-id="${p.id}">${escapeHtml(p.label)}</button>`
-    ).join('');
-    pistaTabsEl.querySelectorAll('.pista-tab').forEach(btn => {
-      btn.addEventListener('click', () => cambiarPista(btn.dataset.id));
-    });
-  }
-  async function cambiarPista(id){
-    if(id === pistaActivaId) return;
-    LECCIONES_CACHE_PISTA[pistaActivaId] = { lista: LECCIONES, activaId: leccionActivaId };
-    pistaActivaId = id;
-    renderPistaTabs();
-    const cache = LECCIONES_CACHE_PISTA[id];
-    if(cache){
-      LECCIONES = cache.lista;
-      leccionActivaId = cache.activaId;
-      seleccionarLeccion(leccionActivaId);
-      return;
-    }
-    LECCIONES = [
-      { id: 'l1', titulo: 'Cargando…', modulo: '', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null },
-    ];
-    leccionActivaId = LECCIONES[0].id;
-    seleccionarLeccion(leccionActivaId);
-    await cargarLeccionesDesdeSheet();
-    leccionActivaId = LECCIONES[0].id;
-    seleccionarLeccion(leccionActivaId);
-  }
+  //
+  // A diferencia de la vuelta anterior (una sola pista "activa" a la
+  // vez, cargada al cambiar de tab), acá TODAS las pistas se cargan
+  // juntas al entrar a Onboarding — hace falta saber cuántas lecciones
+  // tiene cada una para mostrar el contador en el árbol de la
+  // izquierda, no solo la que está desplegada.
+  const LECCIONES_POR_PISTA = {}; // { [pistaId]: Leccion[] }
+  const pistasExpandidas = new Set(['general']);
+  let leccionActivaPista = 'general';
+  let leccionActivaId = null;
+  const leccionesDePista = (id) => LECCIONES_POR_PISTA[id] || (LECCIONES_POR_PISTA[id] = []);
+  const obtenerLeccion = (pistaId, id) => leccionesDePista(pistaId).find(l => l.id === id);
 
   const onboardingLessonTitle = document.getElementById('onboardingLessonTitle');
   const onboardingLessonList = document.getElementById('onboardingLessonList');
   const lessonAdminControls = document.getElementById('lessonAdminControls');
-  const lessonAddBtn = document.getElementById('lessonAddBtn');
-  const lessonNewTitulo = document.getElementById('lessonNewTitulo');
   const onboardingVideo = document.getElementById('onboardingVideo');
   const onboardingIframe = document.getElementById('onboardingIframe');
   const videoShell = document.getElementById('videoShell');
@@ -1479,14 +1450,14 @@
     modoEdicion = true;
     try { localStorage.setItem('shu_admin_ok', '1'); } catch(e){}
     actualizarBotonEditar();
-    renderLeccionList();
+    renderArbolPistas();
     actualizarPanelEdicion();
   }
   function salirModoEdicion(){
     modoEdicion = false;
     try { localStorage.removeItem('shu_admin_ok'); } catch(e){}
     actualizarBotonEditar();
-    renderLeccionList();
+    renderArbolPistas();
     actualizarPanelEdicion();
   }
   editModeBtn.addEventListener('click', () => {
@@ -1589,28 +1560,36 @@
     actualizarDescripcion(lec);
   }
 
-  function seleccionarLeccion(id){
+  function seleccionarLeccion(pistaId, id){
+    leccionActivaPista = pistaId;
     leccionActivaId = id;
-    const lec = obtenerLeccion(id);
-    onboardingLessonTitle.textContent = lec.titulo;
-    cargarVideoDeLeccion(lec);
-    renderLeccionList();
+    const lec = obtenerLeccion(pistaId, id);
+    onboardingLessonTitle.textContent = lec ? lec.titulo : 'Esta pista todavía no tiene lecciones';
+    if(lec) cargarVideoDeLeccion(lec);
+    renderArbolPistas();
     actualizarPanelEdicion();
   }
 
-  function renderLeccionList(){
-    // Agrupa por módulo: cada vez que el módulo de una lección difiere
-    // del de la anterior, se inserta un separador con su nombre. Sin
-    // módulo cargado (columna vacía) no aparece ningún separador, así
-    // las pistas que no usan módulos se siguen viendo como lista plana.
+  function alternarPista(id){
+    if(pistasExpandidas.has(id)) pistasExpandidas.delete(id);
+    else pistasExpandidas.add(id);
+    renderArbolPistas();
+  }
+
+  // Agrupa por módulo: cada vez que el módulo de una lección difiere
+  // del de la anterior, se inserta un separador con su nombre. Sin
+  // módulo cargado (columna vacía) no aparece ningún separador, así
+  // las pistas que no usan módulos se siguen viendo como lista plana.
+  function renderLeccionesHTML(pista, lecciones){
     let moduloAnterior = null;
-    onboardingLessonList.innerHTML = LECCIONES.map(lec => {
+    return lecciones.map(lec => {
       const modulo = (lec.modulo || '').trim();
       const header = (modulo && modulo !== moduloAnterior)
         ? `<div class="lesson-module-header">${escapeHtml(modulo)}</div>` : '';
       moduloAnterior = modulo;
+      const activa = pista.id === leccionActivaPista && lec.id === leccionActivaId;
       return header + `
-      <div class="lesson-item${lec.id === leccionActivaId ? ' active' : ''}" data-id="${lec.id}" draggable="${modoEdicion}">
+      <div class="lesson-item${activa ? ' active' : ''}" data-id="${lec.id}" data-pista="${pista.id}" data-modulo="${escapeHtml(modulo)}" draggable="${modoEdicion}">
         ${modoEdicion ? '<span class="drag-handle">' + ICONO_DRAG + '</span>' : ''}
         <span class="lesson-item-label">${escapeHtml(lec.titulo)}</span>
         ${!lec.videoUrl ? '<span class="lesson-item-dot" title="Sin video todavía"></span>' : ''}
@@ -1618,17 +1597,71 @@
       </div>
     `;
     }).join('');
+  }
 
+  // Árbol de pistas (acordeón): cada pista es un header desplegable con
+  // su cantidad de lecciones; al desplegarla aparecen sus lecciones
+  // (agrupadas por módulo) y, en modo edición, su propio "+ Agregar".
+  function renderArbolPistas(){
+    onboardingLessonList.innerHTML = PISTAS_ONBOARDING.map(pista => {
+      const lecciones = leccionesDePista(pista.id);
+      const expandida = pistasExpandidas.has(pista.id);
+      let html = `<div class="pista-group">
+        <button type="button" class="pista-group-header" data-pista="${pista.id}">
+          <span class="pista-group-title">${escapeHtml(pista.label)}</span>
+          <span class="pista-group-count">${lecciones.length} video${lecciones.length === 1 ? '' : 's'}</span>
+          <span class="pista-group-caret">${expandida ? '▾' : '▸'}</span>
+        </button>`;
+      if(expandida){
+        html += `<div class="pista-group-lessons" data-pista="${pista.id}">`;
+        html += renderLeccionesHTML(pista, lecciones);
+        if(modoEdicion){
+          html += `
+          <div class="lesson-add-row">
+            <input type="text" class="pista-add-titulo" data-pista="${pista.id}" placeholder="Título de la nueva lección">
+            <button type="button" class="lesson-add-btn pista-add-btn" data-pista="${pista.id}">+ Agregar</button>
+          </div>`;
+        }
+        html += `</div>`;
+      }
+      return html + `</div>`;
+    }).join('');
+
+    // --- Headers de pista: desplegar/colapsar, y recibir una lección
+    // soltada encima para mudarla ahí (sin módulo asignado). ---
+    onboardingLessonList.querySelectorAll('.pista-group-header').forEach(header => {
+      header.addEventListener('click', () => alternarPista(header.dataset.pista));
+      if(!modoEdicion) return;
+      header.addEventListener('dragover', (e) => { e.preventDefault(); header.classList.add('drop-target'); });
+      header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
+      header.addEventListener('drop', (e) => {
+        e.preventDefault();
+        header.classList.remove('drop-target');
+        const arrastrando = onboardingLessonList.querySelector('.dragging');
+        if(!arrastrando) return;
+        const pistaOrigenId = arrastrando.dataset.pista;
+        const pistaDestinoId = header.dataset.pista;
+        if(pistaOrigenId === pistaDestinoId) return;
+        const leccion = obtenerLeccion(pistaOrigenId, arrastrando.dataset.id);
+        const pistaOrigen = PISTAS_ONBOARDING.find(p => p.id === pistaOrigenId);
+        const pistaDestino = PISTAS_ONBOARDING.find(p => p.id === pistaDestinoId);
+        if(leccion && pistaOrigen && pistaDestino) moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, '');
+      });
+    });
+
+    // --- Lecciones: click para reproducir, ✕ para borrar, arrastrar
+    // para reordenar / cambiar de módulo / mudar de pista. ---
     onboardingLessonList.querySelectorAll('.lesson-item').forEach(item => {
       item.addEventListener('click', (e) => {
         if(e.target.closest('.drag-handle') || e.target.closest('.lesson-item-delete')) return;
-        seleccionarLeccion(item.dataset.id);
+        seleccionarLeccion(item.dataset.pista, item.dataset.id);
       });
       const delBtn = item.querySelector('.lesson-item-delete');
       if(delBtn){
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          eliminarLeccion(item.dataset.id);
+          const pista = PISTAS_ONBOARDING.find(p => p.id === item.dataset.pista);
+          if(pista) eliminarLeccion(pista, item.dataset.id);
         });
       }
       if(!modoEdicion) return;
@@ -1642,102 +1675,157 @@
         e.preventDefault();
         const arrastrando = onboardingLessonList.querySelector('.dragging');
         if(!arrastrando || arrastrando === item) return;
+        if(arrastrando.dataset.pista !== item.dataset.pista){
+          item.classList.add('drop-target'); // viene de otra pista: recién se resuelve al soltar
+          return;
+        }
+        item.classList.remove('drop-target');
+        const contenedor = item.closest('.pista-group-lessons');
         const rect = item.getBoundingClientRect();
         const antes = (e.clientY - rect.top) < rect.height / 2;
-        onboardingLessonList.insertBefore(arrastrando, antes ? item : item.nextSibling);
+        contenedor.insertBefore(arrastrando, antes ? item : item.nextSibling);
       });
+      item.addEventListener('dragleave', () => item.classList.remove('drop-target'));
       item.addEventListener('drop', (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        item.classList.remove('drop-target');
         const arrastrando = onboardingLessonList.querySelector('.dragging');
-        const idsEnOrden = [...onboardingLessonList.querySelectorAll('.lesson-item')].map(el => el.dataset.id);
-        const nuevoOrden = idsEnOrden.map(id => obtenerLeccion(id).titulo);
+        if(!arrastrando) return;
+        const pistaOrigenId = arrastrando.dataset.pista;
+        const pistaDestinoId = item.dataset.pista;
+        const pistaOrigen = PISTAS_ONBOARDING.find(p => p.id === pistaOrigenId);
+        const pistaDestino = PISTAS_ONBOARDING.find(p => p.id === pistaDestinoId);
 
-        // Si soltás la lección al lado de otra de un módulo distinto,
-        // adopta ese módulo — así arrastrarla también sirve para
-        // moverla de un módulo/capítulo a otro, no solo reordenarla.
-        let idMovido = null;
-        let nuevoModulo = null;
-        if(arrastrando){
-          idMovido = arrastrando.dataset.id;
-          const idx = idsEnOrden.indexOf(idMovido);
-          const vecinoId = idsEnOrden[idx - 1] ?? idsEnOrden[idx + 1];
-          const vecino = vecinoId ? obtenerLeccion(vecinoId) : null;
-          nuevoModulo = vecino ? (vecino.modulo || '') : '';
+        if(pistaOrigenId !== pistaDestinoId){
+          // Vino de otra pista: se muda, adoptando el módulo de acá.
+          const leccion = obtenerLeccion(pistaOrigenId, arrastrando.dataset.id);
+          if(leccion && pistaOrigen && pistaDestino) moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, item.dataset.modulo || '');
+          return;
         }
-        guardarOrdenLecciones(nuevoOrden, idMovido, nuevoModulo);
+
+        // Misma pista: reordenar + reasignar módulo (comportamiento
+        // de la vuelta anterior).
+        const contenedor = item.closest('.pista-group-lessons');
+        const idsEnOrden = [...contenedor.querySelectorAll('.lesson-item')].map(el => el.dataset.id);
+        const lecciones = leccionesDePista(pistaDestinoId);
+        const nuevoOrden = idsEnOrden.map(id => lecciones.find(l => l.id === id).titulo);
+        const idx = idsEnOrden.indexOf(arrastrando.dataset.id);
+        const vecinoId = idsEnOrden[idx - 1] ?? idsEnOrden[idx + 1];
+        const vecino = vecinoId ? lecciones.find(l => l.id === vecinoId) : null;
+        const nuevoModulo = vecino ? (vecino.modulo || '') : '';
+        guardarOrdenLecciones(pistaDestino, nuevoOrden, arrastrando.dataset.id, nuevoModulo);
       });
+    });
+
+    // --- "+ Agregar" dentro de cada pista desplegada. ---
+    onboardingLessonList.querySelectorAll('.pista-add-btn').forEach(btn => {
+      const input = onboardingLessonList.querySelector('.pista-add-titulo[data-pista="' + btn.dataset.pista + '"]');
+      const agregar = async () => {
+        const titulo = input.value.trim();
+        if(!titulo) return;
+        const modulo = (prompt('Módulo/capítulo (opcional, dejalo vacío si no aplica):', '') || '').trim();
+        const pista = PISTAS_ONBOARDING.find(p => p.id === btn.dataset.pista);
+        if(!pista) return;
+        btn.disabled = true;
+        try {
+          await agregarLeccion(pista, titulo, modulo);
+        } finally {
+          btn.disabled = false;
+        }
+      };
+      btn.addEventListener('click', agregar);
+      input.addEventListener('keydown', (e) => { if(e.key === 'Enter') agregar(); });
     });
   }
 
-  // ===== Agregar / eliminar / reordenar lecciones — persiste en la
-  // pestaña "Lecciones" vía el Apps Script (LECCIONES_WRITE_URL), así
-  // lo ve todo el equipo, no solo este navegador (a diferencia de cómo
-  // funcionaba antes con localStorage). =====
-  // Nota: la pestaña "Lecciones" publicada como CSV puede tardar hasta
-  // un minuto en reflejar un cambio recién escrito (lo mismo que ya
-  // pasa con Tracker/Ranking) — por eso estas tres acciones NO
-  // recargan desde el Sheet para actualizar la pantalla: reordenan/
-  // agregan/sacan directo sobre el array LECCIONES ya en memoria (así
-  // se ve al toque para quien está editando) y solo invalidan el
-  // caché para que la PRÓXIMA vez que alguien entre al onboarding,
-  // ya cargado, traiga la versión real y actualizada del Sheet.
-  async function guardarOrdenLecciones(nuevoOrdenTitulos, idMovido, nuevoModulo){
-    const lecMovida = idMovido != null ? obtenerLeccion(idMovido) : null;
+  // ===== Agregar / eliminar / reordenar / mover lecciones — persiste
+  // en la pestaña de esa pista vía el Apps Script (LECCIONES_WRITE_URL),
+  // así lo ve todo el equipo, no solo este navegador. =====
+  // Nota: la pestaña publicada como CSV puede tardar hasta un minuto en
+  // reflejar un cambio recién escrito (lo mismo que ya pasa con
+  // Tracker/Ranking) — por eso estas acciones NO recargan desde el
+  // Sheet para actualizar la pantalla: tocan directo el array en
+  // memoria (se ve al toque) y solo invalidan el caché para la
+  // PRÓXIMA vez que alguien entre al onboarding.
+  async function guardarOrdenLecciones(pista, nuevoOrdenTitulos, idMovido, nuevoModulo){
+    const lecciones = leccionesDePista(pista.id);
+    const lecMovida = idMovido != null ? lecciones.find(l => l.id === idMovido) : null;
     const cambiaModulo = lecMovida && nuevoModulo != null && (lecMovida.modulo || '') !== nuevoModulo;
     try {
-      const payload = { action: 'reorderLessons', orden: nuevoOrdenTitulos, sheetName: pistaActual().sheetName };
+      const payload = { action: 'reorderLessons', orden: nuevoOrdenTitulos, sheetName: pista.sheetName };
       if(cambiaModulo) payload.moduloCambiado = { titulo: lecMovida.titulo, modulo: nuevoModulo };
       await escribirLecciones(payload);
-      filasLeccionesCachePorPista[pistaActivaId] = null;
-      LECCIONES = nuevoOrdenTitulos.map(titulo => LECCIONES.find(l => l.titulo === titulo)).filter(Boolean);
+      filasLeccionesCachePorPista[pista.id] = null;
+      LECCIONES_POR_PISTA[pista.id] = nuevoOrdenTitulos.map(titulo => lecciones.find(l => l.titulo === titulo)).filter(Boolean);
       if(cambiaModulo){
-        const lec = LECCIONES.find(l => l.titulo === lecMovida.titulo);
+        const lec = LECCIONES_POR_PISTA[pista.id].find(l => l.titulo === lecMovida.titulo);
         if(lec) lec.modulo = nuevoModulo;
       }
-      renderLeccionList();
+      renderArbolPistas();
     } catch(e){
       alert('No se pudo guardar el nuevo orden: ' + e.message);
-      renderLeccionList();
+      renderArbolPistas();
     }
   }
 
-  async function eliminarLeccion(id){
-    const lec = obtenerLeccion(id);
+  async function eliminarLeccion(pista, id){
+    const lecciones = leccionesDePista(pista.id);
+    const lec = lecciones.find(l => l.id === id);
     if(!lec) return;
-    if(LECCIONES.length <= 1){
-      alert('Tiene que quedar al menos una lección.');
+    if(lecciones.length <= 1){
+      alert('Tiene que quedar al menos una lección en esta pista.');
       return;
     }
     if(!confirm('¿Eliminar "' + lec.titulo + '"? Se borra para todo el equipo y no se puede deshacer.')) return;
     try {
-      await escribirLecciones({ action: 'deleteLesson', titulo: lec.titulo, sheetName: pistaActual().sheetName });
-      filasLeccionesCachePorPista[pistaActivaId] = null;
-      LECCIONES = LECCIONES.filter(l => l.id !== id);
-      if(leccionActivaId === id) leccionActivaId = LECCIONES[0].id;
-      seleccionarLeccion(leccionActivaId);
+      await escribirLecciones({ action: 'deleteLesson', titulo: lec.titulo, sheetName: pista.sheetName });
+      filasLeccionesCachePorPista[pista.id] = null;
+      LECCIONES_POR_PISTA[pista.id] = lecciones.filter(l => l.id !== id);
+      if(leccionActivaPista === pista.id && leccionActivaId === id){
+        const primera = LECCIONES_POR_PISTA[pista.id][0];
+        seleccionarLeccion(pista.id, primera ? primera.id : null);
+      } else {
+        renderArbolPistas();
+      }
     } catch(e){
       alert('No se pudo eliminar: ' + e.message);
     }
   }
 
-  lessonAddBtn.addEventListener('click', async () => {
-    const titulo = lessonNewTitulo.value.trim();
-    if(!titulo) return;
-    const modulo = (prompt('Módulo/capítulo (opcional, dejalo vacío si no aplica):', '') || '').trim();
-    lessonAddBtn.disabled = true;
+  async function agregarLeccion(pista, titulo, modulo){
     try {
-      await escribirLecciones({ action: 'addLesson', titulo, modulo, sheetName: pistaActual().sheetName });
-      lessonNewTitulo.value = '';
-      filasLeccionesCachePorPista[pistaActivaId] = null;
-      LECCIONES = [...LECCIONES, { id: 'nuevo' + Date.now(), titulo, modulo, videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null }];
-      seleccionarLeccion(LECCIONES[LECCIONES.length - 1].id);
+      await escribirLecciones({ action: 'addLesson', titulo, modulo, sheetName: pista.sheetName });
+      filasLeccionesCachePorPista[pista.id] = null;
+      const nueva = { id: 'nuevo' + Date.now(), titulo, modulo, videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null };
+      LECCIONES_POR_PISTA[pista.id] = [...leccionesDePista(pista.id), nueva];
+      seleccionarLeccion(pista.id, nueva.id);
     } catch(e){
       alert('No se pudo agregar: ' + e.message);
-    } finally {
-      lessonAddBtn.disabled = false;
+      renderArbolPistas();
     }
-  });
-  lessonNewTitulo.addEventListener('keydown', (e) => { if(e.key === 'Enter') lessonAddBtn.click(); });
+  }
+
+  async function moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, moduloNuevo){
+    try {
+      await escribirLecciones({
+        action: 'moveLesson', titulo: leccion.titulo,
+        sheetNameOrigen: pistaOrigen.sheetName, sheetNameDestino: pistaDestino.sheetName, modulo: moduloNuevo,
+      });
+      filasLeccionesCachePorPista[pistaOrigen.id] = null;
+      filasLeccionesCachePorPista[pistaDestino.id] = null;
+      LECCIONES_POR_PISTA[pistaOrigen.id] = leccionesDePista(pistaOrigen.id).filter(l => l.id !== leccion.id);
+      LECCIONES_POR_PISTA[pistaDestino.id] = [...leccionesDePista(pistaDestino.id), { ...leccion, modulo: moduloNuevo }];
+      if(leccionActivaPista === pistaOrigen.id && leccionActivaId === leccion.id){
+        leccionActivaPista = pistaDestino.id;
+      }
+      pistasExpandidas.add(pistaDestino.id);
+      renderArbolPistas();
+    } catch(e){
+      alert('No se pudo mover la lección: ' + e.message);
+      renderArbolPistas();
+    }
+  }
 
   // ===== Reproductor propio (no el "controls" nativo del navegador). =====
   const ICONO_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18"><polygon points="6,4 20,12 6,20" fill="currentColor"></polygon></svg>';
@@ -1866,8 +1954,6 @@
 
   actualizarMuteIcon();
   actualizarPlayIcon();
-
-  seleccionarLeccion(leccionActivaId);
 
   // ===== Cambiar mes — ahora es un popover dentro del dashboard (no
   // una pantalla aparte): últimos 6 meses hasta el actual. =====
@@ -2190,12 +2276,17 @@
     return filasLeccionesCachePorPista[pista.id];
   }
 
-  async function cargarLeccionesDesdeSheet(){
-    const pista = pistaActual();
-    const filas = await obtenerFilasLecciones(pista);
-    if(filas.length){
-      LECCIONES = filas.map((f, i) => ({
-        id: 'l' + (i + 1),
+  // Carga las 4 pistas EN PARALELO (no solo la activa) — hace falta
+  // saber cuántas lecciones tiene cada una para el contador del árbol
+  // de la izquierda, no solo la que está desplegada. Una pista sin
+  // csvUrl (todavía no publicada) o con la pestaña vacía simplemente
+  // queda con 0 lecciones, sin ítem-placeholder — el árbol ya lo
+  // muestra bien como "0 videos" con la lista desplegable vacía.
+  async function cargarTodasLasPistas(){
+    await Promise.all(PISTAS_ONBOARDING.map(async (pista) => {
+      const filas = await obtenerFilasLecciones(pista);
+      LECCIONES_POR_PISTA[pista.id] = filas.map((f, i) => ({
+        id: pista.id + '-l' + (i + 1),
         titulo: f.titulo,
         modulo: f.modulo,
         videoUrl: f.videoUrl,
@@ -2204,16 +2295,7 @@
         inicio: null,
         fin: null,
       }));
-    } else {
-      // Pista sin csvUrl (todavía no publicada) o pestaña vacía — no
-      // dejar la pantalla trabada en "Cargando…" para siempre.
-      LECCIONES = [{
-        id: 'l1',
-        titulo: pista.csvUrl ? 'Todavía no hay lecciones cargadas en esta pista.' : 'Esta pista todavía no está conectada al Sheet.',
-        modulo: '', videoUrl: null, poster: null, descripcion: '', inicio: null, fin: null,
-      }];
-    }
-    if(!obtenerLeccion(leccionActivaId)) leccionActivaId = LECCIONES[0].id;
+    }));
   }
 
   function mesElegidoAYyyyMm(){

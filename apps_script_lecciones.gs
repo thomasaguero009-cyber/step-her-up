@@ -10,20 +10,24 @@
 // general de siempre), así los llamados viejos sin ese campo siguen
 // funcionando igual.
 
+function getSheet(nombre) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
+  if (!sheet) throw new Error('No existe la pestaña "' + nombre + '"');
+  return sheet;
+}
+
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
-    var sheetName = body.sheetName || 'Lecciones';
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-    if (!sheet) throw new Error('No existe la pestaña "' + sheetName + '"');
-
     var resultado;
     if (body.action === 'addLesson') {
-      resultado = addLesson(sheet, body.titulo, body.modulo);
+      resultado = addLesson(getSheet(body.sheetName || 'Lecciones'), body.titulo, body.modulo);
     } else if (body.action === 'deleteLesson') {
-      resultado = deleteLesson(sheet, body.titulo);
+      resultado = deleteLesson(getSheet(body.sheetName || 'Lecciones'), body.titulo);
     } else if (body.action === 'reorderLessons') {
-      resultado = reorderLessons(sheet, body.orden, body.moduloCambiado);
+      resultado = reorderLessons(getSheet(body.sheetName || 'Lecciones'), body.orden, body.moduloCambiado);
+    } else if (body.action === 'moveLesson') {
+      resultado = moveLesson(getSheet(body.sheetNameOrigen), getSheet(body.sheetNameDestino), body.titulo, body.modulo);
     } else {
       throw new Error('Acción desconocida: ' + body.action);
     }
@@ -105,6 +109,50 @@ function reorderLessons(sheet, ordenTitulos, moduloCambiado) {
     var filaMod = data.filas.filter(function (f) { return String(f.titulo).trim() === String(moduloCambiado.titulo).trim(); })[0];
     if (filaMod) sheet.getRange(filaMod.rowIndex, data.idx.modulo + 1).setValue(moduloCambiado.modulo || '');
   }
+  return {};
+}
+
+// Lee UNA fila completa por título, con sus campos por NOMBRE de
+// columna (no por posición) — así no importa si el orden de columnas
+// difiere entre la pestaña de origen y la de destino al mover una
+// lección de pista.
+function leerFilaCompleta(sheet, titulo) {
+  titulo = String(titulo || '').trim();
+  var values = sheet.getDataRange().getValues();
+  var header = values[0].map(function (h) { return String(h).trim().toLowerCase(); });
+  var idx = {
+    titulo: header.indexOf('titulo'),
+    video: header.indexOf('videourl'),
+    descripcion: header.indexOf('descripcion'),
+    modulo: header.indexOf('modulo'),
+  };
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][idx.titulo]).trim() === titulo) {
+      return {
+        rowIndex: i + 1,
+        titulo: values[i][idx.titulo],
+        videoUrl: idx.video > -1 ? values[i][idx.video] : '',
+        descripcion: idx.descripcion > -1 ? values[i][idx.descripcion] : '',
+        modulo: idx.modulo > -1 ? values[i][idx.modulo] : '',
+      };
+    }
+  }
+  return null;
+}
+
+// Muda una lección de una pestaña a otra preservando su video y
+// descripción ya cargados (borrar+addLesson los perdería, ya que
+// addLesson no los recibe). moduloNuevo es opcional — si no se manda,
+// conserva el módulo que ya tenía.
+function moveLesson(sheetOrigen, sheetDestino, titulo, moduloNuevo) {
+  var fila = leerFilaCompleta(sheetOrigen, titulo);
+  if (!fila) throw new Error('No se encontró la lección "' + titulo + '" en la pestaña de origen');
+  var dataDestino = leerFilas(sheetDestino);
+  var maxOrden = dataDestino.filas.reduce(function (m, f) { return Math.max(m, Number(f.orden) || 0); }, 0);
+  var modulo = moduloNuevo != null ? moduloNuevo : fila.modulo;
+  sheetDestino.appendRow([maxOrden + 1, fila.titulo, fila.videoUrl, fila.descripcion, modulo]);
+  sheetOrigen.deleteRow(fila.rowIndex);
+  renumerar(sheetOrigen);
   return {};
 }
 
