@@ -294,10 +294,16 @@
   /* Separador de módulo/capítulo dentro de la lista de lecciones de una
      pista — solo aparece si la lección trae algo cargado en "modulo". */
   .lesson-module-header{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
     font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); font-weight:700;
     padding:10px 2px 2px;
   }
   .lesson-module-header:first-child{ padding-top:0; }
+  .lesson-module-delete{
+    flex-shrink:0; background:transparent; border:none; color:var(--text-dim); cursor:pointer;
+    padding:2px 4px; font-size:13px; line-height:1; border-radius:5px; text-transform:none; letter-spacing:normal;
+  }
+  .lesson-module-delete:hover{ color:#f0716c; background:rgba(240,113,108,0.14); }
   .btn-small{
     display:inline-flex; align-items:center; justify-content:center; border:none; cursor:pointer;
     border-radius:999px; font-weight:700; font-size:13px; padding:9px 18px; font-family:inherit;
@@ -359,12 +365,12 @@
      resto del equipo. */
   .lesson-item-check{
     flex-shrink:0; width:21px; height:21px; border-radius:50%; padding:0;
-    border:1.5px solid var(--text-dim); background:transparent; color:transparent; cursor:pointer;
+    border:1.5px solid var(--blush-2); background:transparent; color:transparent; cursor:pointer;
     display:flex; align-items:center; justify-content:center; font-family:inherit;
     transition:background .15s ease, border-color .15s ease, color .15s ease;
   }
-  .lesson-item-check:hover{ border-color:#4caf6f; }
-  .lesson-item-check.done{ background:#4caf6f; border-color:#4caf6f; color:#0d1b12; }
+  .lesson-item-check:hover{ background:rgba(240,168,190,0.14); }
+  .lesson-item-check.done{ background:linear-gradient(90deg,var(--blush-2),var(--blush)); border-color:transparent; color:#2a0a13; }
   .onboarding-player-col{ flex:1; display:flex; flex-direction:column; gap:12px; min-height:0; min-width:0; }
   .onboarding-player{
     flex:1; border-radius:16px; position:relative; min-height:280px;
@@ -749,7 +755,7 @@
           </div>
         </div>
       </div>
-      <div class="onboarding-lesson-title" id="onboardingLessonTitle">1. Bienvenida a Step Her Up</div>
+      <div class="onboarding-lesson-title" id="onboardingLessonTitle">Cargando…</div>
 
       <div class="lesson-admin-controls" id="lessonAdminControls">
         <div class="lesson-admin-hint">Tocá una pista (a la izquierda) para desplegarla. Arrastrá una lección para reordenarla, cambiarla de módulo, o soltarla sobre otra pista para mudarla ahí. El "+ Agregar" para sumar una lección nueva está dentro de cada pista desplegada; la ✕ la elimina. El video, la descripción o el título de una ya creada se editan en la pestaña de esa pista en el Google Sheet.</div>
@@ -1179,8 +1185,10 @@
 
   function entrarAlOnboarding(){
     cambiarDeSeccion(onboardingScreen, 'Onboarding', async () => {
-      renderArbolPistas(); // primero con lo que haya en caché, para que no se vea vacío
+      pistasCargando = true;
+      seleccionarLeccion(leccionActivaPista, null); // muestra "Cargando…" también en el panel del video, no solo el árbol
       await cargarTodasLasPistas();
+      pistasCargando = false;
       if(!obtenerLeccion(leccionActivaPista, leccionActivaId)){
         const primera = leccionesDePista(leccionActivaPista)[0];
         leccionActivaId = primera ? primera.id : null;
@@ -1438,6 +1446,10 @@
   const pistasExpandidas = new Set(['general']);
   let leccionActivaPista = 'general';
   let leccionActivaId = null;
+  // true mientras se están trayendo las 4 pistas del Sheet — evita que
+  // el árbol muestre "0 videos" (que parece vacío/roto) cuando en
+  // realidad todavía no terminó de cargar.
+  let pistasCargando = false;
   const leccionesDePista = (id) => LECCIONES_POR_PISTA[id] || (LECCIONES_POR_PISTA[id] = []);
   const obtenerLeccion = (pistaId, id) => leccionesDePista(pistaId).find(l => l.id === id);
 
@@ -1609,8 +1621,26 @@
     leccionActivaPista = pistaId;
     leccionActivaId = id;
     const lec = obtenerLeccion(pistaId, id);
-    onboardingLessonTitle.textContent = lec ? lec.titulo : 'Esta pista todavía no tiene lecciones';
-    if(lec) cargarVideoDeLeccion(lec);
+    if(lec){
+      onboardingLessonTitle.textContent = lec.titulo;
+      cargarVideoDeLeccion(lec);
+    } else {
+      // Sin lección seleccionada — o porque esta pista está vacía de
+      // verdad, o porque todavía no terminó de cargar del Sheet. Oculta
+      // el video (si no, se ve solo su imagen de fondo estática, como
+      // si estuviera roto) y muestra un mensaje claro en su lugar.
+      onboardingLessonTitle.textContent = pistasCargando ? 'Cargando…' : 'Esta pista todavía no tiene lecciones';
+      onboardingIframe.style.display = 'none';
+      onboardingIframe.src = '';
+      onboardingVideo.pause();
+      onboardingVideo.removeAttribute('src');
+      onboardingVideo.style.display = 'none';
+      videoControlsBar.style.display = 'none';
+      videoCenterBtn.style.display = 'none';
+      videoEmpty.style.display = 'flex';
+      videoEmpty.textContent = pistasCargando ? 'Cargando…' : 'Todavía no hay lecciones en esta pista.';
+      videoDescription.classList.add('hidden');
+    }
     renderArbolPistas();
     actualizarPanelEdicion();
   }
@@ -1630,7 +1660,11 @@
     return lecciones.map(lec => {
       const modulo = (lec.modulo || '').trim();
       const header = (modulo && modulo !== moduloAnterior)
-        ? `<div class="lesson-module-header">${escapeHtml(modulo)}</div>` : '';
+        ? `<div class="lesson-module-header">
+             <span>${escapeHtml(modulo)}</span>
+             ${modoEdicion ? `<button type="button" class="lesson-module-delete" data-pista="${pista.id}" data-modulo="${escapeHtml(modulo)}" title="Eliminar este módulo y todas sus lecciones">✕</button>` : ''}
+           </div>`
+        : '';
       moduloAnterior = modulo;
       const activa = pista.id === leccionActivaPista && lec.id === leccionActivaId;
       const completada = estaCompletada(pista.id, lec.titulo);
@@ -1653,10 +1687,12 @@
     onboardingLessonList.innerHTML = PISTAS_ONBOARDING.map(pista => {
       const lecciones = leccionesDePista(pista.id);
       const expandida = pistasExpandidas.has(pista.id);
+      const contador = (pistasCargando && lecciones.length === 0)
+        ? 'Cargando…' : (lecciones.length + ' video' + (lecciones.length === 1 ? '' : 's'));
       let html = `<div class="pista-group" style="--pista-color:${pista.color}">
         <button type="button" class="pista-group-header" data-pista="${pista.id}">
           <span class="pista-group-title">${escapeHtml(pista.label)}</span>
-          <span class="pista-group-count">${lecciones.length} video${lecciones.length === 1 ? '' : 's'}</span>
+          <span class="pista-group-count">${contador}</span>
           <span class="pista-group-caret">${expandida ? '▾' : '▸'}</span>
         </button>`;
       if(expandida){
@@ -1788,6 +1824,15 @@
       });
     });
 
+    // --- ✕ de un módulo: borra ESE módulo y todas sus lecciones. ---
+    onboardingLessonList.querySelectorAll('.lesson-module-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pista = PISTAS_ONBOARDING.find(p => p.id === btn.dataset.pista);
+        if(pista) eliminarModulo(pista, btn.dataset.modulo);
+      });
+    });
+
     // --- "+ Agregar" dentro de cada pista desplegada. ---
     onboardingLessonList.querySelectorAll('.pista-add-btn').forEach(btn => {
       const input = onboardingLessonList.querySelector('.pista-add-titulo[data-pista="' + btn.dataset.pista + '"]');
@@ -1860,6 +1905,36 @@
       }
     } catch(e){
       alert('No se pudo eliminar: ' + e.message);
+    }
+  }
+
+  // Borra un módulo/capítulo ENTERO — todas las lecciones que tengan
+  // ese valor en "modulo", no solo una. Las borra una por una contra el
+  // Sheet (deleteLesson no tiene una versión "en lote"); si alguna
+  // falla a mitad de camino, avisa cuáles sí se alcanzaron a borrar.
+  async function eliminarModulo(pista, modulo){
+    const lecciones = leccionesDePista(pista.id);
+    const delModulo = lecciones.filter(l => (l.modulo || '').trim() === modulo);
+    if(!delModulo.length) return;
+    if(!confirm('¿Eliminar el módulo "' + modulo + '" completo? Se van a borrar sus ' + delModulo.length + ' lecciones para todo el equipo y no se puede deshacer.')) return;
+
+    const borradasIds = [];
+    try {
+      for(const lec of delModulo){
+        await escribirLecciones({ action: 'deleteLesson', titulo: lec.titulo, sheetName: pista.sheetName });
+        borradasIds.push(lec.id);
+      }
+    } catch(e){
+      alert('Se borraron ' + borradasIds.length + ' de ' + delModulo.length + ' lecciones del módulo, después falló: ' + e.message);
+    } finally {
+      filasLeccionesCachePorPista[pista.id] = null;
+      LECCIONES_POR_PISTA[pista.id] = lecciones.filter(l => !borradasIds.includes(l.id));
+      if(leccionActivaPista === pista.id && borradasIds.includes(leccionActivaId)){
+        const primera = LECCIONES_POR_PISTA[pista.id][0];
+        seleccionarLeccion(pista.id, primera ? primera.id : null);
+      } else {
+        renderArbolPistas();
+      }
     }
   }
 
