@@ -909,6 +909,45 @@
         </div>
       </div>
 
+      <!-- Leído en vivo directo de GHL (Opportunities), NO del Sheet manual
+           — queda aparte para poder comparar los dos números un tiempo
+           antes de decidir si reemplaza a la carga a mano. "Llamadas" acá
+           cuenta LEADS DISTINTOS que llegaron a "Called 1X" o más ese mes
+           (no la cantidad total de intentos, que GHL no registra). Va
+           justo después de "Kpis" (no al final) para que se vea de
+           entrada en "Vista General", sin tener que scrollear. -->
+      <div class="tab-panel active" data-tab-panel="ghl">
+        <div class="section-label" id="ghl">GHL en vivo</div>
+        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
+          Leído directo de los Pipelines de GHL (Opportunities), no del Sheet. "Llamadas" = leads distintos contactados, no cantidad de intentos. "Shows" no incluye a los "Not Qualified" (pueden pasar antes o después de la reunión, así que no se cuentan para no inflar el número).
+        </p>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Llamadas</div>
+            <div class="kpi-value" id="ghlLlamadas">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Agendadas</div>
+            <div class="kpi-value" id="ghlAgendadas">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Shows</div>
+            <div class="kpi-value" id="ghlShows">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Cierres</div>
+            <div class="kpi-value" id="ghlCierres">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Ventas del mes</div>
+            <div class="kpi-value" id="ghlVentas">–</div>
+          </div>
+        </div>
+        <div class="section-label" id="ghlFuentes" style="margin-top:32px; font-size:18px;">Por fuente (pipeline de GHL)</div>
+        <div class="breakdown-grid" id="ghlFuentesGrid"></div>
+        <div class="chart-status" id="statusGhl">Conectando con GHL…</div>
+      </div>
+
       <div class="tab-panel active" data-tab-panel="llamadas">
         <div class="section-label" id="llamadas">Llamadas</div>
         <div class="chart-panel">
@@ -1029,43 +1068,6 @@
           </div>
         </div>
         <div class="chart-status" id="statusAds">Sin datos todavía — se va a conectar a un Google Sheet</div>
-      </div>
-
-      <!-- Leído en vivo directo de GHL (Opportunities), NO del Sheet manual
-           — queda aparte para poder comparar los dos números un tiempo
-           antes de decidir si reemplaza a la carga a mano. "Llamadas" acá
-           cuenta LEADS DISTINTOS que llegaron a "Called 1X" o más ese mes
-           (no la cantidad total de intentos, que GHL no registra). -->
-      <div class="tab-panel active" data-tab-panel="ghl">
-        <div class="section-label" id="ghl">GHL en vivo</div>
-        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
-          Leído directo de los Pipelines de GHL (Opportunities), no del Sheet. "Llamadas" = leads distintos contactados, no cantidad de intentos. "Shows" no incluye a los "Not Qualified" (pueden pasar antes o después de la reunión, así que no se cuentan para no inflar el número).
-        </p>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Llamadas</div>
-            <div class="kpi-value" id="ghlLlamadas">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Agendadas</div>
-            <div class="kpi-value" id="ghlAgendadas">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Shows</div>
-            <div class="kpi-value" id="ghlShows">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Cierres</div>
-            <div class="kpi-value" id="ghlCierres">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Ventas del mes</div>
-            <div class="kpi-value" id="ghlVentas">–</div>
-          </div>
-        </div>
-        <div class="section-label" id="ghlFuentes" style="margin-top:32px; font-size:18px;">Por fuente (pipeline de GHL)</div>
-        <div class="breakdown-grid" id="ghlFuentesGrid"></div>
-        <div class="chart-status" id="statusGhl">Conectando con GHL…</div>
       </div>
 
     </div>
