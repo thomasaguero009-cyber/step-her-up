@@ -879,14 +879,12 @@
 
       <div class="quick-nav-row" id="dashTabNav">
         <button type="button" class="quick-nav-btn active" data-tab="general">Vista General</button>
-        <button type="button" class="quick-nav-btn" data-tab="kpis">Kpis</button>
-        <button type="button" class="quick-nav-btn" data-tab="llamadas">Llamadas</button>
+        <button type="button" class="quick-nav-btn" data-tab="ghl">GHL en vivo</button>
         <button type="button" class="quick-nav-btn" data-tab="ventas">Ventas del mes</button>
+        <button type="button" class="quick-nav-btn" data-tab="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
         <button type="button" class="quick-nav-btn" data-tab="setters">Setters</button>
         <button type="button" class="quick-nav-btn" data-tab="fuentes">Fuentes</button>
-        <button type="button" class="quick-nav-btn" data-tab="ads">Ads</button>
-        <button type="button" class="quick-nav-btn" data-tab="ghl">GHL en vivo</button>
       </div>
 
       <!-- Segunda fila, más chica/tenue a propósito — no aísla una
@@ -894,9 +892,7 @@
            (se ven todos los bloques) y solo hace scroll hasta esa
            sección, para ir más rápido sin perder el resto de vista. -->
       <div class="quick-nav-row quick-nav-row-jump" id="dashJumpNav">
-        <button type="button" class="quick-nav-btn-jump" data-jump="kpis">Kpis</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="ghl">GHL en vivo</button>
-        <button type="button" class="quick-nav-btn-jump" data-jump="ads">Ads</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="ventas">Ventas</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="matematica">Matemática</button>
@@ -904,49 +900,16 @@
         <button type="button" class="quick-nav-btn-jump" data-jump="fuentes">Fuentes</button>
       </div>
 
-      <!-- Embudo: Llamadas → Agendadas → Shows → Cierres → Ventas.
-           "Llamadas" = llamadas que efectivamente hace el setter (lo que
-           antes vivía, medio a los ponchazos, en la columna "Leads" del
-           Sheet). "Agendadas" es lo que resulta de esas llamadas: cuántas
-           terminan en un turno agendado. -->
-      <div class="tab-panel active" data-tab-panel="kpis">
-        <div class="section-label" id="kpis">Kpis</div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Llamadas</div>
-            <div class="kpi-value" id="kpiLeads">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Llamadas agendadas</div>
-            <div class="kpi-value" id="kpiLlamadas">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Shows</div>
-            <div class="kpi-value" id="kpiShows">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Cierres</div>
-            <div class="kpi-value" id="kpiCierres">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Ventas del mes</div>
-            <div class="kpi-value" id="kpiVentas">–</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Leído en vivo directo de GHL (Opportunities), NO del Sheet manual
-           — queda aparte para poder comparar los dos números un tiempo
-           antes de decidir si reemplaza a la carga a mano. "Llamadas" acá
-           cuenta LEADS DISTINTOS que llegaron a "Called 1X" o más ese mes
-           (no la cantidad total de intentos, que GHL no registra). Va
-           justo después de "Kpis" (no al final) para que se vea de
-           entrada en "Vista General", sin tener que scrollear. -->
-      <div class="tab-panel active" data-tab-panel="ghl">
-        <div class="section-label" id="ghl">GHL en vivo</div>
-        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
-          Leído directo de los Pipelines de GHL (Opportunities), no del Sheet. "Llamadas" = leads distintos contactados, no cantidad de intentos. "Shows" no incluye a los "Not Qualified" (pueden pasar antes o después de la reunión, así que no se cuentan para no inflar el número).
-        </p>
+      <!-- Cluster único de "números de arriba" — antes eran 3 bloques
+           separados (Kpis manual del Sheet, GHL en vivo, Ads/ROAS) con
+           su propio título cada uno; ahora es uno solo sin nombres por
+           bloque (pedido del dueño del negocio). El número manual del
+           Sheet (Kpis) se sacó de acá: solo se muestra el de GHL en
+           vivo, que tarda unos segundos en llegar — por eso tiene la
+           animación de "buscando el número" (ver animarCargandoNumero).
+           Las 4 tasas de conversión, que antes vivían en "Matemática del
+           éxito", se sumaron acá también. -->
+      <div class="tab-panel active" data-tab-panel="ghl" id="ghl">
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-label">Llamadas</div>
@@ -969,24 +932,27 @@
             <div class="kpi-value" id="ghlVentas">–</div>
           </div>
         </div>
-        <div class="section-label" id="ghlFuentes" style="margin-top:32px; font-size:18px;">Por fuente (pipeline de GHL)</div>
-        <div class="breakdown-grid" id="ghlFuentesGrid"></div>
-        <div class="chart-status" id="statusGhl">Conectando con GHL…</div>
-      </div>
 
-      <!-- ROAS: cuánto vuelve por cada $1 gastado en ads. "De ads" mira
-           solo la venta de filas cuya Fuente sea de ads (Facebook Ads,
-           Google Ads, etc. — cualquiera que contenga "ads"); "General"
-           mira TODAS las ventas del mes contra el mismo gasto, para ver
-           el retorno del negocio completo, no solo del canal pago. Va
-           junto a Kpis/GHL (mismo cluster de "números de arriba"), antes
-           de los gráficos. -->
-      <div class="tab-panel active" data-tab-panel="ads">
-        <div class="section-label" id="ads">Ads / ROAS</div>
-        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
-          "ROAS de ads" = ventas de filas con Fuente que contenga "ads" ÷ gasto en ads. "ROAS general" = TODAS las ventas del mes ÷ gasto en ads.
-        </p>
-        <div class="roas-grid">
+        <div class="mate-grid" style="margin-top:16px;">
+          <div class="kpi-card">
+            <div class="kpi-label">Tasa de agendado</div>
+            <div class="kpi-value" id="mateAgendado">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Show rate</div>
+            <div class="kpi-value" id="mateShowRate">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Tasa de cierre</div>
+            <div class="kpi-value" id="mateCierre">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Conversión total (llamada → venta)</div>
+            <div class="kpi-value" id="mateConversion">–</div>
+          </div>
+        </div>
+
+        <div class="roas-grid" style="margin-top:16px;">
           <div class="kpi-card">
             <div class="kpi-label">Gasto en ads</div>
             <div class="kpi-value" id="adsGasto">–</div>
@@ -1000,7 +966,13 @@
             <div class="kpi-value" id="adsRoasGeneral">–</div>
           </div>
         </div>
-        <div class="chart-status" id="statusAds">Sin datos todavía — se va a conectar a un Google Sheet</div>
+        <div class="chart-status" id="statusAds" style="margin-top:4px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+
+        <p style="font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin:16px 0 0;">GHL en vivo</p>
+        <div class="chart-status" id="statusGhl" style="margin-top:4px;">Conectando con GHL…</div>
+
+        <div class="section-label" id="ghlFuentes" style="margin-top:32px; font-size:18px;">Por fuente (pipeline de GHL)</div>
+        <div class="breakdown-grid" id="ghlFuentesGrid"></div>
       </div>
 
       <div class="tab-panel active" data-tab-panel="ventas">
@@ -1063,25 +1035,6 @@
             </div>
           </div>
           <div class="chart-status" id="statusProyeccion">Sin datos todavía — se va a conectar a un Google Sheet</div>
-        </div>
-
-        <div class="mate-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Tasa de agendado</div>
-            <div class="kpi-value" id="mateAgendado">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Show rate</div>
-            <div class="kpi-value" id="mateShowRate">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Tasa de cierre</div>
-            <div class="kpi-value" id="mateCierre">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Conversión total (llamada → venta)</div>
-            <div class="kpi-value" id="mateConversion">–</div>
-          </div>
         </div>
         <div class="chart-status" id="statusMatematica" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
@@ -2669,11 +2622,9 @@
       totGastoAds += f.gasto;
     });
 
-    document.getElementById('kpiLeads').textContent = huboDatos ? totLlamadas.toLocaleString('es-AR') : '–';
-    document.getElementById('kpiLlamadas').textContent = huboDatos ? totAgendadas.toLocaleString('es-AR') : '–';
-    document.getElementById('kpiShows').textContent = huboDatos ? totShows.toLocaleString('es-AR') : '–';
-    document.getElementById('kpiCierres').textContent = huboDatos ? totCierres.toLocaleString('es-AR') : '–';
-    document.getElementById('kpiVentas').textContent = huboDatos ? ('$' + totVentas.toLocaleString('es-AR')) : '–';
+    // (El resumen manual "Kpis" del Sheet — Llamadas/Agendadas/Shows/
+    // Cierres/Ventas — se sacó de la vista: ahora ese cluster de arriba
+    // muestra solo el de GHL en vivo, pedido del dueño del negocio.)
 
     // Si el mes elegido es el mes en curso, el gráfico corta en el día
     // de hoy — no tiene sentido dibujar en 0 los días que todavía no
@@ -2754,18 +2705,46 @@
         : 'Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)');
   }
 
+  // ===== Animación "tragamonedas" — mientras esperamos algo que tarda
+  // (GHL tarda varios segundos), el número tira dígitos al azar en vez
+  // de quedarse pelado en "–", y al llegar el dato real hace unas
+  // vueltas más lentas antes de asentarse, como una máquina frenando. =====
+  const _shuffleIntervals = {};
+  function animarCargandoNumero(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    detenerAnimacionNumero(id);
+    _shuffleIntervals[id] = setInterval(() => {
+      el.textContent = String(Math.floor(Math.random() * 900) + 100);
+    }, 60);
+  }
+  function detenerAnimacionNumero(id, valorFinal){
+    if(_shuffleIntervals[id]){ clearInterval(_shuffleIntervals[id]); delete _shuffleIntervals[id]; }
+    const el = document.getElementById(id);
+    if(!el || valorFinal == null) return;
+    let vueltas = 6;
+    const paso = () => {
+      if(vueltas <= 0){ el.textContent = valorFinal; return; }
+      el.textContent = String(Math.floor(Math.random() * 900) + 100);
+      vueltas--;
+      setTimeout(paso, 60 + (6 - vueltas) * 25);
+    };
+    paso();
+  }
+
   // ===== "GHL en vivo" — lee directo los Pipelines de Opportunities de GHL
   // vía el Worker (/leads-summary), no el Sheet. Se llama aparte de
   // cargarYPintarDatosMes (no await'eada ahí) porque tarda varios segundos
   // (recorre ~2500 oportunidades del lado del Worker) — así el resto del
   // dashboard no espera a GHL para pintarse. =====
+  const GHL_IDS = ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas'];
   async function cargarYPintarGHL(){
     const { anio, mes } = mesElegidoAYyyyMm();
     const start = new Date(anio, mes, 1).getTime();
     const end = new Date(anio, mes + 1, 1).getTime();
     const statusEl = document.getElementById('statusGhl');
     const grid = document.getElementById('ghlFuentesGrid');
-    ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas'].forEach(id => document.getElementById(id).textContent = '–');
+    GHL_IDS.forEach(animarCargandoNumero);
     grid.innerHTML = '';
     statusEl.textContent = 'Conectando con GHL…';
 
@@ -2776,11 +2755,11 @@
       const data = await res.json();
       if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
 
-      document.getElementById('ghlLlamadas').textContent = data.totales.llamadas.toLocaleString('es-AR');
-      document.getElementById('ghlAgendadas').textContent = data.totales.agendadas.toLocaleString('es-AR');
-      document.getElementById('ghlShows').textContent = data.totales.shows.toLocaleString('es-AR');
-      document.getElementById('ghlCierres').textContent = data.totales.cierres.toLocaleString('es-AR');
-      document.getElementById('ghlVentas').textContent = '$' + Math.round(data.totales.ventas).toLocaleString('es-AR');
+      detenerAnimacionNumero('ghlLlamadas', data.totales.llamadas.toLocaleString('es-AR'));
+      detenerAnimacionNumero('ghlAgendadas', data.totales.agendadas.toLocaleString('es-AR'));
+      detenerAnimacionNumero('ghlShows', data.totales.shows.toLocaleString('es-AR'));
+      detenerAnimacionNumero('ghlCierres', data.totales.cierres.toLocaleString('es-AR'));
+      detenerAnimacionNumero('ghlVentas', '$' + Math.round(data.totales.ventas).toLocaleString('es-AR'));
 
       const fuentes = Object.entries(data.porFuente).sort((a,b) => b[1].ventas - a[1].ventas);
       grid.innerHTML = fuentes.map(([nombre, f]) => `
@@ -2796,6 +2775,7 @@
 
       statusEl.textContent = 'Datos en vivo desde GHL — ' + mesElegido;
     } catch(e){
+      GHL_IDS.forEach(id => { detenerAnimacionNumero(id); document.getElementById(id).textContent = '–'; });
       statusEl.textContent = 'No se pudo conectar con GHL: ' + (e.name === 'AbortError' ? 'tardó demasiado, probá de nuevo' : e.message);
     } finally {
       clearTimeout(t);
