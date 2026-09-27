@@ -515,11 +515,20 @@
   .kpi-card{
     background:var(--card); border:1px solid var(--border); border-radius:18px; padding:22px 20px;
   }
-  .kpi-label{ font-size:13px; color:var(--text-dim); margin-bottom:10px; }
+  .kpi-label{ font-size:13px; color:var(--text-dim); margin-bottom:10px; min-height:32px; }
   .kpi-value{
     font-size:28px; font-weight:800; font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
-    font-variant-numeric:tabular-nums;
+    font-variant-numeric:tabular-nums; min-height:34px; display:flex; align-items:center;
   }
+
+  /* Círculo de carga — reemplaza el número mientras GHL responde (tarda
+     unos segundos). */
+  .kpi-spinner{
+    width:22px; height:22px; border-radius:50%; flex-shrink:0;
+    border:3px solid rgba(255,255,255,0.15); border-top-color:var(--blush-2);
+    animation:kpi-spin .8s linear infinite;
+  }
+  @keyframes kpi-spin{ to{ transform:rotate(360deg); } }
   .kpi-delta{ font-size:12.5px; margin-top:8px; font-weight:600; }
   .kpi-delta.up{ color:var(--green); }
   .kpi-delta.down{ color:#f0716c; }
@@ -906,7 +915,7 @@
            bloque (pedido del dueño del negocio). El número manual del
            Sheet (Kpis) se sacó de acá: solo se muestra el de GHL en
            vivo, que tarda unos segundos en llegar — por eso tiene la
-           animación de "buscando el número" (ver animarCargandoNumero).
+           un círculo de carga (ver mostrarCargandoNumero) mientras llega.
            Las 4 tasas de conversión, que antes vivían en "Matemática del
            éxito", se sumaron acá también. -->
       <div class="tab-panel active" data-tab-panel="ghl" id="ghl">
@@ -2705,31 +2714,16 @@
         : 'Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)');
   }
 
-  // ===== Animación "tragamonedas" — mientras esperamos algo que tarda
-  // (GHL tarda varios segundos), el número tira dígitos al azar en vez
-  // de quedarse pelado en "–", y al llegar el dato real hace unas
-  // vueltas más lentas antes de asentarse, como una máquina frenando. =====
-  const _shuffleIntervals = {};
-  function animarCargandoNumero(id){
+  // ===== Círculo de carga — mientras esperamos GHL (tarda varios
+  // segundos), el número se reemplaza por un spinner en vez de quedarse
+  // pelado en "–". =====
+  function mostrarCargandoNumero(id){
     const el = document.getElementById(id);
-    if(!el) return;
-    detenerAnimacionNumero(id);
-    _shuffleIntervals[id] = setInterval(() => {
-      el.textContent = String(Math.floor(Math.random() * 900) + 100);
-    }, 60);
+    if(el) el.innerHTML = '<span class="kpi-spinner"></span>';
   }
-  function detenerAnimacionNumero(id, valorFinal){
-    if(_shuffleIntervals[id]){ clearInterval(_shuffleIntervals[id]); delete _shuffleIntervals[id]; }
+  function fijarValorNumero(id, valorFinal){
     const el = document.getElementById(id);
-    if(!el || valorFinal == null) return;
-    let vueltas = 6;
-    const paso = () => {
-      if(vueltas <= 0){ el.textContent = valorFinal; return; }
-      el.textContent = String(Math.floor(Math.random() * 900) + 100);
-      vueltas--;
-      setTimeout(paso, 60 + (6 - vueltas) * 25);
-    };
-    paso();
+    if(el) el.textContent = valorFinal != null ? valorFinal : '–';
   }
 
   // ===== "GHL en vivo" — lee directo los Pipelines de Opportunities de GHL
@@ -2744,7 +2738,7 @@
     const end = new Date(anio, mes + 1, 1).getTime();
     const statusEl = document.getElementById('statusGhl');
     const grid = document.getElementById('ghlFuentesGrid');
-    GHL_IDS.forEach(animarCargandoNumero);
+    GHL_IDS.forEach(mostrarCargandoNumero);
     grid.innerHTML = '';
     statusEl.textContent = 'Conectando con GHL…';
 
@@ -2755,11 +2749,11 @@
       const data = await res.json();
       if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
 
-      detenerAnimacionNumero('ghlLlamadas', data.totales.llamadas.toLocaleString('es-AR'));
-      detenerAnimacionNumero('ghlAgendadas', data.totales.agendadas.toLocaleString('es-AR'));
-      detenerAnimacionNumero('ghlShows', data.totales.shows.toLocaleString('es-AR'));
-      detenerAnimacionNumero('ghlCierres', data.totales.cierres.toLocaleString('es-AR'));
-      detenerAnimacionNumero('ghlVentas', '$' + Math.round(data.totales.ventas).toLocaleString('es-AR'));
+      fijarValorNumero('ghlLlamadas', data.totales.llamadas.toLocaleString('es-AR'));
+      fijarValorNumero('ghlAgendadas', data.totales.agendadas.toLocaleString('es-AR'));
+      fijarValorNumero('ghlShows', data.totales.shows.toLocaleString('es-AR'));
+      fijarValorNumero('ghlCierres', data.totales.cierres.toLocaleString('es-AR'));
+      fijarValorNumero('ghlVentas', '$' + Math.round(data.totales.ventas).toLocaleString('es-AR'));
 
       const fuentes = Object.entries(data.porFuente).sort((a,b) => b[1].ventas - a[1].ventas);
       grid.innerHTML = fuentes.map(([nombre, f]) => `
@@ -2775,7 +2769,7 @@
 
       statusEl.textContent = 'Datos en vivo desde GHL — ' + mesElegido;
     } catch(e){
-      GHL_IDS.forEach(id => { detenerAnimacionNumero(id); document.getElementById(id).textContent = '–'; });
+      GHL_IDS.forEach(id => fijarValorNumero(id, '–'));
       statusEl.textContent = 'No se pudo conectar con GHL: ' + (e.name === 'AbortError' ? 'tardó demasiado, probá de nuevo' : e.message);
     } finally {
       clearTimeout(t);
