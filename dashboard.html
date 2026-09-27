@@ -338,6 +338,13 @@
     padding:10px 12px; font-size:13px; color:var(--cream); font-family:inherit;
   }
   .lesson-add-row .lesson-add-btn{ flex-shrink:0; padding:10px 16px; }
+  .pista-new-module-btn{
+    display:block; width:100%; margin-top:8px; background:transparent;
+    border:1px dashed var(--border); border-radius:10px; padding:9px 14px; font-size:12.5px;
+    color:var(--text-dim); cursor:pointer; font-family:inherit;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .pista-new-module-btn:hover{ background:rgba(255,255,255,0.06); border-color:var(--blush-2); color:var(--cream); }
   .lesson-admin-hint{ font-size:11.5px; line-height:1.5; color:var(--text-dim); }
   .lesson-item-delete{
     flex-shrink:0; background:transparent; border:none; color:var(--text-dim); cursor:pointer;
@@ -1703,7 +1710,8 @@
           <div class="lesson-add-row">
             <input type="text" class="pista-add-titulo" data-pista="${pista.id}" placeholder="Título de la nueva lección">
             <button type="button" class="lesson-add-btn pista-add-btn" data-pista="${pista.id}">+ Agregar</button>
-          </div>`;
+          </div>
+          <button type="button" class="pista-new-module-btn" data-pista="${pista.id}">+ Nuevo módulo</button>`;
         }
         html += `</div>`;
       }
@@ -1851,6 +1859,24 @@
       };
       btn.addEventListener('click', agregar);
       input.addEventListener('keydown', (e) => { if(e.key === 'Enter') agregar(); });
+    });
+
+    // --- "+ Nuevo módulo" dentro de cada pista desplegada. ---
+    onboardingLessonList.querySelectorAll('.pista-new-module-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pista = PISTAS_ONBOARDING.find(p => p.id === btn.dataset.pista);
+        if(!pista) return;
+        const modulo = (prompt('Nombre del nuevo módulo/capítulo:', '') || '').trim();
+        if(!modulo) return;
+        const titulo = (prompt('Título de la primera lección de este módulo:', '') || '').trim();
+        if(!titulo) return;
+        btn.disabled = true;
+        try {
+          await agregarLeccion(pista, titulo, modulo);
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
   }
 
@@ -2215,13 +2241,13 @@
   // separada del mismo Sheet, publicada a la web como CSV igual que
   // SHEET_LECCIONES_CSV_URL arriba. csvUrl vacío = esa pista todavía no
   // se publicó, y aparece sin lecciones hasta que se complete acá.
-  // "color" es solo visual — un color propio por pista para que su
-  // header y sus lecciones se vean agrupados (pedido del usuario).
+  // "color" es solo visual — todas las pistas usan el mismo rosa de la
+  // marca (pedido del usuario: nada de arcoíris, todo rosa Step Her Up).
   const PISTAS_ONBOARDING = [
     { id: 'general', label: 'Onboarding general', csvUrl: SHEET_LECCIONES_CSV_URL, sheetName: 'Lecciones', color: '#e88aa8' },
-    { id: 'setters', label: 'Setters', csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=866565308&single=true&output=csv', sheetName: 'Lecciones_Setters', color: '#e0a458' },
-    { id: 'closers', label: 'Closers', csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=1805456753&single=true&output=csv', sheetName: 'Lecciones_Closers', color: '#6fbf9e' },
-    { id: 'ventas', label: 'Llamadas de ventas', csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=827298124&single=true&output=csv', sheetName: 'Lecciones_Ventas', color: '#8aa8e8' },
+    { id: 'setters', label: 'Setters', csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=866565308&single=true&output=csv', sheetName: 'Lecciones_Setters', color: '#e88aa8' },
+    { id: 'closers', label: 'Closers', csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=1805456753&single=true&output=csv', sheetName: 'Lecciones_Closers', color: '#e88aa8' },
+    { id: 'ventas', label: 'Llamadas de ventas', csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=827298124&single=true&output=csv', sheetName: 'Lecciones_Ventas', color: '#e88aa8' },
   ];
 
   // Backend chico (Apps Script, ver apps_script_lecciones.gs) que escribe
