@@ -487,6 +487,17 @@
   .quick-nav-btn:hover{ background:rgba(255,255,255,0.12); border-color:var(--border); }
   .quick-nav-btn.active{ background:rgba(240,168,190,0.14); border-color:var(--blush-2); color:var(--cream); }
 
+  /* Segunda fila — accesos directos DENTRO de "Vista General" (hacen
+     scroll a una sección, no aíslan un panel como la fila de arriba),
+     por eso van más chicos y tenues: se nota que son otra cosa. */
+  .quick-nav-row-jump{ padding:8px 12px; margin:-20px 0 30px; background:transparent; border:none; }
+  .quick-nav-btn-jump{
+    flex:1; min-width:100px; text-align:center; text-decoration:none; cursor:pointer; font-family:inherit;
+    background:transparent; border:1px solid var(--border); border-radius:9px; color:var(--text-dim);
+    padding:7px 10px; font-size:12px; font-weight:600; transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .quick-nav-btn-jump:hover{ background:rgba(240,168,190,0.1); border-color:var(--blush-2); color:var(--cream); }
+
   /* Cada botón de arriba muestra un solo panel a la vez, en vez de
      hacer scroll a un ancla — los datos se siguen cargando igual para
      todos, solo cambia qué se ve. */
@@ -878,6 +889,21 @@
         <button type="button" class="quick-nav-btn" data-tab="ghl">GHL en vivo</button>
       </div>
 
+      <!-- Segunda fila, más chica/tenue a propósito — no aísla una
+           sección como la fila de arriba: te deja en "Vista General"
+           (se ven todos los bloques) y solo hace scroll hasta esa
+           sección, para ir más rápido sin perder el resto de vista. -->
+      <div class="quick-nav-row quick-nav-row-jump" id="dashJumpNav">
+        <button type="button" class="quick-nav-btn-jump" data-jump="kpis">Kpis</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="ghl">GHL en vivo</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="ads">Ads</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="ventas">Ventas</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="llamadas">Llamadas</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="matematica">Matemática</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="setters">Setters</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="fuentes">Fuentes</button>
+      </div>
+
       <!-- Embudo: Llamadas → Agendadas → Shows → Cierres → Ventas.
            "Llamadas" = llamadas que efectivamente hace el setter (lo que
            antes vivía, medio a los ponchazos, en la columna "Leads" del
@@ -948,15 +974,33 @@
         <div class="chart-status" id="statusGhl">Conectando con GHL…</div>
       </div>
 
-      <div class="tab-panel active" data-tab-panel="llamadas">
-        <div class="section-label" id="llamadas">Llamadas</div>
-        <div class="chart-panel">
-          <div class="chart-wrap">
-            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
-            <div class="chart-tooltip" id="tooltipLlamadas"></div>
+      <!-- ROAS: cuánto vuelve por cada $1 gastado en ads. "De ads" mira
+           solo la venta de filas cuya Fuente sea de ads (Facebook Ads,
+           Google Ads, etc. — cualquiera que contenga "ads"); "General"
+           mira TODAS las ventas del mes contra el mismo gasto, para ver
+           el retorno del negocio completo, no solo del canal pago. Va
+           junto a Kpis/GHL (mismo cluster de "números de arriba"), antes
+           de los gráficos. -->
+      <div class="tab-panel active" data-tab-panel="ads">
+        <div class="section-label" id="ads">Ads / ROAS</div>
+        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
+          "ROAS de ads" = ventas de filas con Fuente que contenga "ads" ÷ gasto en ads. "ROAS general" = TODAS las ventas del mes ÷ gasto en ads.
+        </p>
+        <div class="roas-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Gasto en ads</div>
+            <div class="kpi-value" id="adsGasto">–</div>
           </div>
-          <div class="chart-status" id="statusLlamadas">Sin datos todavía — se va a conectar a un Google Sheet</div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROAS de ads</div>
+            <div class="kpi-value" id="adsRoasAds">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROAS general</div>
+            <div class="kpi-value" id="adsRoasGeneral">–</div>
+          </div>
         </div>
+        <div class="chart-status" id="statusAds">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
       <div class="tab-panel active" data-tab-panel="ventas">
@@ -977,6 +1021,17 @@
             <div class="kpi-label">Revenue por show</div>
             <div class="kpi-value" id="mateRevenueShow">–</div>
           </div>
+        </div>
+      </div>
+
+      <div class="tab-panel active" data-tab-panel="llamadas">
+        <div class="section-label" id="llamadas">Llamadas</div>
+        <div class="chart-panel">
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLlamadas"></svg>
+            <div class="chart-tooltip" id="tooltipLlamadas"></div>
+          </div>
+          <div class="chart-status" id="statusLlamadas">Sin datos todavía — se va a conectar a un Google Sheet</div>
         </div>
       </div>
 
@@ -1041,33 +1096,6 @@
         <div class="section-label" id="fuentes">Llamadas por fuente</div>
         <div class="breakdown-grid" id="fuentesGrid"></div>
         <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
-      </div>
-
-      <!-- ROAS: cuánto vuelve por cada $1 gastado en ads. "De ads" mira
-           solo la venta de filas cuya Fuente sea de ads (Facebook Ads,
-           Google Ads, etc. — cualquiera que contenga "ads"); "General"
-           mira TODAS las ventas del mes contra el mismo gasto, para ver
-           el retorno del negocio completo, no solo del canal pago. -->
-      <div class="tab-panel active" data-tab-panel="ads">
-        <div class="section-label" id="ads">Ads / ROAS</div>
-        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
-          "ROAS de ads" = ventas de filas con Fuente que contenga "ads" ÷ gasto en ads. "ROAS general" = TODAS las ventas del mes ÷ gasto en ads.
-        </p>
-        <div class="roas-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">Gasto en ads</div>
-            <div class="kpi-value" id="adsGasto">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">ROAS de ads</div>
-            <div class="kpi-value" id="adsRoasAds">–</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">ROAS general</div>
-            <div class="kpi-value" id="adsRoasGeneral">–</div>
-          </div>
-        </div>
-        <div class="chart-status" id="statusAds">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
     </div>
@@ -1503,6 +1531,19 @@
       const tab = btn.dataset.tab;
       dashTabNav.querySelectorAll('.quick-nav-btn').forEach(b => b.classList.toggle('active', b === btn));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', tab === 'general' || p.dataset.tabPanel === tab));
+    });
+  });
+
+  // ===== Segunda fila ("dashJumpNav") — NO aísla un panel: siempre te
+  // deja en "Vista General" (todo visible) y solo hace scroll a esa
+  // sección, para ir más rápido sin perder el resto de vista. =====
+  const dashJumpNav = document.getElementById('dashJumpNav');
+  dashJumpNav.querySelectorAll('.quick-nav-btn-jump').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dashTabNav.querySelectorAll('.quick-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'general'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('active'));
+      const destino = document.getElementById(btn.dataset.jump);
+      if(destino) destino.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 
