@@ -875,6 +875,7 @@
         <button type="button" class="quick-nav-btn" data-tab="setters">Setters</button>
         <button type="button" class="quick-nav-btn" data-tab="fuentes">Fuentes</button>
         <button type="button" class="quick-nav-btn" data-tab="ads">Ads</button>
+        <button type="button" class="quick-nav-btn" data-tab="ghl">GHL en vivo</button>
       </div>
 
       <!-- Embudo: Llamadas → Agendadas → Shows → Cierres → Ventas.
@@ -1028,6 +1029,43 @@
           </div>
         </div>
         <div class="chart-status" id="statusAds">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
+
+      <!-- Leído en vivo directo de GHL (Opportunities), NO del Sheet manual
+           — queda aparte para poder comparar los dos números un tiempo
+           antes de decidir si reemplaza a la carga a mano. "Llamadas" acá
+           cuenta LEADS DISTINTOS que llegaron a "Called 1X" o más ese mes
+           (no la cantidad total de intentos, que GHL no registra). -->
+      <div class="tab-panel active" data-tab-panel="ghl">
+        <div class="section-label" id="ghl">GHL en vivo</div>
+        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
+          Leído directo de los Pipelines de GHL (Opportunities), no del Sheet. "Llamadas" = leads distintos contactados, no cantidad de intentos. "Shows" no incluye a los "Not Qualified" (pueden pasar antes o después de la reunión, así que no se cuentan para no inflar el número).
+        </p>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Llamadas</div>
+            <div class="kpi-value" id="ghlLlamadas">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Agendadas</div>
+            <div class="kpi-value" id="ghlAgendadas">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Shows</div>
+            <div class="kpi-value" id="ghlShows">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Cierres</div>
+            <div class="kpi-value" id="ghlCierres">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Ventas del mes</div>
+            <div class="kpi-value" id="ghlVentas">–</div>
+          </div>
+        </div>
+        <div class="section-label" id="ghlFuentes" style="margin-top:32px; font-size:18px;">Por fuente (pipeline de GHL)</div>
+        <div class="breakdown-grid" id="ghlFuentesGrid"></div>
+        <div class="chart-status" id="statusGhl">Conectando con GHL…</div>
       </div>
 
     </div>
@@ -1241,6 +1279,7 @@
     cambiarDeSeccion(dashboardScreen, 'Dashboard', () => {
       document.getElementById('dashMonthLabel').textContent = mesElegido;
       cargarYPintarDatosMes();
+      cargarYPintarGHL();
     });
   }
   document.getElementById('goDashboardBtn').addEventListener('click', entrarAlDashboard);
@@ -2175,6 +2214,7 @@
         document.getElementById('dashMonthLabel').textContent = mesElegido;
         dashMonthList.classList.remove('open');
         cargarYPintarDatosMes();
+        cargarYPintarGHL();
       });
     });
   }
@@ -2249,6 +2289,11 @@
   // "Agendadas" = de esas llamadas, cuántas terminaron en un turno
   // agendado — son cosas distintas, no hay que confundirlas. =====
   const SHEET_TRACKER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=0&single=true&output=csv';
+
+  // ===== "GHL en vivo" — mismo Cloudflare Worker que ya usa calendario.html
+  // (endpoint nuevo: /leads-summary), lee directo los Pipelines de
+  // Opportunities de GHL en vez de un Sheet cargado a mano. =====
+  const WORKER_URL = 'https://step-her-up-calendar.thomasaguero009.workers.dev';
 
   // ===== Ranking Factor — pestaña APARTE del mismo Google Sheet, llamada
   // "Ranking" (no "Tracker"): una fila por cada cobro de un closer.
@@ -2664,6 +2709,54 @@
       : (SHEET_ADS_CSV_URL
         ? 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ads" del Google Sheet'
         : 'Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)');
+  }
+
+  // ===== "GHL en vivo" — lee directo los Pipelines de Opportunities de GHL
+  // vía el Worker (/leads-summary), no el Sheet. Se llama aparte de
+  // cargarYPintarDatosMes (no await'eada ahí) porque tarda varios segundos
+  // (recorre ~2500 oportunidades del lado del Worker) — así el resto del
+  // dashboard no espera a GHL para pintarse. =====
+  async function cargarYPintarGHL(){
+    const { anio, mes } = mesElegidoAYyyyMm();
+    const start = new Date(anio, mes, 1).getTime();
+    const end = new Date(anio, mes + 1, 1).getTime();
+    const statusEl = document.getElementById('statusGhl');
+    const grid = document.getElementById('ghlFuentesGrid');
+    ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas'].forEach(id => document.getElementById(id).textContent = '–');
+    grid.innerHTML = '';
+    statusEl.textContent = 'Conectando con GHL…';
+
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(`${WORKER_URL}/leads-summary?start=${start}&end=${end}`, { signal: ctrl.signal });
+      const data = await res.json();
+      if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+
+      document.getElementById('ghlLlamadas').textContent = data.totales.llamadas.toLocaleString('es-AR');
+      document.getElementById('ghlAgendadas').textContent = data.totales.agendadas.toLocaleString('es-AR');
+      document.getElementById('ghlShows').textContent = data.totales.shows.toLocaleString('es-AR');
+      document.getElementById('ghlCierres').textContent = data.totales.cierres.toLocaleString('es-AR');
+      document.getElementById('ghlVentas').textContent = '$' + Math.round(data.totales.ventas).toLocaleString('es-AR');
+
+      const fuentes = Object.entries(data.porFuente).sort((a,b) => b[1].ventas - a[1].ventas);
+      grid.innerHTML = fuentes.map(([nombre, f]) => `
+        <div class="breakdown-card">
+          <h4>${escapeHtml(nombre)}</h4>
+          <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${f.llamadas.toLocaleString('es-AR')}</span></div>
+          <div class="breakdown-stat-row"><span class="label">Agendadas</span><span class="val">${f.agendadas.toLocaleString('es-AR')}</span></div>
+          <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${f.shows.toLocaleString('es-AR')}</span></div>
+          <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${f.cierres.toLocaleString('es-AR')}</span></div>
+          <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(f.ventas).toLocaleString('es-AR')}</span></div>
+        </div>
+      `).join('');
+
+      statusEl.textContent = 'Datos en vivo desde GHL — ' + mesElegido;
+    } catch(e){
+      statusEl.textContent = 'No se pudo conectar con GHL: ' + (e.name === 'AbortError' ? 'tardó demasiado, probá de nuevo' : e.message);
+    } finally {
+      clearTimeout(t);
+    }
   }
 
   function escapeHtml(s){

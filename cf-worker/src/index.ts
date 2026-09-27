@@ -162,6 +162,131 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
   return json({ ok: true, appointment: appt }, 200, cors);
 }
 
+// ===== Resumen de leads/llamadas/shows/cierres desde Opportunities de GHL,
+// para el dashboard interno (dashboard.html → pestaña "GHL en vivo").
+// No toca nada del flujo de reserva de arriba. =====
+
+// Los 4 pipelines de CAPTACIÓN (cada uno es una fuente de lead distinta) —
+// quedan afuera a propósito los pipelines de "Delivery"/onboarding post-venta
+// (Step Her Up - Delivery, Done For You, etc.), que no son parte de este
+// embudo. Si se agrega una fuente nueva, hay que sumarla acá a mano.
+const PIPELINES_LEADS: { id: string; fuente: string }[] = [
+  { id: "9n9W39rlWHmD2cPdSWji", fuente: "Clickfunnels" },
+  { id: "E4ZWcLirUSAzF6jRgpnB", fuente: "Facebook Forms" },
+  { id: "MA9OafjUpyrhJVYjYwiU", fuente: "Gianie DM's" },
+  { id: "WrUulu7PHOqb6TapPTml", fuente: "Gianie Organic" },
+];
+
+// Clasifica una oportunidad por el NOMBRE de su etapa actual (no por id,
+// que difiere entre pipelines aunque el nombre sea el mismo). Los 4
+// pipelines comparten esta estructura: New Lead/Auto Booked (sin
+// contactar) → Called 1X..8X (llamado) → Appointment Set (agendada) →
+// No Show / Follow Up / Closed / Not Qualified / Already Purchased.
+//
+// "Not Qualified" queda AFUERA de todo el embudo a propósito: puede pasar
+// antes o después de la reunión con la closer (confirmado con el dueño del
+// negocio), así que no hay forma confiable de saber si esa persona llegó a
+// mostrarse o no — mejor no contarla que contarla mal.
+type Categoria = 'sin_contactar' | 'llamado' | 'agendada' | 'no_show' | 'show_sin_cierre' | 'cerrado' | 'descartado' | 'otro';
+function clasificarEtapa(nombreEtapa: string): Categoria {
+  const n = (nombreEtapa || '').toLowerCase().trim();
+  if (n === 'new lead' || n === 'auto booked' || n === 'mensaje') return 'sin_contactar';
+  if (n === 'not qualified') return 'descartado';
+  if (n === 'no show') return 'no_show';
+  if (n === 'appointment set') return 'agendada';
+  if (n === 'closed') return 'cerrado';
+  if (n === 'follow up' || n === 'already purchased') return 'show_sin_cierre';
+  if (n.startsWith('called')) return 'llamado';
+  return 'otro';
+}
+
+interface OpportunityGHL {
+  pipelineId: string;
+  pipelineStageId: string;
+  lastStageChangeAt: string;
+  monetaryValue?: number;
+}
+
+// Trae TODAS las oportunidades de un pipeline (paginado, 100 por página) —
+// la API no deja filtrar por fecha server-side de forma confiable acá
+// (un lead puede haberse creado meses antes de cerrarse), así que se trae
+// todo y se filtra por lastStageChangeAt del lado del Worker. Con el
+// volumen actual (~2500 oportunidades entre los 4 pipelines) son ~30
+// sub-requests en total — si esto sigue creciendo y se acerca a 50 (límite
+// del plan gratis de Workers), hay que sumar caché (KV + cron) en vez de
+// traer todo en cada request.
+async function traerOportunidadesDePipeline(env: Env, pipelineId: string): Promise<OpportunityGHL[]> {
+  const todas: OpportunityGHL[] = [];
+  let startAfter: string | null = null;
+  let startAfterId: string | null = null;
+  for (let pagina = 0; pagina < 40; pagina++) {
+    let u = `${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pipelineId}&limit=100`;
+    if (startAfter && startAfterId) u += `&startAfter=${startAfter}&startAfterId=${startAfterId}`;
+    const res = await fetch(u, { headers: ghlHeaders(env) });
+    if (!res.ok) throw new Error(`opportunities_search_failed: ${await res.text()}`);
+    const body = (await res.json()) as { opportunities?: OpportunityGHL[]; meta?: { nextPage?: number; startAfter?: string; startAfterId?: string } };
+    const lote = body.opportunities || [];
+    todas.push(...lote);
+    if (!body.meta?.nextPage || !lote.length) break;
+    startAfter = String(body.meta.startAfter);
+    startAfterId = String(body.meta.startAfterId);
+  }
+  return todas;
+}
+
+async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const start = parseInt(url.searchParams.get("start") || "", 10);
+  const end = parseInt(url.searchParams.get("end") || "", 10);
+  if (!start || !end) return json({ ok: false, error: "missing_range" }, 400, cors);
+
+  // Mapa etapaId → nombre, para los 4 pipelines — se pide una sola vez acá
+  // (no hardcodeado) así si el equipo renombra/agrega una etapa en GHL,
+  // sigue funcionando sin tocar código.
+  const pipeRes = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!pipeRes.ok) return json({ ok: false, error: "pipelines_failed", detail: await pipeRes.text() }, 502, cors);
+  const pipeBody = (await pipeRes.json()) as { pipelines?: { id: string; stages?: { id: string; name: string }[] }[] };
+  const nombreDeEtapa = new Map<string, string>();
+  for (const p of pipeBody.pipelines || []) {
+    for (const s of p.stages || []) nombreDeEtapa.set(s.id, s.name);
+  }
+
+  const totales = { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0, noShows: 0, descartados: 0 };
+  const porFuente: Record<string, { llamadas: number; agendadas: number; shows: number; cierres: number; ventas: number }> = {};
+
+  // Los 4 pipelines se paginan EN PARALELO (cada uno es independiente) —
+  // secuencial tardaba ~17s con el volumen actual, así queda bien por debajo
+  // de eso.
+  let resultadosPorPipeline: OpportunityGHL[][];
+  try {
+    resultadosPorPipeline = await Promise.all(PIPELINES_LEADS.map(p => traerOportunidadesDePipeline(env, p.id)));
+  } catch (err) {
+    return json({ ok: false, error: "opportunities_failed", detail: String(err) }, 502, cors);
+  }
+
+  PIPELINES_LEADS.forEach((pipeline, i) => {
+    const fu = (porFuente[pipeline.fuente] = { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
+    const oportunidades = resultadosPorPipeline[i];
+    for (const o of oportunidades) {
+      const cambio = Date.parse(o.lastStageChangeAt);
+      if (!cambio || cambio < start || cambio >= end) continue;
+      const categoria = clasificarEtapa(nombreDeEtapa.get(o.pipelineStageId) || '');
+      const esLlamado = categoria === 'llamado' || categoria === 'agendada' || categoria === 'no_show' || categoria === 'show_sin_cierre' || categoria === 'cerrado';
+      const esAgendada = categoria === 'agendada' || categoria === 'no_show' || categoria === 'show_sin_cierre' || categoria === 'cerrado';
+      const esShow = categoria === 'show_sin_cierre' || categoria === 'cerrado';
+      const monto = o.monetaryValue || 0;
+
+      if (esLlamado) { totales.llamadas++; fu.llamadas++; }
+      if (esAgendada) { totales.agendadas++; fu.agendadas++; }
+      if (esShow) { totales.shows++; fu.shows++; }
+      if (categoria === 'cerrado') { totales.cierres++; fu.cierres++; totales.ventas += monto; fu.ventas += monto; }
+      if (categoria === 'no_show') totales.noShows++;
+      if (categoria === 'descartado') totales.descartados++;
+    }
+  });
+
+  return json({ ok: true, totales, porFuente }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -177,6 +302,9 @@ export default {
       }
       if (url.pathname === "/book" && request.method === "POST") {
         return await handleBook(request, env, cors);
+      }
+      if (url.pathname === "/leads-summary" && request.method === "GET") {
+        return await handleLeadsSummary(url, env, cors);
       }
     } catch (err) {
       return json({ ok: false, error: "unexpected", detail: String(err) }, 500, cors);
