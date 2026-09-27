@@ -580,6 +580,10 @@
   @media(max-width:760px){ .mate-grid{ grid-template-columns:repeat(2, 1fr); } }
   @media(max-width:520px){ .mate-grid{ grid-template-columns:1fr; } }
 
+  /* Ads / ROAS — 3 tarjetas (gasto + 2 ROAS). */
+  .roas-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; max-width:760px; margin-bottom:10px; }
+  @media(max-width:700px){ .roas-grid{ grid-template-columns:1fr; } }
+
   /* Proyección de fin de mes — 1 línea sólida con lo ya facturado y 3
      líneas punteadas que abren desde "hoy" hasta fin de mes, cada una
      a un ritmo distinto (ver cargarYPintarDatosMes/drawProjectionChart). */
@@ -870,6 +874,7 @@
         <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
         <button type="button" class="quick-nav-btn" data-tab="setters">Setters</button>
         <button type="button" class="quick-nav-btn" data-tab="fuentes">Fuentes</button>
+        <button type="button" class="quick-nav-btn" data-tab="ads">Ads</button>
       </div>
 
       <!-- Embudo: Llamadas → Agendadas → Shows → Cierres → Ventas.
@@ -929,8 +934,8 @@
             <div class="kpi-value" id="mateTicket">–</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Revenue por llamada</div>
-            <div class="kpi-value" id="mateRevenueLead">–</div>
+            <div class="kpi-label">Revenue por show</div>
+            <div class="kpi-value" id="mateRevenueShow">–</div>
           </div>
         </div>
       </div>
@@ -996,6 +1001,33 @@
         <div class="section-label" id="fuentes">Llamadas por fuente</div>
         <div class="breakdown-grid" id="fuentesGrid"></div>
         <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
+
+      <!-- ROAS: cuánto vuelve por cada $1 gastado en ads. "De ads" mira
+           solo la venta de filas cuya Fuente sea de ads (Facebook Ads,
+           Google Ads, etc. — cualquiera que contenga "ads"); "General"
+           mira TODAS las ventas del mes contra el mismo gasto, para ver
+           el retorno del negocio completo, no solo del canal pago. -->
+      <div class="tab-panel active" data-tab-panel="ads">
+        <div class="section-label" id="ads">Ads / ROAS</div>
+        <p class="lesson-admin-hint" style="max-width:640px; margin:-10px 0 18px;">
+          "ROAS de ads" = ventas de filas con Fuente que contenga "ads" ÷ gasto en ads. "ROAS general" = TODAS las ventas del mes ÷ gasto en ads.
+        </p>
+        <div class="roas-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Gasto en ads</div>
+            <div class="kpi-value" id="adsGasto">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROAS de ads</div>
+            <div class="kpi-value" id="adsRoasAds">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROAS general</div>
+            <div class="kpi-value" id="adsRoasGeneral">–</div>
+          </div>
+        </div>
+        <div class="chart-status" id="statusAds">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
     </div>
@@ -2229,6 +2261,17 @@
   // queda en "Sin datos todavía".
   const SHEET_RANKING_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMxiZqAisKJw9lMZO9nD37vE6ZaXB_0BD-MHu64HeTtxz2xDJf9qfrQIwBVLLiobAukmiUprOYSzsk/pub?gid=2131673267&single=true&output=csv';
 
+  // ===== Gasto en Ads — pestaña APARTE del mismo Sheet, llamada "Ads"
+  // (mismo criterio que "Ranking": una fila por día, no por setter/closer,
+  // porque el gasto en ads es de toda la empresa, no de una persona).
+  // Estructura esperada:
+  //   Fecha (DD/MM/AAAA) | Gasto
+  // Para publicarla: en esa pestaña, Archivo → Compartir → Publicar en
+  // la web → elegir la pestaña "Ads" (no "Documento completo") → formato
+  // CSV → pegar acá el link. Hasta que se reemplace este placeholder
+  // vacío, la sección "Ads" del dashboard queda en "Sin datos todavía".
+  const SHEET_ADS_CSV_URL = '';
+
   // ===== Lecciones del onboarding — pestaña "Lecciones" del mismo
   // Google Sheet: Orden | Titulo | VideoURL | Descripcion. VideoURL
   // puede ser un link de Google Drive (se embebe en un iframe) o un
@@ -2410,6 +2453,30 @@
     return filasRankingCache;
   }
 
+  let filasAdsCache = null;
+  async function obtenerFilasAds(){
+    if(filasAdsCache) return filasAdsCache;
+    if(!SHEET_ADS_CSV_URL){ filasAdsCache = []; return filasAdsCache; }
+    try {
+      const texto = await fetchTextConTimeout(SHEET_ADS_CSV_URL, 8000);
+      const filas = parseCSVSheet(texto);
+      const header = (filas[0] || []).map(h => h.trim().toLowerCase());
+      const idx = { fecha: header.indexOf('fecha'), gasto: header.indexOf('gasto') };
+      const datos = [];
+      for(let i=1;i<filas.length;i++){
+        const r = filas[i];
+        const fecha = parseFechaSheet(r[idx.fecha]);
+        if(!fecha) continue;
+        datos.push({ fecha, gasto: parseNumSheet(r[idx.gasto]) });
+      }
+      filasAdsCache = datos;
+    } catch(e){
+      console.warn('No se pudo leer la pestaña Ads del Google Sheet:', e);
+      filasAdsCache = [];
+    }
+    return filasAdsCache;
+  }
+
   // Una caché de filas por pista (no una sola global) — cada pista es
   // una pestaña/CSV distinta del Sheet.
   const filasLeccionesCachePorPista = {};
@@ -2477,12 +2544,12 @@
   }
 
   async function cargarYPintarDatosMes(){
-    const filas = await obtenerFilasTracker();
+    const [filas, filasAds] = await Promise.all([obtenerFilasTracker(), obtenerFilasAds()]);
     const { anio, mes } = mesElegidoAYyyyMm();
     const dias = new Date(anio, mes + 1, 0).getDate();
     const llamadas = new Array(dias).fill(0);
     const ventas = new Array(dias).fill(0);
-    let totLlamadas = 0, totAgendadas = 0, totShows = 0, totCierres = 0, totVentas = 0, huboDatos = false;
+    let totLlamadas = 0, totAgendadas = 0, totShows = 0, totCierres = 0, totVentas = 0, totVentasAds = 0, huboDatos = false;
     const porSetter = new Map();
     const porFuente = new Map();
 
@@ -2494,6 +2561,9 @@
       ventas[dia] += f.ventas;
       totLlamadas += f.llamadas; totAgendadas += f.agendadas; totShows += f.shows;
       totCierres += f.cierres; totVentas += f.ventas;
+      // Fuente "de ads" = cualquiera que contenga "ads" (Facebook Ads,
+      // Google Ads, Meta Ads, etc.) — así no hace falta un nombre exacto.
+      if(/ads/i.test(f.fuente)) totVentasAds += f.ventas;
 
       if(!porSetter.has(f.setter)) porSetter.set(f.setter, { agendadas:0, shows:0, cierres:0, ventas:0 });
       const s = porSetter.get(f.setter);
@@ -2502,6 +2572,13 @@
       if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { llamadas:0, ventas:0 });
       const fu = porFuente.get(f.fuente);
       fu.llamadas += f.llamadas; fu.ventas += f.ventas;
+    });
+
+    let totGastoAds = 0, huboDatosAds = false;
+    filasAds.forEach(f => {
+      if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
+      huboDatosAds = true;
+      totGastoAds += f.gasto;
     });
 
     document.getElementById('kpiLeads').textContent = huboDatos ? totLlamadas.toLocaleString('es-AR') : '–';
@@ -2561,7 +2638,9 @@
     document.getElementById('mateCierre').textContent = huboDatos ? pct(totCierres, totShows) : '–';
     document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totLlamadas) : '–';
     document.getElementById('mateTicket').textContent = huboDatos ? money(totVentas, totCierres) : '–';
-    document.getElementById('mateRevenueLead').textContent = huboDatos ? money(totVentas, totLlamadas) : '–';
+    // Revenue por SHOW (reunión de la closer), no por llamada del setter
+    // — son embudos distintos, y lo que de verdad vale plata es el show.
+    document.getElementById('mateRevenueShow').textContent = huboDatos ? money(totVentas, totShows) : '–';
     document.getElementById('statusMatematica').textContent = statusTxt;
 
     // ===== Performance por setter / Llamadas por fuente — una tarjeta
@@ -2571,6 +2650,20 @@
     renderBreakdownFuentes(porFuente, totVentas);
     document.getElementById('statusSetters').textContent = statusTxt;
     document.getElementById('statusFuentes').textContent = statusTxt;
+
+    // ===== Ads / ROAS — ROAS = cuántos $ vuelven por cada $1 gastado en
+    // ads. "De ads" solo cuenta ventas de filas con Fuente que contenga
+    // "ads"; "general" cuenta TODAS las ventas del mes contra el mismo
+    // gasto. Necesita la pestaña "Ads" del Sheet (SHEET_ADS_CSV_URL). =====
+    const roas = (num, den) => den > 0 ? (num / den).toFixed(2) + 'x' : '–';
+    document.getElementById('adsGasto').textContent = huboDatosAds ? '$' + Math.round(totGastoAds).toLocaleString('es-AR') : '–';
+    document.getElementById('adsRoasAds').textContent = huboDatosAds ? roas(totVentasAds, totGastoAds) : '–';
+    document.getElementById('adsRoasGeneral').textContent = huboDatosAds ? roas(totVentas, totGastoAds) : '–';
+    document.getElementById('statusAds').textContent = huboDatosAds
+      ? 'Datos en vivo — ' + mesElegido
+      : (SHEET_ADS_CSV_URL
+        ? 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ads" del Google Sheet'
+        : 'Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)');
   }
 
   function escapeHtml(s){
