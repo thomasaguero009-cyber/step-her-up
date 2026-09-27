@@ -271,6 +271,16 @@
   }
   .pista-group-header:hover{ background:rgba(255,255,255,0.07); }
   .pista-group-header.drop-target, .lesson-item.drop-target{ border-color:var(--blush-2); background:rgba(240,168,190,0.14); }
+  /* Feedback mientras se está mudando una lección a otra pista — la
+     confirmación real tarda (va y vuelve del Google Sheet), así que la
+     de origen queda atenuada con un spinner hasta que termina. */
+  .lesson-item.moving{ opacity:0.5; pointer-events:none; position:relative; }
+  .lesson-item.moving::after{
+    content:''; flex-shrink:0; width:14px; height:14px; margin-left:auto;
+    border:2px solid rgba(255,255,255,0.25); border-top-color:var(--pista-color, var(--blush-2));
+    border-radius:50%; animation:shu-girar .7s linear infinite;
+  }
+  @keyframes shu-girar{ to{ transform:rotate(360deg); } }
   .pista-group-title{ flex:1; min-width:0; font-size:15px; font-weight:700; color:var(--pista-color, var(--cream)); }
   .pista-group-count{ flex-shrink:0; font-size:11.5px; color:var(--text-dim); }
   .pista-group-caret{ flex-shrink:0; font-size:11px; color:var(--pista-color, var(--text-dim)); }
@@ -1673,16 +1683,24 @@
       header.addEventListener('dragleave', () => header.classList.remove('drop-target'));
       header.addEventListener('drop', (e) => {
         e.preventDefault();
-        header.classList.remove('drop-target');
         const arrastrando = onboardingLessonList.querySelector('.dragging');
-        if(!arrastrando) return;
+        if(!arrastrando){ header.classList.remove('drop-target'); return; }
         const pistaOrigenId = arrastrando.dataset.pista;
         const pistaDestinoId = header.dataset.pista;
-        if(pistaOrigenId === pistaDestinoId) return;
+        if(pistaOrigenId === pistaDestinoId){ header.classList.remove('drop-target'); return; }
         const leccion = obtenerLeccion(pistaOrigenId, arrastrando.dataset.id);
         const pistaOrigen = PISTAS_ONBOARDING.find(p => p.id === pistaOrigenId);
         const pistaDestino = PISTAS_ONBOARDING.find(p => p.id === pistaDestinoId);
-        if(leccion && pistaOrigen && pistaDestino) moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, '');
+        if(leccion && pistaOrigen && pistaDestino){
+          // El header destino se queda resaltado (drop-target) y la
+          // lección de origen muestra un spinner hasta que la mudanza
+          // se confirme de verdad contra el Sheet — el re-render final
+          // limpia ambos estados solo.
+          arrastrando.classList.add('moving');
+          moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, '');
+        } else {
+          header.classList.remove('drop-target');
+        }
       });
     });
 
@@ -1748,7 +1766,11 @@
         if(pistaOrigenId !== pistaDestinoId){
           // Vino de otra pista: se muda, adoptando el módulo de acá.
           const leccion = obtenerLeccion(pistaOrigenId, arrastrando.dataset.id);
-          if(leccion && pistaOrigen && pistaDestino) moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, item.dataset.modulo || '');
+          if(leccion && pistaOrigen && pistaDestino){
+            item.classList.add('drop-target'); // se mantiene resaltado el destino mientras se confirma
+            arrastrando.classList.add('moving');
+            moverLeccionAOtraPista(pistaOrigen, pistaDestino, leccion, item.dataset.modulo || '');
+          }
           return;
         }
 
