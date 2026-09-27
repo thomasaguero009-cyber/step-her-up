@@ -515,7 +515,7 @@
   .kpi-card{
     background:var(--card); border:1px solid var(--border); border-radius:18px; padding:22px 20px;
   }
-  .kpi-label{ font-size:13px; color:var(--text-dim); margin-bottom:10px; min-height:32px; }
+  .kpi-label{ font-size:13px; color:var(--text-dim); margin-bottom:10px; min-height:39px; }
   .kpi-value{
     font-size:28px; font-weight:800; font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;
     font-variant-numeric:tabular-nums; min-height:34px; display:flex; align-items:center;
@@ -591,18 +591,6 @@
   .metricas-field input::placeholder{ color:rgba(247,236,233,0.4); }
   .metricas-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   @media(max-width:520px){ .metricas-grid{ grid-template-columns:1fr; } }
-
-  /* "Matemática del éxito" — SOLO las 4 tasas de conversión del embudo
-     (agendado, show, cierre, total). El ticket promedio y el revenue
-     por lead son plata, no "matemática del éxito" — van junto al
-     gráfico de Ventas en vez de acá. */
-  .mate-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:10px; }
-  @media(max-width:760px){ .mate-grid{ grid-template-columns:repeat(2, 1fr); } }
-  @media(max-width:520px){ .mate-grid{ grid-template-columns:1fr; } }
-
-  /* Ads / ROAS — 3 tarjetas (gasto + 2 ROAS). */
-  .roas-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; max-width:760px; margin-bottom:10px; }
-  @media(max-width:700px){ .roas-grid{ grid-template-columns:1fr; } }
 
   /* Proyección de fin de mes — 1 línea sólida con lo ya facturado y 3
      líneas punteadas que abren desde "hoy" hasta fin de mes, cada una
@@ -918,6 +906,12 @@
            un círculo de carga (ver mostrarCargandoNumero) mientras llega.
            Las 4 tasas de conversión, que antes vivían en "Matemática del
            éxito", se sumaron acá también. -->
+      <!-- Una sola grilla de tamaño FIJO por tarjeta para las 12 —
+           antes eran 3 grillas separadas (5/4/3 columnas) que estiraban
+           cada tarjeta a un ancho distinto según cuántas entraban en su
+           fila; ahora todas miden exactamente lo mismo, con huecos
+           vacíos al final de la última fila en vez de tarjetas más
+           anchas (pedido del dueño del negocio). -->
       <div class="tab-panel active" data-tab-panel="ghl" id="ghl">
         <div class="kpi-grid">
           <div class="kpi-card">
@@ -940,9 +934,6 @@
             <div class="kpi-label">Ventas del mes</div>
             <div class="kpi-value" id="ghlVentas">–</div>
           </div>
-        </div>
-
-        <div class="mate-grid" style="margin-top:16px;">
           <div class="kpi-card">
             <div class="kpi-label">Tasa de agendado</div>
             <div class="kpi-value" id="mateAgendado">–</div>
@@ -959,9 +950,6 @@
             <div class="kpi-label">Conversión total (llamada → venta)</div>
             <div class="kpi-value" id="mateConversion">–</div>
           </div>
-        </div>
-
-        <div class="roas-grid" style="margin-top:16px;">
           <div class="kpi-card">
             <div class="kpi-label">Gasto en ads</div>
             <div class="kpi-value" id="adsGasto">–</div>
