@@ -866,6 +866,7 @@
             <button type="button" class="ghost-link-btn" id="sectionSwitcherBtnDash">Secciones ▾</button>
             <div class="month-list" id="sectionSwitcherListDash"></div>
           </div>
+          <button type="button" class="ghost-link-btn" id="refreshDashBtn" title="Volver a leer GHL y los Sheets ahora">↻ Actualizar</button>
           <div class="active-month-pill" id="activeMonthPill">
             Mes activo · <b id="dashMonthLabel">Septiembre 2026</b>
             <button type="button" id="changeMonthBtn">Cambiar mes ▾</button>
@@ -2720,15 +2721,24 @@
   // (recorre ~2500 oportunidades del lado del Worker) — así el resto del
   // dashboard no espera a GHL para pintarse. =====
   const GHL_IDS = ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas'];
-  async function cargarYPintarGHL(){
+  // silencioso=true (refresco automático o botón "Actualizar"): deja los
+  // números viejos a la vista mientras llegan los nuevos, en vez de
+  // taparlos con el círculo de carga — así no "parpadea" cada 5 minutos.
+  let ghlPedidoActual = 0;
+  async function cargarYPintarGHL(silencioso = false){
+    const pedido = ++ghlPedidoActual;
     const { anio, mes } = mesElegidoAYyyyMm();
     const start = new Date(anio, mes, 1).getTime();
     const end = new Date(anio, mes + 1, 1).getTime();
     const statusEl = document.getElementById('statusGhl');
     const grid = document.getElementById('ghlFuentesGrid');
-    GHL_IDS.forEach(mostrarCargandoNumero);
-    grid.innerHTML = '';
-    statusEl.textContent = 'Conectando con GHL…';
+    if(silencioso){
+      statusEl.textContent = 'Actualizando desde GHL…';
+    } else {
+      GHL_IDS.forEach(mostrarCargandoNumero);
+      grid.innerHTML = '';
+      statusEl.textContent = 'Conectando con GHL…';
+    }
 
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 20000);
@@ -2736,6 +2746,9 @@
       const res = await fetch(`${WORKER_URL}/leads-summary?start=${start}&end=${end}`, { signal: ctrl.signal });
       const data = await res.json();
       if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      // Si mientras tanto se cambió de mes (o se disparó otro pedido), esta
+      // respuesta ya es vieja: no pisar lo que se ve.
+      if(pedido !== ghlPedidoActual) return;
 
       fijarValorNumero('ghlLlamadas', data.totales.llamadas.toLocaleString('es-AR'));
       fijarValorNumero('ghlAgendadas', data.totales.agendadas.toLocaleString('es-AR'));
@@ -2755,14 +2768,44 @@
         </div>
       `).join('');
 
-      statusEl.textContent = 'Datos en vivo desde GHL — ' + mesElegido;
+      const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+      statusEl.textContent = 'Datos en vivo desde GHL — ' + mesElegido + ' · actualizado ' + hora;
     } catch(e){
-      GHL_IDS.forEach(id => fijarValorNumero(id, '–'));
-      statusEl.textContent = 'No se pudo conectar con GHL: ' + (e.name === 'AbortError' ? 'tardó demasiado, probá de nuevo' : e.message);
+      if(pedido !== ghlPedidoActual) return;
+      const motivo = e.name === 'AbortError' ? 'tardó demasiado, probá de nuevo' : e.message;
+      if(silencioso){
+        // Se mantienen los números anteriores; solo se avisa que no se pudo refrescar.
+        statusEl.textContent = 'No se pudo actualizar desde GHL (' + motivo + ') — se muestran los últimos datos cargados';
+      } else {
+        GHL_IDS.forEach(id => fijarValorNumero(id, '–'));
+        statusEl.textContent = 'No se pudo conectar con GHL: ' + motivo;
+      }
     } finally {
       clearTimeout(t);
     }
   }
+
+  // ===== Actualización del Dashboard: botón "Actualizar" + automática cada
+  // 5 min mientras la pestaña esté visible y estés parado en el Dashboard.
+  // Vuelve a pedir GHL y también a leer los Sheets (se descarta el caché en
+  // memoria, si no "Actualizar" mostraría lo mismo que ya se cargó). =====
+  const REFRESCO_AUTOMATICO_MS = 5 * 60 * 1000;
+  let ultimoRefresco = Date.now();
+  function actualizarDashboard(){
+    ultimoRefresco = Date.now();
+    filasTrackerCache = null;
+    filasAdsCache = null;
+    cargarYPintarDatosMes();
+    cargarYPintarGHL(true);
+  }
+  const refreshDashBtn = document.getElementById('refreshDashBtn');
+  refreshDashBtn.addEventListener('click', actualizarDashboard);
+  const dashboardVisible = () => dashboardScreen.classList.contains('active') && !document.hidden;
+  setInterval(() => { if(dashboardVisible()) actualizarDashboard(); }, REFRESCO_AUTOMATICO_MS);
+  // Volver a la pestaña después de un rato: refrescar en el momento, sin esperar el próximo ciclo.
+  document.addEventListener('visibilitychange', () => {
+    if(dashboardVisible() && Date.now() - ultimoRefresco > REFRESCO_AUTOMATICO_MS) actualizarDashboard();
+  });
 
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
