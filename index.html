@@ -425,8 +425,54 @@
                 <option value="+86" data-cc="CN">🇨🇳 +86 China</option>
                 <option value="+91" data-cc="IN">🇮🇳 +91 India</option>
                 <option value="+971" data-cc="AE">🇦🇪 +971 Emiratos Árabes Unidos</option>
+                <option value="+1" data-cc="JM">🇯🇲 +1 Jamaica</option>
+                <option value="+1" data-cc="TT">🇹🇹 +1 Trinidad y Tobago</option>
+                <option value="+1" data-cc="BS">🇧🇸 +1 Bahamas</option>
+                <option value="+501" data-cc="BZ">🇧🇿 +501 Belice</option>
+                <option value="+509" data-cc="HT">🇭🇹 +509 Haití</option>
+                <option value="+592" data-cc="GY">🇬🇾 +592 Guyana</option>
+                <option value="+597" data-cc="SR">🇸🇷 +597 Surinam</option>
+                <option value="+240" data-cc="GQ">🇬🇶 +240 Guinea Ecuatorial</option>
+                <option value="+353" data-cc="IE">🇮🇪 +353 Irlanda</option>
+                <option value="+32" data-cc="BE">🇧🇪 +32 Bélgica</option>
+                <option value="+43" data-cc="AT">🇦🇹 +43 Austria</option>
+                <option value="+46" data-cc="SE">🇸🇪 +46 Suecia</option>
+                <option value="+47" data-cc="NO">🇳🇴 +47 Noruega</option>
+                <option value="+45" data-cc="DK">🇩🇰 +45 Dinamarca</option>
+                <option value="+358" data-cc="FI">🇫🇮 +358 Finlandia</option>
+                <option value="+48" data-cc="PL">🇵🇱 +48 Polonia</option>
+                <option value="+420" data-cc="CZ">🇨🇿 +420 Chequia</option>
+                <option value="+36" data-cc="HU">🇭🇺 +36 Hungría</option>
+                <option value="+40" data-cc="RO">🇷🇴 +40 Rumania</option>
+                <option value="+359" data-cc="BG">🇧🇬 +359 Bulgaria</option>
+                <option value="+385" data-cc="HR">🇭🇷 +385 Croacia</option>
+                <option value="+30" data-cc="GR">🇬🇷 +30 Grecia</option>
+                <option value="+352" data-cc="LU">🇱🇺 +352 Luxemburgo</option>
+                <option value="+354" data-cc="IS">🇮🇸 +354 Islandia</option>
+                <option value="+380" data-cc="UA">🇺🇦 +380 Ucrania</option>
+                <option value="+7" data-cc="RU">🇷🇺 +7 Rusia</option>
+                <option value="+90" data-cc="TR">🇹🇷 +90 Turquía</option>
+                <option value="+972" data-cc="IL">🇮🇱 +972 Israel</option>
+                <option value="+966" data-cc="SA">🇸🇦 +966 Arabia Saudita</option>
+                <option value="+974" data-cc="QA">🇶🇦 +974 Catar</option>
+                <option value="+965" data-cc="KW">🇰🇼 +965 Kuwait</option>
+                <option value="+20" data-cc="EG">🇪🇬 +20 Egipto</option>
+                <option value="+212" data-cc="MA">🇲🇦 +212 Marruecos</option>
+                <option value="+27" data-cc="ZA">🇿🇦 +27 Sudáfrica</option>
+                <option value="+234" data-cc="NG">🇳🇬 +234 Nigeria</option>
+                <option value="+254" data-cc="KE">🇰🇪 +254 Kenia</option>
+                <option value="+65" data-cc="SG">🇸🇬 +65 Singapur</option>
+                <option value="+60" data-cc="MY">🇲🇾 +60 Malasia</option>
+                <option value="+63" data-cc="PH">🇵🇭 +63 Filipinas</option>
+                <option value="+66" data-cc="TH">🇹🇭 +66 Tailandia</option>
+                <option value="+62" data-cc="ID">🇮🇩 +62 Indonesia</option>
+                <option value="+84" data-cc="VN">🇻🇳 +84 Vietnam</option>
+                <option value="+82" data-cc="KR">🇰🇷 +82 Corea del Sur</option>
+                <option value="+852" data-cc="HK">🇭🇰 +852 Hong Kong</option>
+                <option value="+886" data-cc="TW">🇹🇼 +886 Taiwán</option>
+                <option value="+92" data-cc="PK">🇵🇰 +92 Pakistán</option>
               </select>
-              <input type="tel" id="gateTelefono" placeholder="11 2345 6789" autocomplete="tel-national" required>
+              <input type="tel" id="gateTelefono" placeholder="Tu número de celular" autocomplete="tel-national" required>
             </div>
           </div>
           <button type="submit" class="btn btn-solid">Ver el video →</button>
@@ -743,10 +789,26 @@
   });
 
   // Autocompleta el código de país del celular según la IP del visitante
-  // (geolocalización por IP, no requiere permisos del navegador). Si falla
-  // (red, bloqueador, CORS) queda el default (Argentina) y se puede elegir
-  // a mano — nunca bloquea el formulario.
+  // (si usa VPN, la del país de salida de la VPN). Primero le pregunta al
+  // Worker (/geo, país calculado por Cloudflare: sin límites ni bloqueadores
+  // de anuncios); si falla, prueba con ipapi.co. Si todo falla queda el
+  // default (Argentina) y se puede elegir a mano — nunca bloquea el
+  // formulario. Se selecciona la <option> exacta y no por valor: varios
+  // países comparten "+1" (Puerto Rico, EE.UU., Canadá...).
+  const GEO_WORKER_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev";
   async function detectCountryCode(selectEl) {
+    const elegir = (opt) => { opt.selected = true; };
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(GEO_WORKER_URL + "/geo", { signal: ctrl.signal });
+      clearTimeout(t);
+      const geo = await res.json();
+      const opt = geo.ok && geo.country ? [...selectEl.options].find((o) => o.dataset.cc === geo.country) : null;
+      if (opt) { elegir(opt); return; }
+    } catch (e) {
+      // sigue con el respaldo
+    }
     try {
       const res = await fetch("https://ipapi.co/json/");
       if (!res.ok) return;
@@ -762,7 +824,7 @@
         opt.dataset.cc = cc;
         selectEl.insertBefore(opt, selectEl.firstChild);
       }
-      selectEl.value = opt.value;
+      elegir(opt);
     } catch (e) {
       // silencioso: si falla, queda el default y el usuario elige a mano
     }

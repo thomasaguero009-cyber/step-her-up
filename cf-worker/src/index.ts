@@ -74,19 +74,26 @@ async function handleFreeSlots(url: URL, env: Env, cors: HeadersInit): Promise<R
 
 async function upsertContact(
   env: Env,
-  data: { firstName: string; lastName: string; email: string; phone: string }
+  data: { firstName: string; lastName: string; email: string; phone: string; timezone?: string }
 ): Promise<string> {
-  const res = await fetch(`${GHL_BASE}/contacts/upsert`, {
-    method: "POST",
-    headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
-    body: JSON.stringify({
-      locationId: env.GHL_LOCATION_ID,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email || undefined,
-      phone: data.phone || undefined,
-    }),
-  });
+  const pedir = (timezone?: string) =>
+    fetch(`${GHL_BASE}/contacts/upsert`, {
+      method: "POST",
+      headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        locationId: env.GHL_LOCATION_ID,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        timezone,
+      }),
+    });
+  // La zona horaria del lead queda en su ficha (los mails/recordatorios de
+  // GHL la usan). Si GHL rechazara el campo, se reintenta sin él: nunca debe
+  // impedir la reserva.
+  let res = await pedir(data.timezone);
+  if (!res.ok && data.timezone) res = await pedir(undefined);
   if (!res.ok) {
     throw new Error(`upsert_contact_failed: ${await res.text()}`);
   }
@@ -96,6 +103,25 @@ async function upsertContact(
   return id;
 }
 
+function zonaValida(tz?: string): string | undefined {
+  if (!tz || typeof tz !== "string" || tz.length > 64) return undefined;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return tz;
+  } catch {
+    return undefined;
+  }
+}
+
+// País y zona horaria desde la IP con la que llega la persona — Cloudflare
+// los calcula en el borde, así que si usa VPN se ve la salida de la VPN.
+// Lo usan index.html (código de país del celular) y calendario.html
+// (mostrar los horarios en su zona).
+function handleGeo(request: Request, cors: HeadersInit): Response {
+  const cf = ((request as unknown as { cf?: Record<string, string> }).cf) || {};
+  return json({ ok: true, country: cf.country || null, timezone: cf.timezone || null, city: cf.city || null }, 200, cors);
+}
+
 async function handleBook(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   let payload: {
     firstName?: string;
@@ -103,6 +129,7 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
     email?: string;
     phone?: string;
     startTime?: string;
+    timezone?: string;
   };
   try {
     payload = await request.json();
@@ -122,6 +149,7 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
       lastName: lastName || "",
       email: email || "",
       phone: phone || "",
+      timezone: zonaValida(payload.timezone),
     });
   } catch (err) {
     return json({ ok: false, error: "contact_failed", detail: String(err) }, 502, cors);
@@ -419,6 +447,9 @@ export default {
       }
       if (url.pathname === "/leads-summary" && request.method === "GET") {
         return await handleLeadsSummary(url, env, cors);
+      }
+      if (url.pathname === "/geo" && request.method === "GET") {
+        return handleGeo(request, cors);
       }
       if (url.pathname === "/leads-por-dia" && request.method === "GET") {
         return await handleLeadsPorDia(url, env, cors);
