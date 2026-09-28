@@ -159,7 +159,61 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
   }
 
   const appt = await apptRes.json();
-  return json({ ok: true, appointment: appt }, 200, cors);
+  const oportunidad = await ponerEnAutoBooked(env, contactId, `${firstName} ${lastName || ""}`.trim());
+  return json({ ok: true, appointment: appt, opportunity: oportunidad }, 200, cors);
+}
+
+// Al agendar desde el calendario propio, el lead también tiene que verse
+// en Opportunities → pipeline Clickfunnels, etapa "Auto Booked". Reglas:
+// sin oportunidad en ese pipeline → se crea en Auto Booked; con una en
+// "New Lead" → se mueve a Auto Booked; en cualquier otra etapa (ya la
+// están llamando, ya tuvo show, etc.) → no se toca, para no retroceder el
+// seguimiento de las setters. Cualquier falla acá NO rompe la reserva
+// (la cita ya quedó creada): se devuelve en `opportunity` para poder verla.
+const PIPELINE_CLICKFUNNELS = "9n9W39rlWHmD2cPdSWji";
+const ETAPA_NEW_LEAD = "31763877-0e89-482d-8fed-6afd89bc85a7";
+const ETAPA_AUTO_BOOKED = "f90944a5-3652-4756-8379-6e92041e051c";
+
+async function ponerEnAutoBooked(env: Env, contactId: string, nombre: string): Promise<{ accion: string; detail?: string }> {
+  try {
+    const buscar = await fetch(
+      `${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${PIPELINE_CLICKFUNNELS}&contact_id=${contactId}`,
+      { headers: ghlHeaders(env) }
+    );
+    if (!buscar.ok) return { accion: "error", detail: `search ${buscar.status}: ${await buscar.text()}` };
+    const { opportunities = [] } = (await buscar.json()) as { opportunities?: { id: string; pipelineStageId: string }[] };
+
+    if (!opportunities.length) {
+      const crear = await fetch(`${GHL_BASE}/opportunities/`, {
+        method: "POST",
+        headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pipelineId: PIPELINE_CLICKFUNNELS,
+          locationId: env.GHL_LOCATION_ID,
+          pipelineStageId: ETAPA_AUTO_BOOKED,
+          contactId,
+          name: nombre || "Lead calendario",
+          status: "open",
+          source: "Calendario landing",
+        }),
+      });
+      if (!crear.ok) return { accion: "error", detail: `create ${crear.status}: ${await crear.text()}` };
+      return { accion: "creada" };
+    }
+
+    const existente = opportunities[0];
+    if (existente.pipelineStageId === ETAPA_AUTO_BOOKED) return { accion: "ya_estaba" };
+    if (existente.pipelineStageId !== ETAPA_NEW_LEAD) return { accion: "sin_cambios_ya_avanzada" };
+    const mover = await fetch(`${GHL_BASE}/opportunities/${existente.id}`, {
+      method: "PUT",
+      headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+      body: JSON.stringify({ pipelineStageId: ETAPA_AUTO_BOOKED }),
+    });
+    if (!mover.ok) return { accion: "error", detail: `move ${mover.status}: ${await mover.text()}` };
+    return { accion: "movida" };
+  } catch (err) {
+    return { accion: "error", detail: String(err) };
+  }
 }
 
 // ===== Resumen de leads/llamadas/shows/cierres desde Opportunities de GHL,
