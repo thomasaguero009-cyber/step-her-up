@@ -124,6 +124,15 @@
   .vsl-video:fullscreen, .vsl-video:-webkit-full-screen{
     aspect-ratio:auto; width:100vw; height:100vh; background:#000;
   }
+  /* Pantalla completa "propia" (iPhone y donde el navegador no deja poner
+     un <div> en pantalla completa): ocupa toda la ventana con NUESTROS
+     controles, en vez de saltar al reproductor nativo de iOS (que trae
+     sus botones de ±10 s y pausa). */
+  .vsl-video.vsl-pseudo-fs{
+    position:fixed; inset:0; z-index:9999; width:100vw; height:100vh; height:100dvh;
+    aspect-ratio:auto; background:#000; border-radius:0;
+  }
+  html.vsl-fs-lock, html.vsl-fs-lock body{ overflow:hidden; }
   .vsl-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; background:#000; cursor:pointer; }
   .vsl-play{
     position:relative; z-index:1;
@@ -836,8 +845,8 @@
   // no con un timer aparte (cambiar la velocidad de reproducción no
   // rompe la sincronía: todo se calcula sobre currentTime/duration, que
   // avanzan según el contenido real del video, no según el reloj).
-  // Arranca mudo apenas se cierra el gate — así el autoplay nunca lo
-  // bloquea el navegador. "Aplicar al programa" se desbloquea cuando el
+  // Arranca CON sonido apenas se cierra el gate (es un gesto del
+  // usuario, así que el navegador lo permite). "Aplicar al programa" se desbloquea cuando el
   // video termina. Al desbloquear, el botón pasa a ser un link real a
   // formulario.html (antes navega a "#" y no hace nada). Los controles
   // (volumen, velocidad, pantalla completa) son propios, con estilo
@@ -896,9 +905,10 @@
   });
 
   muteBtn.addEventListener("click", () => { vslVideo.muted = !vslVideo.muted; });
-  vslVideo.addEventListener("volumechange", () => {
+  function pintarIconoSonido() {
     muteBtn.innerHTML = vslVideo.muted || vslVideo.volume === 0 ? ICON_MUTE : ICON_VOLUME;
-  });
+  }
+  vslVideo.addEventListener("volumechange", pintarIconoSonido);
 
   speedBtn.addEventListener("click", (ev) => {
     ev.stopPropagation();
@@ -917,34 +927,59 @@
     if (!speedMenu.contains(ev.target) && ev.target !== speedBtn) speedMenu.classList.remove("open");
   });
 
-  // Safari en iPhone no soporta la Fullscreen API estándar sobre un
-  // <div> (solo sobre <video>, vía la API vieja webkitEnterFullscreen) —
-  // sin este fallback, el botón no hacía nada en iPhone.
+  // Pantalla completa SIEMPRE sobre nuestro contenedor (con nuestros
+  // controles; tocar el video pausa/reanuda y nada más). iPhone no deja
+  // poner un <div> en pantalla completa y antes caíamos a
+  // webkitEnterFullscreen(), que abre el reproductor nativo de iOS con
+  // sus botones de ±10 s y pausa — ahora en ese caso se usa una pantalla
+  // completa propia (CSS, ver .vsl-pseudo-fs).
+  let pseudoFs = false;
+  function setPseudoFs(on) {
+    pseudoFs = on;
+    vslVideoWrap.classList.toggle("vsl-pseudo-fs", on);
+    document.documentElement.classList.toggle("vsl-fs-lock", on);
+    fullscreenBtn.innerHTML = on ? ICON_COMPRESS : ICON_EXPAND;
+  }
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
   fullscreenBtn.addEventListener("click", () => {
-    if (document.fullscreenElement) { document.exitFullscreen(); return; }
-    if (vslVideoWrap.requestFullscreen) {
-      vslVideoWrap.requestFullscreen().catch(() => {
-        if (vslVideo.webkitEnterFullscreen) vslVideo.webkitEnterFullscreen();
-      });
-    } else if (vslVideo.webkitEnterFullscreen) {
-      vslVideo.webkitEnterFullscreen();
-    } else if (vslVideo.requestFullscreen) {
-      vslVideo.requestFullscreen();
-    }
+    if (fsElement()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    if (pseudoFs) { setPseudoFs(false); return; }
+    const pedir = vslVideoWrap.requestFullscreen || vslVideoWrap.webkitRequestFullscreen;
+    if (!pedir) { setPseudoFs(true); return; }
+    try {
+      const r = pedir.call(vslVideoWrap);
+      if (r && r.catch) r.catch(() => setPseudoFs(true));
+    } catch (e) { setPseudoFs(true); }
   });
-  document.addEventListener("fullscreenchange", () => {
-    fullscreenBtn.innerHTML = document.fullscreenElement ? ICON_COMPRESS : ICON_EXPAND;
-  });
+  function alCambiarFullscreen() {
+    fullscreenBtn.innerHTML = fsElement() ? ICON_COMPRESS : ICON_EXPAND;
+  }
+  document.addEventListener("fullscreenchange", alCambiarFullscreen);
+  document.addEventListener("webkitfullscreenchange", alCambiarFullscreen);
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && pseudoFs) setPseudoFs(false); });
 
-  muteBtn.innerHTML = ICON_MUTE;
+  pintarIconoSonido();
   fullscreenBtn.innerHTML = ICON_EXPAND;
 
   function startVsl() {
     if (started) return;
     started = true;
     playBtn.style.display = "none";
-    vslVideo.muted = true;
-    vslVideo.play();
+    // Arranca CON sonido: esto corre dentro del clic de "Ver el video" del
+    // gate (un gesto del usuario), así que los navegadores lo permiten. Si
+    // aun así alguno lo bloqueara, se reintenta en silencio para que el
+    // video arranque igual (queda el ícono de mute para activarlo).
+    vslVideo.muted = false;
+    vslVideo.volume = 1;
+    pintarIconoSonido();
+    const intento = vslVideo.play();
+    if (intento && intento.catch) {
+      intento.catch(() => {
+        vslVideo.muted = true;
+        pintarIconoSonido();
+        vslVideo.play().catch(() => {});
+      });
+    }
     vslVideoWrap.classList.add("started");
   }
 
