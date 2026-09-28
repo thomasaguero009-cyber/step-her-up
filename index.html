@@ -142,6 +142,15 @@
     box-shadow:0 8px 34px rgba(232,138,168,0.55);
     animation:vsl-play-pulse 1.6s ease-in-out infinite;
   }
+  /* Cartel debajo del botón de play ("Haz clic para ver" / "Continuar
+     viendo"): vive dentro del botón, así aparece y desaparece con él. */
+  .vsl-play-label{
+    position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:16px;
+    white-space:nowrap; font-size:15px; font-weight:700; letter-spacing:.2px; color:var(--cream, #f7ece9);
+    background:rgba(13,3,4,0.72); border:1px solid rgba(232,138,168,0.45); border-radius:999px;
+    padding:8px 18px; backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    animation:none; pointer-events:none;
+  }
   .vsl-play::before, .vsl-play::after{
     content:""; position:absolute; inset:0; border-radius:50%;
     border:2.5px solid var(--blush); opacity:0; pointer-events:none;
@@ -370,7 +379,7 @@
               </div>
               <button type="button" class="vsl-ctrl-btn" id="vslFullscreenBtn" aria-label="Pantalla completa"></button>
             </div>
-            <div class="vsl-play" id="vslPlayBtn">▶</div>
+            <div class="vsl-play" id="vslPlayBtn">▶<span class="vsl-play-label" id="vslPlayLabel">Haz clic para ver</span></div>
           </div>
         </div>
       </div>
@@ -892,13 +901,20 @@
 
   // Tocar el video directamente lo pausa/reanuda (sin botón dedicado).
   vslVideo.addEventListener("click", () => {
+    // Antes de arrancar, tocar CUALQUIER parte del video abre el formulario
+    // (igual que el botón de play): si no, el video se reproducía sin
+    // pasar por el gate y no se pedían los datos.
+    if (!started) { openGate(); return; }
     if (vslVideo.paused) vslVideo.play(); else vslVideo.pause();
   });
 
   // Al pausar (ya arrancado el video) reaparece el botón rosa grande,
   // para que quede claro que está en pausa y cómo reanudar.
+  const playLabel = document.getElementById("vslPlayLabel");
   vslVideo.addEventListener("pause", () => {
-    if (started) playBtn.style.display = "flex";
+    if (!started) return;
+    playLabel.textContent = "Continuar viendo";
+    playBtn.style.display = "flex";
   });
   vslVideo.addEventListener("play", () => {
     if (started) playBtn.style.display = "none";
