@@ -7,6 +7,7 @@ export interface Env {
   GHL_LOCATION_ID: string;
   GHL_CALENDAR_ID: string;
   ALLOWED_ORIGINS: string;
+  VIDEOS: R2Bucket;
 }
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
@@ -429,6 +430,53 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
   return json({ ok: true, total, dias, origenes: [...origenes].sort(), cortadoPorLimite }, 200, cors);
 }
 
+// ===== Videos servidos desde R2 (reemplaza a Bunny CDN — mismo archivo,
+// sin costo de ancho de banda). Range requests soportados de verdad
+// (no solo "Accept-Ranges: bytes" de mentira): sin esto el video no
+// puede saltar/buscar, se ve en el navegador como si no fuera seekable. =====
+function parseRangeHeader(rangeHeader: string | null, size: number): { offset: number; length: number } | null {
+  if (!rangeHeader) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+  if (!m) return null;
+  const [, startStr, endStr] = m;
+  if (startStr === "" && endStr === "") return null;
+  let start: number, end: number;
+  if (startStr === "") {
+    const suffixLength = parseInt(endStr, 10);
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = parseInt(startStr, 10);
+    end = endStr === "" ? size - 1 : Math.min(parseInt(endStr, 10), size - 1);
+  }
+  if (isNaN(start) || isNaN(end) || start > end || start >= size) return null;
+  return { offset: start, length: end - start + 1 };
+}
+
+async function handleVideoGet(request: Request, env: Env, key: string, cors: HeadersInit): Promise<Response> {
+  const head = await env.VIDEOS.head(key);
+  if (!head) return json({ ok: false, error: "not_found" }, 404, cors);
+
+  const range = parseRangeHeader(request.headers.get("Range"), head.size);
+  const obj = range ? await env.VIDEOS.get(key, { range }) : await env.VIDEOS.get(key);
+  if (!obj) return json({ ok: false, error: "not_found" }, 404, cors);
+
+  const headers = new Headers(cors);
+  obj.writeHttpMetadata(headers);
+  headers.set("Accept-Ranges", "bytes");
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("ETag", obj.httpEtag);
+
+  if (range) {
+    headers.set("Content-Range", `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`);
+    headers.set("Content-Length", String(range.length));
+    return new Response(obj.body, { status: 206, headers });
+  }
+  headers.set("Content-Length", String(head.size));
+  return new Response(obj.body, { status: 200, headers });
+}
+
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -453,6 +501,9 @@ export default {
       }
       if (url.pathname === "/leads-por-dia" && request.method === "GET") {
         return await handleLeadsPorDia(url, env, cors);
+      }
+      if (url.pathname.startsWith("/videos/") && (request.method === "GET" || request.method === "HEAD")) {
+        return await handleVideoGet(request, env, decodeURIComponent(url.pathname.slice("/videos/".length)), cors);
       }
     } catch (err) {
       return json({ ok: false, error: "unexpected", detail: String(err) }, 500, cors);

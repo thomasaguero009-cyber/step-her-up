@@ -12,3 +12,7 @@ compatibility_date = "2026-09-01"
 ALLOWED_ORIGINS = "https://thomasaguero009-cyber.github.io,http://localhost:8934"
 GHL_LOCATION_ID = "6cXs7Gwtzk0m50TZkWPg"
 GHL_CALENDAR_ID = "oqdvXTW2FT1ZbOo0sio2"
+
+[[r2_buckets]]
+binding = "VIDEOS"
+bucket_name = "step-her-up-videos"
