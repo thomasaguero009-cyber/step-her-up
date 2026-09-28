@@ -889,6 +889,7 @@
         <button type="button" class="quick-nav-btn active" data-tab="general">Vista General</button>
         <button type="button" class="quick-nav-btn" data-tab="ghl">GHL en vivo</button>
         <button type="button" class="quick-nav-btn" data-tab="leads">Leads por día</button>
+        <button type="button" class="quick-nav-btn" data-tab="ads">Ads</button>
         <button type="button" class="quick-nav-btn" data-tab="ventas">Ventas del mes</button>
         <button type="button" class="quick-nav-btn" data-tab="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
@@ -904,6 +905,7 @@
       <div class="quick-nav-row quick-nav-row-jump" id="dashJumpNav">
         <button type="button" class="quick-nav-btn-jump" data-jump="ghl">GHL en vivo</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="leads">Leads</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="ads">Ads</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="ventas">Ventas</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="matematica">Matemática</button>
@@ -1011,6 +1013,42 @@
           <div class="kpi-card">
             <div class="kpi-label">Mejor día</div>
             <div class="kpi-value" id="leadsMejor">–</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ads: gasto diario + costo por lead + ROAS. Todo depende de la
+           pestaña "Ads" del Sheet (Fecha | Gasto, SHEET_ADS_CSV_URL): hasta
+           que se conecte, muestra "Falta conectar" y se llena solo después. -->
+      <div class="tab-panel active" data-tab-panel="ads">
+        <div class="section-label" id="ads">Ads</div>
+        <div class="chart-panel">
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartAds"></svg>
+            <div class="chart-tooltip" id="tooltipAds"></div>
+          </div>
+          <div class="chart-status" id="statusAdsTab">Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)</div>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Gasto del mes</div>
+            <div class="kpi-value" id="adsTabGasto">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Gasto promedio por día</div>
+            <div class="kpi-value" id="adsTabPromedio">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Costo por lead</div>
+            <div class="kpi-value" id="adsTabCpl">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROAS de ads</div>
+            <div class="kpi-value" id="adsTabRoasAds">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROAS general</div>
+            <div class="kpi-value" id="adsTabRoasGeneral">–</div>
           </div>
         </div>
       </div>
@@ -2698,10 +2736,12 @@
     });
 
     let totGastoAds = 0, huboDatosAds = false;
+    const gastoPorDia = new Array(dias).fill(0);
     filasAds.forEach(f => {
       if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
       huboDatosAds = true;
       totGastoAds += f.gasto;
+      gastoPorDia[f.fecha.getDate() - 1] += f.gasto;
     });
 
     // (El resumen manual "Kpis" del Sheet — Llamadas/Agendadas/Shows/
@@ -2791,11 +2831,34 @@
     document.getElementById('adsGasto').textContent = huboDatosAds ? '$' + Math.round(totGastoAds).toLocaleString('es-AR') : '–';
     document.getElementById('adsRoasAds').textContent = huboDatosAds ? roas(totVentasAds, totGastoAds) : '–';
     document.getElementById('adsRoasGeneral').textContent = huboDatosAds ? roas(totVentas, totGastoAds) : '–';
-    document.getElementById('statusAds').textContent = huboDatosAds
+    const estadoAds = huboDatosAds
       ? 'Datos en vivo — ' + mesElegido
       : (SHEET_ADS_CSV_URL
         ? 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ads" del Google Sheet'
         : 'Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)');
+    document.getElementById('statusAds').textContent = estadoAds;
+
+    // Pestaña "Ads": mismos ROAS + gasto diario; el costo por lead se
+    // completa en renderAdsTab cuando también llegaron los leads de GHL.
+    document.getElementById('adsTabRoasAds').textContent = huboDatosAds ? roas(totVentasAds, totGastoAds) : '–';
+    document.getElementById('adsTabRoasGeneral').textContent = huboDatosAds ? roas(totVentas, totGastoAds) : '–';
+    document.getElementById('statusAdsTab').textContent = estadoAds;
+    adsTabDatos = { huboDatosAds, totGastoAds, gastoPorDia, dias, diasAMostrar, anio, mes };
+    renderAdsTab();
+  }
+
+  let adsTabDatos = null;
+  function renderAdsTab(){
+    const d = adsTabDatos;
+    if(!d) return;
+    const vacio = SHEET_ADS_CSV_URL ? 'Sin gasto cargado este mes' : 'Falta conectar la pestaña "Ads" del Sheet';
+    drawChart('chartAds', 'tooltipAds', d.gastoPorDia.slice(0, d.diasAMostrar), '#f0c674', d.anio, d.mes, { prefijo: '$', vacio });
+    const dinero = n => '$' + Math.round(n).toLocaleString('es-AR');
+    document.getElementById('adsTabGasto').textContent = d.huboDatosAds ? dinero(d.totGastoAds) : '–';
+    document.getElementById('adsTabPromedio').textContent = d.huboDatosAds && d.diasAMostrar > 0 ? dinero(d.totGastoAds / d.diasAMostrar) : '–';
+    // Costo por lead = gasto ÷ contactos nuevos del mes (los mismos de "Leads por día").
+    const leads = leadsData ? leadsData.total : 0;
+    document.getElementById('adsTabCpl').textContent = d.huboDatosAds && leads > 0 ? '$' + (d.totGastoAds / leads).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '–';
   }
 
   // ===== Gráficos con filtros (chips): Setters, Closers y Leads por día.
@@ -2907,6 +2970,7 @@
       if(pedido !== leadsPedido) return;
       leadsData = data;
       renderLeads();
+      renderAdsTab();
       const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
       statusEl.textContent = 'Datos en vivo desde GHL (contactos nuevos por día) — ' + mesElegido + ' · actualizado ' + hora
         + (data.cortadoPorLimite ? ' · ojo: hay más contactos de los que se pudieron leer' : '');
