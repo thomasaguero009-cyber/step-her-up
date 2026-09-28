@@ -341,6 +341,66 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
   return json({ ok: true, totales, porFuente }, 200, cors);
 }
 
+// ===== Leads que llegan por día — se cuentan CONTACTOS nuevos (dateAdded),
+// no oportunidades: la mayoría de los leads (Instagram, etc.) entran como
+// contacto sin oportunidad hasta que una setter los trabaja, así que
+// contar oportunidades daría muy por debajo de lo real. La lista de
+// contactos viene ordenada del más nuevo al más viejo, por eso se corta la
+// paginación apenas se pasa del inicio del rango (son pocas páginas). El
+// día se calcula en hora de Puerto Rico (donde opera el negocio). =====
+interface ContactoGHL {
+  dateAdded: string;
+  source?: string | null;
+  attributions?: { medium?: string | null }[];
+}
+
+function origenDeContacto(c: ContactoGHL): string {
+  const crudo = (c.attributions?.[0]?.medium || c.source || "").trim();
+  if (!crudo) return "Otro";
+  return crudo.charAt(0).toUpperCase() + crudo.slice(1).toLowerCase();
+}
+
+async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const start = parseInt(url.searchParams.get("start") || "", 10);
+  const end = parseInt(url.searchParams.get("end") || "", 10);
+  if (!start || !end) return json({ ok: false, error: "missing_range" }, 400, cors);
+
+  const diaPR = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" });
+  const dias: Record<string, { total: number; porOrigen: Record<string, number> }> = {};
+  const origenes = new Set<string>();
+  let total = 0;
+  let cortadoPorLimite = false;
+
+  let startAfter: string | null = null;
+  let startAfterId: string | null = null;
+  for (let pagina = 0; pagina < 25; pagina++) {
+    let u = `${GHL_BASE}/contacts/?locationId=${env.GHL_LOCATION_ID}&limit=100`;
+    if (startAfter && startAfterId) u += `&startAfter=${startAfter}&startAfterId=${startAfterId}`;
+    const res = await fetch(u, { headers: ghlHeaders(env) });
+    if (!res.ok) return json({ ok: false, error: "contacts_failed", detail: await res.text() }, 502, cors);
+    const body = (await res.json()) as { contacts?: ContactoGHL[]; meta?: { startAfter?: string; startAfterId?: string } };
+    const lote = body.contacts || [];
+    for (const c of lote) {
+      const t = Date.parse(c.dateAdded);
+      if (!t || t < start || t >= end) continue;
+      const dia = diaPR.format(new Date(t));
+      const origen = origenDeContacto(c);
+      origenes.add(origen);
+      const d = (dias[dia] = dias[dia] || { total: 0, porOrigen: {} });
+      d.total++;
+      d.porOrigen[origen] = (d.porOrigen[origen] || 0) + 1;
+      total++;
+    }
+    const ultimo = lote.length ? Date.parse(lote[lote.length - 1].dateAdded) : 0;
+    if (!lote.length || !body.meta?.startAfter || ultimo < start) break;
+    if (pagina === 24) cortadoPorLimite = true;
+    startAfter = String(body.meta.startAfter);
+    startAfterId = String(body.meta.startAfterId);
+  }
+
+  return json({ ok: true, total, dias, origenes: [...origenes].sort(), cortadoPorLimite }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -359,6 +419,9 @@ export default {
       }
       if (url.pathname === "/leads-summary" && request.method === "GET") {
         return await handleLeadsSummary(url, env, cors);
+      }
+      if (url.pathname === "/leads-por-dia" && request.method === "GET") {
+        return await handleLeadsPorDia(url, env, cors);
       }
     } catch (err) {
       return json({ ok: false, error: "unexpected", detail: String(err) }, 500, cors);

@@ -592,6 +592,16 @@
   .metricas-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   @media(max-width:520px){ .metricas-grid{ grid-template-columns:1fr; } }
 
+  /* Chips para filtrar un gráfico (setter / closer / origen, métrica). */
+  .chart-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .chart-chip{
+    background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:999px;
+    padding:6px 14px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .chart-chip:hover{ background:rgba(255,255,255,0.06); color:var(--cream); }
+  .chart-chip.active{ background:rgba(240,168,190,0.14); border-color:var(--blush-2); color:var(--cream); }
+
   /* Proyección de fin de mes — 1 línea sólida con lo ya facturado y 3
      líneas punteadas que abren desde "hoy" hasta fin de mes, cada una
      a un ritmo distinto (ver cargarYPintarDatosMes/drawProjectionChart). */
@@ -878,10 +888,12 @@
       <div class="quick-nav-row" id="dashTabNav">
         <button type="button" class="quick-nav-btn active" data-tab="general">Vista General</button>
         <button type="button" class="quick-nav-btn" data-tab="ghl">GHL en vivo</button>
+        <button type="button" class="quick-nav-btn" data-tab="leads">Leads por día</button>
         <button type="button" class="quick-nav-btn" data-tab="ventas">Ventas del mes</button>
         <button type="button" class="quick-nav-btn" data-tab="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
         <button type="button" class="quick-nav-btn" data-tab="setters">Setters</button>
+        <button type="button" class="quick-nav-btn" data-tab="closers">Closers</button>
         <button type="button" class="quick-nav-btn" data-tab="fuentes">Fuentes</button>
       </div>
 
@@ -891,10 +903,12 @@
            sección, para ir más rápido sin perder el resto de vista. -->
       <div class="quick-nav-row quick-nav-row-jump" id="dashJumpNav">
         <button type="button" class="quick-nav-btn-jump" data-jump="ghl">GHL en vivo</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="leads">Leads</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="ventas">Ventas</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="llamadas">Llamadas</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="matematica">Matemática</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="setters">Setters</button>
+        <button type="button" class="quick-nav-btn-jump" data-jump="closers">Closers</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="fuentes">Fuentes</button>
       </div>
 
@@ -973,6 +987,34 @@
         <div class="breakdown-grid" id="ghlFuentesGrid"></div>
       </div>
 
+      <!-- Leads que llegan por día: contactos nuevos de GHL (ver
+           /leads-por-dia en el Worker), filtrables por origen. -->
+      <div class="tab-panel active" data-tab-panel="leads">
+        <div class="section-label" id="leads">Leads por día</div>
+        <div class="chart-panel">
+          <div class="chart-chips" id="leadsFiltro"></div>
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLeads"></svg>
+            <div class="chart-tooltip" id="tooltipLeads"></div>
+          </div>
+          <div class="chart-status" id="statusLeads">Cargando leads desde GHL…</div>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Leads del mes</div>
+            <div class="kpi-value" id="leadsTotal">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Promedio por día</div>
+            <div class="kpi-value" id="leadsPromedio">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Mejor día</div>
+            <div class="kpi-value" id="leadsMejor">–</div>
+          </div>
+        </div>
+      </div>
+
       <div class="tab-panel active" data-tab-panel="ventas">
         <div class="section-label" id="ventas">Ventas</div>
         <div class="chart-panel">
@@ -1039,8 +1081,32 @@
 
       <div class="tab-panel active" data-tab-panel="setters">
         <div class="section-label" id="setters">Performance por setter</div>
+        <div class="chart-panel">
+          <div class="chart-chips" id="settersMetrica"></div>
+          <div class="chart-chips" id="settersFiltro"></div>
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartSetters"></svg>
+            <div class="chart-tooltip" id="tooltipSetters"></div>
+          </div>
+        </div>
         <div class="breakdown-grid" id="settersGrid"></div>
         <div class="chart-status" id="statusSetters" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
+      </div>
+
+      <!-- Closers: sale de la pestaña "Ranking" del Sheet (Fecha | Closer | Monto),
+           la misma que ya alimenta el Ranking de cash cobrado. -->
+      <div class="tab-panel active" data-tab-panel="closers">
+        <div class="section-label" id="closers">Performance por closer</div>
+        <div class="chart-panel">
+          <div class="chart-chips" id="closersMetrica"></div>
+          <div class="chart-chips" id="closersFiltro"></div>
+          <div class="chart-wrap">
+            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartClosers"></svg>
+            <div class="chart-tooltip" id="tooltipClosers"></div>
+          </div>
+        </div>
+        <div class="breakdown-grid" id="closersGrid"></div>
+        <div class="chart-status" id="statusClosers" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
       <div class="tab-panel active" data-tab-panel="fuentes">
@@ -1261,6 +1327,7 @@
       document.getElementById('dashMonthLabel').textContent = mesElegido;
       cargarYPintarDatosMes();
       cargarYPintarGHL();
+      cargarYPintarLeads();
     });
   }
   document.getElementById('goDashboardBtn').addEventListener('click', entrarAlDashboard);
@@ -2209,6 +2276,7 @@
         dashMonthList.classList.remove('open');
         cargarYPintarDatosMes();
         cargarYPintarGHL();
+        cargarYPintarLeads();
       });
     });
   }
@@ -2583,7 +2651,7 @@
   }
 
   async function cargarYPintarDatosMes(){
-    const [filas, filasAds] = await Promise.all([obtenerFilasTracker(), obtenerFilasAds()]);
+    const [filas, filasAds, filasRankingMes] = await Promise.all([obtenerFilasTracker(), obtenerFilasAds(), obtenerFilasRanking()]);
     const { anio, mes } = mesElegidoAYyyyMm();
     const dias = new Date(anio, mes + 1, 0).getDate();
     const llamadas = new Array(dias).fill(0);
@@ -2592,10 +2660,14 @@
     const porSetter = new Map();
     const porFuente = new Map();
 
+    const seriesSetters = new Map();
     filas.forEach(f => {
       if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
       huboDatos = true;
       const dia = f.fecha.getDate() - 1;
+      if(!seriesSetters.has(f.setter)) seriesSetters.set(f.setter, { agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0), ventas: new Array(dias).fill(0) });
+      const ss = seriesSetters.get(f.setter);
+      ss.agendadas[dia] += f.agendadas; ss.shows[dia] += f.shows; ss.cierres[dia] += f.cierres; ss.ventas[dia] += f.ventas;
       llamadas[dia] += f.llamadas;
       ventas[dia] += f.ventas;
       totLlamadas += f.llamadas; totAgendadas += f.agendadas; totShows += f.shows;
@@ -2611,6 +2683,18 @@
       if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { llamadas:0, ventas:0 });
       const fu = porFuente.get(f.fuente);
       fu.llamadas += f.llamadas; fu.ventas += f.ventas;
+    });
+
+    const seriesClosers = new Map();
+    let huboDatosClosers = false;
+    filasRankingMes.forEach(f => {
+      if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
+      huboDatosClosers = true;
+      const dia = f.fecha.getDate() - 1;
+      if(!seriesClosers.has(f.closer)) seriesClosers.set(f.closer, { cash: new Array(dias).fill(0), cobros: new Array(dias).fill(0) });
+      const sc = seriesClosers.get(f.closer);
+      sc.cash[dia] += f.monto;
+      if(f.monto > 0) sc.cobros[dia]++;
     });
 
     let totGastoAds = 0, huboDatosAds = false;
@@ -2688,6 +2772,17 @@
     document.getElementById('statusSetters').textContent = statusTxt;
     document.getElementById('statusFuentes').textContent = statusTxt;
 
+    // Gráficos + tarjetas de setters y closers (con filtros por chips).
+    ctxMes = { anio, mes, dias, diasAMostrar };
+    datosSetters = seriesSetters;
+    datosClosers = seriesClosers;
+    renderGraficoSetters();
+    renderGraficoClosers();
+    renderBreakdownClosers(seriesClosers);
+    document.getElementById('statusClosers').textContent = huboDatosClosers
+      ? 'Datos en vivo — ' + mesElegido
+      : 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ranking" del Google Sheet';
+
     // ===== Ads / ROAS — ROAS = cuántos $ vuelven por cada $1 gastado en
     // ads. "De ads" solo cuenta ventas de filas con Fuente que contenga
     // "ads"; "general" cuenta TODAS las ventas del mes contra el mismo
@@ -2701,6 +2796,128 @@
       : (SHEET_ADS_CSV_URL
         ? 'Sin datos todavía para ' + mesElegido + ' — cargá filas en la pestaña "Ads" del Google Sheet'
         : 'Falta conectar la pestaña "Ads" del Google Sheet (Fecha | Gasto)');
+  }
+
+  // ===== Gráficos con filtros (chips): Setters, Closers y Leads por día.
+  // Todos reusan drawChart (una sola serie a la vez); los chips eligen
+  // qué serie se dibuja. =====
+  let ctxMes = { anio: 0, mes: 0, dias: 0, diasAMostrar: 0 };
+  function pintarChips(contenedorId, opciones, activo, alElegir){
+    const cont = document.getElementById(contenedorId);
+    cont.innerHTML = opciones.map(o =>
+      `<button type="button" class="chart-chip${o.valor === activo ? ' active' : ''}" data-valor="${escapeHtml(o.valor)}">${escapeHtml(o.texto)}</button>`
+    ).join('');
+    cont.querySelectorAll('.chart-chip').forEach(b => b.addEventListener('click', () => alElegir(b.dataset.valor)));
+  }
+  function sumarSeries(mapa, filtro, campo, dias){
+    const out = new Array(dias).fill(0);
+    for(const [nombre, s] of mapa){
+      if(filtro !== 'Todos' && nombre !== filtro) continue;
+      s[campo].forEach((v, i) => { out[i] += v; });
+    }
+    return out;
+  }
+
+  const METRICAS_SETTER = [
+    { valor: 'ventas', texto: 'Ventas $', color: '#f0a8be', prefijo: '$' },
+    { valor: 'agendadas', texto: 'Agendadas', color: '#8fb8f0' },
+    { valor: 'shows', texto: 'Shows', color: '#5fd39a' },
+    { valor: 'cierres', texto: 'Cierres', color: '#f0c674' },
+  ];
+  let datosSetters = new Map(), setterMetrica = 'ventas', setterFiltro = 'Todos';
+  function renderGraficoSetters(){
+    const m = METRICAS_SETTER.find(x => x.valor === setterMetrica);
+    if(setterFiltro !== 'Todos' && !datosSetters.has(setterFiltro)) setterFiltro = 'Todos';
+    pintarChips('settersMetrica', METRICAS_SETTER.map(x => ({ valor: x.valor, texto: x.texto })), setterMetrica, v => { setterMetrica = v; renderGraficoSetters(); });
+    pintarChips('settersFiltro', ['Todos', ...datosSetters.keys()].map(n => ({ valor: n, texto: n === 'Todos' ? 'Todos los setters' : n })), setterFiltro, v => { setterFiltro = v; renderGraficoSetters(); });
+    const serie = sumarSeries(datosSetters, setterFiltro, setterMetrica, ctxMes.dias).slice(0, ctxMes.diasAMostrar);
+    drawChart('chartSetters', 'tooltipSetters', serie, m.color, ctxMes.anio, ctxMes.mes, { prefijo: m.prefijo, conteo: !m.prefijo, vacio: 'Sin datos de setters este mes' });
+  }
+
+  const METRICAS_CLOSER = [
+    { valor: 'cash', texto: 'Cash cobrado $', color: '#f0a8be', prefijo: '$' },
+    { valor: 'cobros', texto: 'Cobros', color: '#8fb8f0' },
+  ];
+  let datosClosers = new Map(), closerMetrica = 'cash', closerFiltro = 'Todos';
+  function renderGraficoClosers(){
+    const m = METRICAS_CLOSER.find(x => x.valor === closerMetrica);
+    if(closerFiltro !== 'Todos' && !datosClosers.has(closerFiltro)) closerFiltro = 'Todos';
+    pintarChips('closersMetrica', METRICAS_CLOSER.map(x => ({ valor: x.valor, texto: x.texto })), closerMetrica, v => { closerMetrica = v; renderGraficoClosers(); });
+    pintarChips('closersFiltro', ['Todos', ...datosClosers.keys()].map(n => ({ valor: n, texto: n === 'Todos' ? 'Todos los closers' : n })), closerFiltro, v => { closerFiltro = v; renderGraficoClosers(); });
+    const serie = sumarSeries(datosClosers, closerFiltro, closerMetrica, ctxMes.dias).slice(0, ctxMes.diasAMostrar);
+    drawChart('chartClosers', 'tooltipClosers', serie, m.color, ctxMes.anio, ctxMes.mes, { prefijo: m.prefijo, conteo: !m.prefijo, vacio: 'Sin cobros de closers este mes' });
+  }
+  function renderBreakdownClosers(mapa){
+    const grid = document.getElementById('closersGrid');
+    const filas = [...mapa.entries()].map(([nombre, s]) => {
+      const cash = s.cash.reduce((a, b) => a + b, 0);
+      const cobros = s.cobros.reduce((a, b) => a + b, 0);
+      return { nombre, cash, cobros };
+    }).sort((a, b) => b.cash - a.cash);
+    grid.innerHTML = filas.map(f => `<div class="breakdown-card">
+      <h4>${escapeHtml(f.nombre)}</h4>
+      <div class="breakdown-stat-row"><span class="label">Cash cobrado</span><span class="val">$${Math.round(f.cash).toLocaleString('es-AR')}</span></div>
+      <div class="breakdown-stat-row"><span class="label">Cobros</span><span class="val">${f.cobros.toLocaleString('es-AR')}</span></div>
+      <div class="breakdown-stat-row"><span class="label">Ticket promedio</span><span class="val">${f.cobros > 0 ? '$' + Math.round(f.cash / f.cobros).toLocaleString('es-AR') : '–'}</span></div>
+    </div>`).join('');
+  }
+
+  // Leads por día — contactos nuevos de GHL (Worker: /leads-por-dia).
+  let leadsData = null, leadsFiltro = 'Todos', leadsPedido = 0;
+  function renderLeads(){
+    const { anio, mes } = mesElegidoAYyyyMm();
+    const dias = new Date(anio, mes + 1, 0).getDate();
+    const hoy = new Date();
+    const diasAMostrar = (anio === hoy.getFullYear() && mes === hoy.getMonth()) ? hoy.getDate() : dias;
+    if(!leadsData){
+      pintarChips('leadsFiltro', [{ valor: 'Todos', texto: 'Todos los orígenes' }], 'Todos', () => {});
+      drawChart('chartLeads', 'tooltipLeads', new Array(diasAMostrar).fill(0), '#c9a8f0', anio, mes, { vacio: 'Cargando desde GHL…' });
+      ['leadsTotal', 'leadsPromedio', 'leadsMejor'].forEach(mostrarCargandoNumero);
+      return;
+    }
+    if(leadsFiltro !== 'Todos' && !leadsData.origenes.includes(leadsFiltro)) leadsFiltro = 'Todos';
+    pintarChips('leadsFiltro', ['Todos', ...leadsData.origenes].map(o => ({ valor: o, texto: o === 'Todos' ? 'Todos los orígenes' : o })), leadsFiltro, v => { leadsFiltro = v; renderLeads(); });
+    const serie = [];
+    for(let d = 1; d <= diasAMostrar; d++){
+      const clave = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dia = leadsData.dias[clave];
+      serie.push(!dia ? 0 : (leadsFiltro === 'Todos' ? dia.total : (dia.porOrigen[leadsFiltro] || 0)));
+    }
+    drawChart('chartLeads', 'tooltipLeads', serie, '#c9a8f0', anio, mes, { conteo: true, vacio: 'Sin leads este mes' });
+    const total = serie.reduce((a, b) => a + b, 0);
+    const mejor = Math.max(0, ...serie);
+    fijarValorNumero('leadsTotal', total.toLocaleString('es-AR'));
+    fijarValorNumero('leadsPromedio', diasAMostrar > 0 ? (total / diasAMostrar).toLocaleString('es-AR', { maximumFractionDigits: 1 }) : '–');
+    fijarValorNumero('leadsMejor', mejor > 0 ? `${mejor} · día ${serie.indexOf(mejor) + 1}` : '–');
+  }
+  async function cargarYPintarLeads(silencioso = false){
+    const pedido = ++leadsPedido;
+    const { anio, mes } = mesElegidoAYyyyMm();
+    const start = new Date(anio, mes, 1).getTime();
+    const end = new Date(anio, mes + 1, 1).getTime();
+    const statusEl = document.getElementById('statusLeads');
+    if(!silencioso){ leadsData = null; renderLeads(); }
+    statusEl.textContent = silencioso ? 'Actualizando desde GHL…' : 'Cargando leads desde GHL…';
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(`${WORKER_URL}/leads-por-dia?start=${start}&end=${end}`, { signal: ctrl.signal });
+      const data = await res.json();
+      if(!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      if(pedido !== leadsPedido) return;
+      leadsData = data;
+      renderLeads();
+      const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+      statusEl.textContent = 'Datos en vivo desde GHL (contactos nuevos por día) — ' + mesElegido + ' · actualizado ' + hora
+        + (data.cortadoPorLimite ? ' · ojo: hay más contactos de los que se pudieron leer' : '');
+    } catch(e){
+      if(pedido !== leadsPedido) return;
+      const motivo = e.name === 'AbortError' ? 'tardó demasiado, probá de nuevo' : e.message;
+      statusEl.textContent = leadsData ? 'No se pudo actualizar (' + motivo + ') — se muestran los últimos datos cargados' : 'No se pudo conectar con GHL: ' + motivo;
+      if(!leadsData){ ['leadsTotal', 'leadsPromedio', 'leadsMejor'].forEach(id => fijarValorNumero(id, '–')); }
+    } finally {
+      clearTimeout(t);
+    }
   }
 
   // ===== Círculo de carga — mientras esperamos GHL (tarda varios
@@ -2795,8 +3012,10 @@
     ultimoRefresco = Date.now();
     filasTrackerCache = null;
     filasAdsCache = null;
+    filasRankingCache = null;
     cargarYPintarDatosMes();
     cargarYPintarGHL(true);
+    cargarYPintarLeads(true);
   }
   const refreshDashBtn = document.getElementById('refreshDashBtn');
   refreshDashBtn.addEventListener('click', actualizarDashboard);
@@ -2951,15 +3170,20 @@
       const p2 = pts[i+1];
       const p3 = pts[i+2] || p2;
       const cp1x = p1[0] + (p2[0]-p0[0])/6;
-      const cp1y = p1[1] + (p2[1]-p0[1])/6;
+      // Se limitan los puntos de control al rango vertical de los dos
+      // puntos que une este tramo: si no, la curva "rebota" y se hunde
+      // por debajo del 0 (o se pasa del máximo) entre días de 0 y días con datos.
+      const yMin = Math.min(p1[1], p2[1]), yMax = Math.max(p1[1], p2[1]);
+      const clampY = y => Math.min(yMax, Math.max(yMin, y));
+      const cp1y = clampY(p1[1] + (p2[1]-p0[1])/6);
       const cp2x = p2[0] - (p3[0]-p1[0])/6;
-      const cp2y = p2[1] - (p3[1]-p1[1])/6;
+      const cp2y = clampY(p2[1] - (p3[1]-p1[1])/6);
       d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
     }
     return d;
   }
 
-  function drawChart(svgId, tooltipId, valores, color, anio, mes){
+  function drawChart(svgId, tooltipId, valores, color, anio, mes, opts = {}){
     const svg = document.getElementById(svgId);
     const tooltip = document.getElementById(tooltipId);
     svg.innerHTML = '';
@@ -2979,12 +3203,13 @@
       msg.setAttribute('x', W/2); msg.setAttribute('y', (H-padB)/2);
       msg.setAttribute('fill', 'rgba(247,236,233,0.55)'); msg.setAttribute('font-size', '15');
       msg.setAttribute('text-anchor', 'middle');
-      msg.textContent = 'Esperando datos del Google Sheet…';
+      msg.textContent = opts.vacio || 'Esperando datos del Google Sheet…';
       svg.appendChild(msg);
       return;
     }
 
-    const maxVal = Math.max(1, ...valores);
+    let maxVal = Math.max(1, ...valores);
+    if(opts.conteo) maxVal = Math.max(5, Math.ceil(maxVal / 5) * 5);
 
     for(let g=0; g<=5; g++){
       const y = padT + (H-padT-padB) * (1 - g/5);
@@ -3049,7 +3274,7 @@
       const diaSemana = DIAS_SEMANA[new Date(anio, mes, i+1).getDay()];
       tooltip.innerHTML = `
         <div class="tt-day">Día ${i+1} · ${diaSemana}</div>
-        <div class="tt-val">${valores[i].toLocaleString('es-AR')}</div>
+        <div class="tt-val">${(opts.prefijo || '') + valores[i].toLocaleString('es-AR')}</div>
       `;
       const wrapWidth = svg.parentElement.clientWidth;
       const pxRatio = wrapWidth / W;
