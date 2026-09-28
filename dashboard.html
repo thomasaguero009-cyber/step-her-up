@@ -932,7 +932,7 @@
             <div class="kpi-value" id="ghlCierres">–</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Ventas del mes</div>
+            <div class="kpi-label">Cash collected</div>
             <div class="kpi-value" id="ghlVentas">–</div>
           </div>
           <div class="kpi-card">
@@ -948,7 +948,7 @@
             <div class="kpi-value" id="mateCierre">–</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Conversión total (llamada → venta)</div>
+            <div class="kpi-label">Conversión total (show → venta)</div>
             <div class="kpi-value" id="mateConversion">–</div>
           </div>
           <div class="kpi-card">
@@ -2673,7 +2673,7 @@
     document.getElementById('mateAgendado').textContent = huboDatos ? pct(totAgendadas, totLlamadas) : '–';
     document.getElementById('mateShowRate').textContent = huboDatos ? pct(totShows, totAgendadas) : '–';
     document.getElementById('mateCierre').textContent = huboDatos ? pct(totCierres, totShows) : '–';
-    document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totLlamadas) : '–';
+    document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totShows) : '–';
     document.getElementById('mateTicket').textContent = huboDatos ? money(totVentas, totCierres) : '–';
     // Revenue por SHOW (reunión de la closer), no por llamada del setter
     // — son embudos distintos, y lo que de verdad vale plata es el show.
