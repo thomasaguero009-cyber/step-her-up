@@ -464,6 +464,26 @@
   .modal-error{ font-size:12.5px; color:#f0716c; display:none; }
   .modal-error.show{ display:block; }
   .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
+
+  /* Botoncito de admin en la pantalla de entrada — abre el generador
+     de links con UTM. Discreto a propósito, no es para todo el mundo. */
+  .admin-tiny-btn{
+    margin-top:2px; background:transparent; border:none; color:var(--text-dim); font-size:11px;
+    opacity:0.4; cursor:pointer; font-family:inherit; letter-spacing:0.03em;
+  }
+  .admin-tiny-btn:hover{ opacity:0.85; color:var(--cream); }
+  .modal-card.utm-card{ max-width:440px; text-align:left; max-height:88vh; overflow-y:auto; }
+  .utm-field{ display:flex; flex-direction:column; gap:6px; }
+  .utm-field label{ font-size:12px; color:var(--text-dim); font-weight:600; }
+  select.modal-input{ appearance:none; -webkit-appearance:none; cursor:pointer; }
+  .utm-result-wrap{ display:none; flex-direction:column; gap:8px; }
+  .utm-result-wrap.show{ display:flex; }
+  .utm-result{
+    background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:10px;
+    padding:11px 14px; font-size:13px; color:var(--cream); word-break:break-all;
+  }
+  .utm-copied-msg{ font-size:12px; color:#5fd39a; display:none; }
+  .utm-copied-msg.show{ display:block; }
   @media(max-width:760px){
     .onboarding-body{ flex-direction:column; }
     .onboarding-lesson-col{ width:100%; }
@@ -765,8 +785,70 @@
           </span>
         </button>
       </div>
+      <button type="button" class="admin-tiny-btn" id="openUtmBuilderBtn">Admin</button>
     </div>
   </section>
+
+  <div class="modal-overlay" id="utmBuilderOverlay">
+    <div class="modal-card utm-card">
+      <div class="modal-title">Generador de UTM</div>
+      <p class="modal-sub">Pegá el link, elegí las opciones y te arma el link con UTM listo para copiar.</p>
+
+      <div class="utm-field">
+        <label for="utmBaseLink">Link base</label>
+        <input type="text" id="utmBaseLink" class="modal-input" placeholder="https://class.stepherup.com/step-her-up-c" autocomplete="off">
+      </div>
+
+      <div class="utm-field">
+        <label for="utmSource">Origen (utm_source)</label>
+        <select id="utmSource" class="modal-input">
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+          <option value="youtube">YouTube</option>
+          <option value="tiktok">TikTok</option>
+          <option value="otro">Otro…</option>
+        </select>
+        <input type="text" id="utmSourceOtro" class="modal-input" placeholder="Escribí el origen" style="display:none;">
+      </div>
+
+      <div class="utm-field">
+        <label for="utmMedium">Medio (utm_medium)</label>
+        <select id="utmMedium" class="modal-input">
+          <option value="bio">Bio</option>
+          <option value="reel">Reel</option>
+          <option value="story">Story</option>
+          <option value="post">Post</option>
+          <option value="dm">DM</option>
+          <option value="paid">Anuncio pago</option>
+          <option value="otro">Otro…</option>
+        </select>
+        <input type="text" id="utmMediumOtro" class="modal-input" placeholder="Escribí el medio" style="display:none;">
+      </div>
+
+      <div class="utm-field">
+        <label for="utmCampaign">Campaña (utm_campaign)</label>
+        <input type="text" id="utmCampaign" class="modal-input" placeholder="Ej: video_ayuda_septiembre" autocomplete="off">
+      </div>
+
+      <div class="utm-field">
+        <label for="utmContent">Contenido — opcional (utm_content)</label>
+        <input type="text" id="utmContent" class="modal-input" placeholder="Ej: version_a" autocomplete="off">
+      </div>
+
+      <div class="modal-error" id="utmError">Completá el link base y la campaña.</div>
+
+      <div class="utm-result-wrap" id="utmResultWrap">
+        <div class="utm-result" id="utmResult"></div>
+        <span class="utm-copied-msg" id="utmCopiedMsg">Copiado ✓</span>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="ghost-link-btn" id="utmBuilderClose">Cerrar</button>
+        <button type="button" class="btn-small" id="utmCopyBtn" style="display:none;">Copiar link</button>
+        <button type="button" class="btn-small" id="utmGenerateBtn">Generar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ===================== Onboarding (prueba piloto) ===================== -->
   <section class="screen" id="onboardingScreen">
@@ -1751,6 +1833,97 @@
   editPasswordCancel.addEventListener('click', () => editPasswordOverlay.classList.remove('open'));
   editPasswordOverlay.addEventListener('click', (e) => { if(e.target === editPasswordOverlay) editPasswordOverlay.classList.remove('open'); });
   actualizarBotonEditar();
+
+  // Generador de UTM — botón "Admin" chiquito en la pantalla de
+  // entrada. Solo arma el link con los parámetros, no guarda nada.
+  const utmBuilderOverlay = document.getElementById('utmBuilderOverlay');
+  const openUtmBuilderBtn = document.getElementById('openUtmBuilderBtn');
+  const utmBuilderClose = document.getElementById('utmBuilderClose');
+  const utmBaseLink = document.getElementById('utmBaseLink');
+  const utmSource = document.getElementById('utmSource');
+  const utmSourceOtro = document.getElementById('utmSourceOtro');
+  const utmMedium = document.getElementById('utmMedium');
+  const utmMediumOtro = document.getElementById('utmMediumOtro');
+  const utmCampaign = document.getElementById('utmCampaign');
+  const utmContent = document.getElementById('utmContent');
+  const utmError = document.getElementById('utmError');
+  const utmResultWrap = document.getElementById('utmResultWrap');
+  const utmResult = document.getElementById('utmResult');
+  const utmCopiedMsg = document.getElementById('utmCopiedMsg');
+  const utmGenerateBtn = document.getElementById('utmGenerateBtn');
+  const utmCopyBtn = document.getElementById('utmCopyBtn');
+
+  function abrirUtmBuilder(){
+    utmBaseLink.value = '';
+    utmSource.value = 'instagram';
+    utmSourceOtro.value = '';
+    utmSourceOtro.style.display = 'none';
+    utmMedium.value = 'bio';
+    utmMediumOtro.value = '';
+    utmMediumOtro.style.display = 'none';
+    utmCampaign.value = '';
+    utmContent.value = '';
+    utmError.textContent = 'Completá el link base y la campaña.';
+    utmError.classList.remove('show');
+    utmResultWrap.classList.remove('show');
+    utmCopyBtn.style.display = 'none';
+    utmBuilderOverlay.classList.add('open');
+    utmBaseLink.focus();
+  }
+  openUtmBuilderBtn.addEventListener('click', abrirUtmBuilder);
+  utmBuilderClose.addEventListener('click', () => utmBuilderOverlay.classList.remove('open'));
+  utmBuilderOverlay.addEventListener('click', (e) => { if(e.target === utmBuilderOverlay) utmBuilderOverlay.classList.remove('open'); });
+  utmSource.addEventListener('change', () => { utmSourceOtro.style.display = utmSource.value === 'otro' ? 'block' : 'none'; });
+  utmMedium.addEventListener('change', () => { utmMediumOtro.style.display = utmMedium.value === 'otro' ? 'block' : 'none'; });
+
+  utmGenerateBtn.addEventListener('click', () => {
+    const base = utmBaseLink.value.trim();
+    const campania = utmCampaign.value.trim();
+    if(!base || !campania){
+      utmError.textContent = 'Completá el link base y la campaña.';
+      utmError.classList.add('show');
+      utmResultWrap.classList.remove('show');
+      utmCopyBtn.style.display = 'none';
+      return;
+    }
+    let url;
+    try{
+      url = new URL(base);
+    } catch(e){
+      utmError.textContent = 'El link no es válido — tiene que empezar con https://';
+      utmError.classList.add('show');
+      utmResultWrap.classList.remove('show');
+      utmCopyBtn.style.display = 'none';
+      return;
+    }
+    utmError.classList.remove('show');
+    const origen = utmSource.value === 'otro' ? (utmSourceOtro.value.trim() || 'otro') : utmSource.value;
+    const medio = utmMedium.value === 'otro' ? (utmMediumOtro.value.trim() || 'otro') : utmMedium.value;
+    url.searchParams.set('utm_source', origen);
+    url.searchParams.set('utm_medium', medio);
+    url.searchParams.set('utm_campaign', campania);
+    if(utmContent.value.trim()) url.searchParams.set('utm_content', utmContent.value.trim());
+    utmResult.textContent = url.toString();
+    utmResultWrap.classList.add('show');
+    utmCopyBtn.style.display = 'inline-flex';
+    utmCopiedMsg.classList.remove('show');
+  });
+
+  utmCopyBtn.addEventListener('click', async () => {
+    const texto = utmResult.textContent;
+    try{
+      await navigator.clipboard.writeText(texto);
+    } catch(e){
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      document.body.appendChild(ta);
+      ta.select();
+      try{ document.execCommand('copy'); } catch(e2){}
+      document.body.removeChild(ta);
+    }
+    utmCopiedMsg.classList.add('show');
+    setTimeout(() => utmCopiedMsg.classList.remove('show'), 2000);
+  });
 
   // ===== Lista de lecciones — se arma en JS (no HTML fijo) para poder
   // reordenarla arrastrando. El reordenamiento usa drag & drop nativo
