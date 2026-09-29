@@ -370,6 +370,66 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
   return json({ ok: true, totales, porFuente }, 200, cors);
 }
 
+// ===== Funnel día a día — mismo criterio que handleLeadsSummary (last
+// stage change dentro del rango, clasificarEtapa por nombre), pero
+// agrupado por día en vez de sumado en un solo total. Sirve para el
+// gráfico de tendencia diaria del funnel en "Vista General". El día se
+// calcula con el último cambio de etapa, no con la fecha de creación:
+// una oportunidad que se agendó el día 3 pero cerró el día 20 cuenta
+// como "cierre" el día 20 (no el 3), consistente con cómo ya se arma
+// el resto del dashboard. =====
+async function handleFunnelPorDia(url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const start = parseInt(url.searchParams.get("start") || "", 10);
+  const end = parseInt(url.searchParams.get("end") || "", 10);
+  if (!start || !end) return json({ ok: false, error: "missing_range" }, 400, cors);
+
+  const pipeRes = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!pipeRes.ok) return json({ ok: false, error: "pipelines_failed", detail: await pipeRes.text() }, 502, cors);
+  const pipeBody = (await pipeRes.json()) as { pipelines?: { id: string; stages?: { id: string; name: string }[] }[] };
+  const nombreDeEtapa = new Map<string, string>();
+  for (const p of pipeBody.pipelines || []) {
+    for (const s of p.stages || []) nombreDeEtapa.set(s.id, s.name);
+  }
+
+  const diaPR = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" });
+  type Fila = { llamadas: number; agendadas: number; shows: number; cierres: number; ventas: number };
+  const filaVacia = (): Fila => ({ llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
+  const dias: Record<string, Fila & { porFuente: Record<string, Fila> }> = {};
+  const totales = filaVacia();
+
+  let resultadosPorPipeline: OpportunityGHL[][];
+  try {
+    resultadosPorPipeline = await Promise.all(PIPELINES_LEADS.map(p => traerOportunidadesDePipeline(env, p.id)));
+  } catch (err) {
+    return json({ ok: false, error: "opportunities_failed", detail: String(err) }, 502, cors);
+  }
+
+  PIPELINES_LEADS.forEach((pipeline, i) => {
+    for (const o of resultadosPorPipeline[i]) {
+      const cambio = Date.parse(o.lastStageChangeAt);
+      if (!cambio || cambio < start || cambio >= end) continue;
+      const categoria = clasificarEtapa(nombreDeEtapa.get(o.pipelineStageId) || '');
+      const esLlamado = categoria === 'llamado' || categoria === 'agendada' || categoria === 'no_show' || categoria === 'show_sin_cierre' || categoria === 'cerrado';
+      const esAgendada = categoria === 'agendada' || categoria === 'no_show' || categoria === 'show_sin_cierre' || categoria === 'cerrado';
+      const esShow = categoria === 'show_sin_cierre' || categoria === 'cerrado';
+      const monto = o.monetaryValue || 0;
+
+      const dia = diaPR.format(new Date(cambio));
+      if (!dias[dia]) dias[dia] = { ...filaVacia(), porFuente: {} };
+      const d = dias[dia];
+      if (!d.porFuente[pipeline.fuente]) d.porFuente[pipeline.fuente] = filaVacia();
+      const f = d.porFuente[pipeline.fuente];
+
+      if (esLlamado) { d.llamadas++; f.llamadas++; totales.llamadas++; }
+      if (esAgendada) { d.agendadas++; f.agendadas++; totales.agendadas++; }
+      if (esShow) { d.shows++; f.shows++; totales.shows++; }
+      if (categoria === 'cerrado') { d.cierres++; f.cierres++; d.ventas += monto; f.ventas += monto; totales.cierres++; totales.ventas += monto; }
+    }
+  });
+
+  return json({ ok: true, dias, totales, fuentes: PIPELINES_LEADS.map(p => p.fuente) }, 200, cors);
+}
+
 // ===== Leads que llegan por día — se cuentan CONTACTOS nuevos (dateAdded),
 // no oportunidades: la mayoría de los leads (Instagram, etc.) entran como
 // contacto sin oportunidad hasta que una setter los trabaja, así que
@@ -501,6 +561,9 @@ export default {
       }
       if (url.pathname === "/leads-por-dia" && request.method === "GET") {
         return await handleLeadsPorDia(url, env, cors);
+      }
+      if (url.pathname === "/funnel-por-dia" && request.method === "GET") {
+        return await handleFunnelPorDia(url, env, cors);
       }
       if (url.pathname.startsWith("/videos/") && (request.method === "GET" || request.method === "HEAD")) {
         return await handleVideoGet(request, env, decodeURIComponent(url.pathname.slice("/videos/".length)), cors);
