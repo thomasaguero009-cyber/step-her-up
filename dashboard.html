@@ -1813,17 +1813,34 @@
     renderArbolPistas();
     actualizarPanelEdicion();
   }
-  editModeBtn.addEventListener('click', () => {
-    if(modoEdicion){ salirModoEdicion(); return; }
+  // Qué hacer después de una contraseña correcta — la misma contraseña
+  // destraba tanto el modo edición del onboarding como el botón Admin,
+  // pero son dos candados separados: entrar por Admin no activa el
+  // modo edición del onboarding, y viceversa.
+  let adminDesbloqueado = false;
+  try { adminDesbloqueado = sessionStorage.getItem('shu_admin_utm_ok') === '1'; } catch(e){}
+  let accionPendientePassword = 'editar';
+  function abrirModalPassword(accion){
+    accionPendientePassword = accion;
     editPasswordInput.value = '';
     editPasswordError.classList.remove('show');
     editPasswordOverlay.classList.add('open');
     editPasswordInput.focus();
+  }
+  editModeBtn.addEventListener('click', () => {
+    if(modoEdicion){ salirModoEdicion(); return; }
+    abrirModalPassword('editar');
   });
   function intentarPassword(){
     if(editPasswordInput.value === 'shuadmin'){
       editPasswordOverlay.classList.remove('open');
-      entrarModoEdicion();
+      if(accionPendientePassword === 'utm'){
+        adminDesbloqueado = true;
+        try { sessionStorage.setItem('shu_admin_utm_ok', '1'); } catch(e){}
+        abrirUtmBuilder();
+      } else {
+        entrarModoEdicion();
+      }
     } else {
       editPasswordError.classList.add('show');
     }
@@ -1870,7 +1887,10 @@
     utmBuilderOverlay.classList.add('open');
     utmBaseLink.focus();
   }
-  openUtmBuilderBtn.addEventListener('click', abrirUtmBuilder);
+  openUtmBuilderBtn.addEventListener('click', () => {
+    if(adminDesbloqueado){ abrirUtmBuilder(); return; }
+    abrirModalPassword('utm');
+  });
   utmBuilderClose.addEventListener('click', () => utmBuilderOverlay.classList.remove('open'));
   utmBuilderOverlay.addEventListener('click', (e) => { if(e.target === utmBuilderOverlay) utmBuilderOverlay.classList.remove('open'); });
   utmSource.addEventListener('change', () => { utmSourceOtro.style.display = utmSource.value === 'otro' ? 'block' : 'none'; });
