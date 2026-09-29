@@ -952,6 +952,10 @@
             <div class="kpi-value" id="ghlVentas">–</div>
           </div>
           <div class="kpi-card">
+            <div class="kpi-label">AOV (ticket promedio)</div>
+            <div class="kpi-value" id="ghlAov">–</div>
+          </div>
+          <div class="kpi-card">
             <div class="kpi-label">Tasa de agendado</div>
             <div class="kpi-value" id="mateAgendado">–</div>
           </div>
@@ -1049,6 +1053,18 @@
           <div class="kpi-card">
             <div class="kpi-label">ROAS general</div>
             <div class="kpi-value" id="adsTabRoasGeneral">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">CAC</div>
+            <div class="kpi-value" id="adsTabCac">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Paid Media CAC</div>
+            <div class="kpi-value" id="adsTabPaidCac">–</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Margen</div>
+            <div class="kpi-value" id="adsTabMargen">–</div>
           </div>
         </div>
       </div>
@@ -2694,7 +2710,7 @@
     const dias = new Date(anio, mes + 1, 0).getDate();
     const llamadas = new Array(dias).fill(0);
     const ventas = new Array(dias).fill(0);
-    let totLlamadas = 0, totAgendadas = 0, totShows = 0, totCierres = 0, totVentas = 0, totVentasAds = 0, huboDatos = false;
+    let totLlamadas = 0, totAgendadas = 0, totShows = 0, totCierres = 0, totVentas = 0, totVentasAds = 0, totCierresAds = 0, huboDatos = false;
     const porSetter = new Map();
     const porFuente = new Map();
 
@@ -2712,7 +2728,7 @@
       totCierres += f.cierres; totVentas += f.ventas;
       // Fuente "de ads" = cualquiera que contenga "ads" (Facebook Ads,
       // Google Ads, Meta Ads, etc.) — así no hace falta un nombre exacto.
-      if(/ads/i.test(f.fuente)) totVentasAds += f.ventas;
+      if(/ads/i.test(f.fuente)) { totVentasAds += f.ventas; totCierresAds += f.cierres; }
 
       if(!porSetter.has(f.setter)) porSetter.set(f.setter, { agendadas:0, shows:0, cierres:0, ventas:0 });
       const s = porSetter.get(f.setter);
@@ -2844,7 +2860,7 @@
     document.getElementById('adsTabRoasAds').textContent = huboDatosAds ? roas(totVentasAds, totGastoAds) : '–';
     document.getElementById('adsTabRoasGeneral').textContent = huboDatosAds ? roas(totVentas, totGastoAds) : '–';
     document.getElementById('statusAdsTab').textContent = estadoAds;
-    adsTabDatos = { huboDatosAds, totGastoAds, gastoPorDia, dias, diasAMostrar, anio, mes };
+    adsTabDatos = { huboDatosAds, totGastoAds, totVentas, totCierres, totVentasAds, totCierresAds, gastoPorDia, dias, diasAMostrar, anio, mes };
     renderAdsTab();
   }
 
@@ -2860,6 +2876,15 @@
     // Costo por lead = gasto ÷ contactos nuevos del mes (los mismos de "Leads por día").
     const leads = leadsData ? leadsData.total : 0;
     document.getElementById('adsTabCpl').textContent = d.huboDatosAds && leads > 0 ? '$' + (d.totGastoAds / leads).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '–';
+    // CAC = gasto en ads ÷ TODOS los cierres del mes (no solo los de fuente
+    // ads) — cuánto costó, en promedio, cada clienta nueva ese mes.
+    document.getElementById('adsTabCac').textContent = d.huboDatosAds && d.totCierres > 0 ? dinero(d.totGastoAds / d.totCierres) : '–';
+    // Paid Media CAC = mismo gasto, pero solo contra los cierres que vinieron
+    // de una fuente de ads — más específico que el CAC general de arriba.
+    document.getElementById('adsTabPaidCac').textContent = d.huboDatosAds && d.totCierresAds > 0 ? dinero(d.totGastoAds / d.totCierresAds) : '–';
+    // Margen = ventas del mes menos lo gastado en ads (no descuenta otros
+    // costos operativos, solo el gasto publicitario).
+    document.getElementById('adsTabMargen').textContent = d.huboDatosAds ? dinero(d.totVentas - d.totGastoAds) : '–';
   }
 
   // ===== Gráficos con filtros (chips): Setters, Closers y Leads por día.
@@ -3002,7 +3027,7 @@
   // cargarYPintarDatosMes (no await'eada ahí) porque tarda varios segundos
   // (recorre ~2500 oportunidades del lado del Worker) — así el resto del
   // dashboard no espera a GHL para pintarse. =====
-  const GHL_IDS = ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas','mateAgendado','mateShowRate','mateCierre','mateConversion'];
+  const GHL_IDS = ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas','ghlAov','mateAgendado','mateShowRate','mateCierre','mateConversion'];
   // silencioso=true (refresco automático o botón "Actualizar"): deja los
   // números viejos a la vista mientras llegan los nuevos, en vez de
   // taparlos con el círculo de carga — así no "parpadea" cada 5 minutos.
@@ -3037,6 +3062,8 @@
       fijarValorNumero('ghlShows', data.totales.shows.toLocaleString('es-AR'));
       fijarValorNumero('ghlCierres', data.totales.cierres.toLocaleString('es-AR'));
       fijarValorNumero('ghlVentas', '$' + Math.round(data.totales.ventas).toLocaleString('es-AR'));
+      // AOV = cash collected ÷ cierres, con los mismos totales de GHL de arriba.
+      fijarValorNumero('ghlAov', data.totales.cierres > 0 ? '$' + Math.round(data.totales.ventas / data.totales.cierres).toLocaleString('es-AR') : '–');
 
       // Las 4 tasas se calculan con estos MISMOS totales de GHL (no el
       // Sheet manual) para que coincidan con las 5 tarjetas de arriba —
