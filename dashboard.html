@@ -1011,6 +1011,7 @@
           <div class="chart-status" id="statusFunnel">Conectando con GHL…</div>
         </div>
         <div class="chart-legend" style="display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; font-size:12px; color:var(--text-dim);">
+          <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#5ecfea;margin-right:6px;"></i>Leads</span>
           <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7fb2ff;margin-right:6px;"></i>Llamadas</span>
           <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#c79bff;margin-right:6px;"></i>Agendadas</span>
           <span><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff8fb8;margin-right:6px;"></i>Shows</span>
@@ -1019,17 +1020,11 @@
       </div>
 
       <!-- Leads que llegan por día: contactos nuevos de GHL (ver
-           /leads-por-dia en el Worker), filtrables por origen. -->
+           /leads-por-dia en el Worker). El gráfico se fusionó con
+           "Tendencia diaria del funnel" (arriba, panel "ghl") como una
+           serie más — acá solo quedan los 3 totales del mes. -->
       <div class="tab-panel active" data-tab-panel="leads">
         <div class="section-label" id="leads">Leads por día</div>
-        <div class="chart-panel">
-          <div class="chart-chips" id="leadsFiltro"></div>
-          <div class="chart-wrap">
-            <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartLeads"></svg>
-            <div class="chart-tooltip" id="tooltipLeads"></div>
-          </div>
-          <div class="chart-status" id="statusLeads">Cargando leads desde GHL…</div>
-        </div>
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-label">Leads del mes</div>
@@ -1044,6 +1039,7 @@
             <div class="kpi-value" id="leadsMejor">–</div>
           </div>
         </div>
+        <div class="chart-status" id="statusLeads" style="margin-top:10px;">Cargando leads desde GHL…</div>
       </div>
 
       <!-- Ads: gasto diario + costo por lead + ROAS. Todo depende de la
@@ -2979,27 +2975,25 @@
   }
 
   // Leads por día — contactos nuevos de GHL (Worker: /leads-por-dia).
-  let leadsData = null, leadsFiltro = 'Todos', leadsPedido = 0;
+  let leadsData = null, leadsPedido = 0;
+  // El gráfico de leads por día se fusionó con "Tendencia diaria del
+  // funnel" (drawFunnelChart, serie 'leads') — acá solo quedan los 3
+  // totales del mes; ya no es filtrable por origen (el chip de pipeline
+  // de arriba no aplica a leads, ver seriesFunnel).
   function renderLeads(){
     const { anio, mes } = mesElegidoAYyyyMm();
     const dias = new Date(anio, mes + 1, 0).getDate();
     const hoy = new Date();
     const diasAMostrar = (anio === hoy.getFullYear() && mes === hoy.getMonth()) ? hoy.getDate() : dias;
     if(!leadsData){
-      pintarChips('leadsFiltro', [{ valor: 'Todos', texto: 'Todos los orígenes' }], 'Todos', () => {});
-      drawChart('chartLeads', 'tooltipLeads', new Array(diasAMostrar).fill(0), '#c9a8f0', anio, mes, { vacio: 'Cargando desde GHL…' });
       ['leadsTotal', 'leadsPromedio', 'leadsMejor'].forEach(mostrarCargandoNumero);
       return;
     }
-    if(leadsFiltro !== 'Todos' && !leadsData.origenes.includes(leadsFiltro)) leadsFiltro = 'Todos';
-    pintarChips('leadsFiltro', ['Todos', ...leadsData.origenes].map(o => ({ valor: o, texto: o === 'Todos' ? 'Todos los orígenes' : o })), leadsFiltro, v => { leadsFiltro = v; renderLeads(); });
     const serie = [];
     for(let d = 1; d <= diasAMostrar; d++){
       const clave = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dia = leadsData.dias[clave];
-      serie.push(!dia ? 0 : (leadsFiltro === 'Todos' ? dia.total : (dia.porOrigen[leadsFiltro] || 0)));
+      serie.push(leadsData.dias[clave]?.total || 0);
     }
-    drawChart('chartLeads', 'tooltipLeads', serie, '#c9a8f0', anio, mes, { conteo: true, vacio: 'Sin leads este mes' });
     const total = serie.reduce((a, b) => a + b, 0);
     const mejor = Math.max(0, ...serie);
     fijarValorNumero('leadsTotal', total.toLocaleString('es-AR'));
@@ -3024,6 +3018,7 @@
       leadsData = data;
       renderLeads();
       renderAdsTab();
+      renderFunnelChart();
       const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
       statusEl.textContent = 'Datos en vivo desde GHL (contactos nuevos por día) — ' + mesElegido + ' · actualizado ' + hora
         + (data.cortadoPorLimite ? ' · ojo: hay más contactos de los que se pudieron leer' : '');
@@ -3136,6 +3131,7 @@
   // recalculan las series al vuelo según el filtro de pipeline elegido,
   // así cambiar de chip no pide de nuevo al Worker. =====
   const SERIES_FUNNEL = [
+    { key: 'leads', texto: 'Leads', color: '#5ecfea' },
     { key: 'llamadas', texto: 'Llamadas', color: '#7fb2ff' },
     { key: 'agendadas', texto: 'Agendadas', color: '#c79bff' },
     { key: 'shows', texto: 'Shows', color: '#ff8fb8' },
@@ -3180,17 +3176,28 @@
 
   function seriesFunnel(filtro){
     const dias = ctxMes.dias || new Date(mesElegidoAYyyyMm().anio, mesElegidoAYyyyMm().mes + 1, 0).getDate();
-    const out = { llamadas: new Array(dias).fill(0), agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0) };
-    if(!funnelPorDiaDatos) return out;
-    for(const [fecha, fila] of Object.entries(funnelPorDiaDatos.dias)){
-      const d = parseInt(fecha.slice(8, 10), 10) - 1;
-      if(d < 0 || d >= dias) continue;
-      const origen = filtro === 'Todas' ? fila : fila.porFuente[filtro];
-      if(!origen) continue;
-      out.llamadas[d] += origen.llamadas;
-      out.agendadas[d] += origen.agendadas;
-      out.shows[d] += origen.shows;
-      out.cierres[d] += origen.cierres;
+    const out = { leads: new Array(dias).fill(0), llamadas: new Array(dias).fill(0), agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0) };
+    if(funnelPorDiaDatos){
+      for(const [fecha, fila] of Object.entries(funnelPorDiaDatos.dias)){
+        const d = parseInt(fecha.slice(8, 10), 10) - 1;
+        if(d < 0 || d >= dias) continue;
+        const origen = filtro === 'Todas' ? fila : fila.porFuente[filtro];
+        if(!origen) continue;
+        out.llamadas[d] += origen.llamadas;
+        out.agendadas[d] += origen.agendadas;
+        out.shows[d] += origen.shows;
+        out.cierres[d] += origen.cierres;
+      }
+    }
+    // Leads = contactos nuevos (Worker: /leads-por-dia), no oportunidades —
+    // no tiene pipeline de GHL asociado, así que siempre muestra el total
+    // sin filtrar por el chip de pipeline de arriba (es el ingreso real al
+    // sistema, antes de que una setter la trabaje).
+    if(leadsData){
+      for(let d = 0; d < dias; d++){
+        const clave = `${ctxMes.anio}-${String(ctxMes.mes + 1).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`;
+        out.leads[d] = leadsData.dias[clave]?.total || 0;
+      }
     }
     return out;
   }
