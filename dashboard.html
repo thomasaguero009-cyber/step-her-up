@@ -2794,10 +2794,11 @@
     // en el Sheet). Cada una se cuida de no dividir por cero. =====
     const pct = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + '%' : '–';
     const money = (num, den) => den > 0 ? '$' + Math.round(num / den).toLocaleString('es-AR') : '–';
-    document.getElementById('mateAgendado').textContent = huboDatos ? pct(totAgendadas, totLlamadas) : '–';
-    document.getElementById('mateShowRate').textContent = huboDatos ? pct(totShows, totAgendadas) : '–';
-    document.getElementById('mateCierre').textContent = huboDatos ? pct(totCierres, totShows) : '–';
-    document.getElementById('mateConversion').textContent = huboDatos ? pct(totCierres, totShows) : '–';
+    // mateAgendado/mateShowRate/mateCierre/mateConversion NO se tocan acá:
+    // viven en el panel "GHL en vivo" junto a Llamadas/Agendadas/Shows/
+    // Cierres de GHL, así que se calculan con esos mismos totales de GHL
+    // (ver cargarYPintarGHL) — antes salían del Sheet manual del Tracker,
+    // mezclando dos fuentes distintas en la misma tarjeta.
     document.getElementById('mateTicket').textContent = huboDatos ? money(totVentas, totCierres) : '–';
     // Revenue por SHOW (reunión de la closer), no por llamada del setter
     // — son embudos distintos, y lo que de verdad vale plata es el show.
@@ -3001,7 +3002,7 @@
   // cargarYPintarDatosMes (no await'eada ahí) porque tarda varios segundos
   // (recorre ~2500 oportunidades del lado del Worker) — así el resto del
   // dashboard no espera a GHL para pintarse. =====
-  const GHL_IDS = ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas'];
+  const GHL_IDS = ['ghlLlamadas','ghlAgendadas','ghlShows','ghlCierres','ghlVentas','mateAgendado','mateShowRate','mateCierre','mateConversion'];
   // silencioso=true (refresco automático o botón "Actualizar"): deja los
   // números viejos a la vista mientras llegan los nuevos, en vez de
   // taparlos con el círculo de carga — así no "parpadea" cada 5 minutos.
@@ -3036,6 +3037,15 @@
       fijarValorNumero('ghlShows', data.totales.shows.toLocaleString('es-AR'));
       fijarValorNumero('ghlCierres', data.totales.cierres.toLocaleString('es-AR'));
       fijarValorNumero('ghlVentas', '$' + Math.round(data.totales.ventas).toLocaleString('es-AR'));
+
+      // Las 4 tasas se calculan con estos MISMOS totales de GHL (no el
+      // Sheet manual) para que coincidan con las 5 tarjetas de arriba —
+      // antes salían de una fuente distinta y no cuadraban entre sí.
+      const pctGhl = (num, den) => den > 0 ? (num / den * 100).toFixed(1) + '%' : '–';
+      fijarValorNumero('mateAgendado', pctGhl(data.totales.agendadas, data.totales.llamadas));
+      fijarValorNumero('mateShowRate', pctGhl(data.totales.shows, data.totales.agendadas));
+      fijarValorNumero('mateCierre', pctGhl(data.totales.cierres, data.totales.shows));
+      fijarValorNumero('mateConversion', pctGhl(data.totales.cierres, data.totales.shows));
 
       const fuentes = Object.entries(data.porFuente).sort((a,b) => b[1].ventas - a[1].ventas);
       grid.innerHTML = fuentes.map(([nombre, f]) => `
