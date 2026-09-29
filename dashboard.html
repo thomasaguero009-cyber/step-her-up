@@ -998,9 +998,8 @@
              etapas (Llamadas/Agendadas/Shows/Cierres, las que GHL rastrea
              de verdad) y filtrable por pipeline en vez de por plataforma
              de ads (Meta/TikTok/etc. no existen como tal en GHL). -->
-        <div class="section-label" id="funnelTendencia" style="margin-top:32px; font-size:18px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div class="section-label" id="funnelTendencia" style="margin-top:32px; font-size:18px;">
           <span>Tendencia diaria del funnel</span>
-          <span id="funnelBadges" style="display:flex; gap:14px; font-size:12px; font-weight:600; color:var(--text-dim);"></span>
         </div>
         <div class="chart-chips" id="funnelChips" style="margin:10px 0 14px;"></div>
         <div class="chart-panel">
@@ -3207,11 +3206,6 @@
       pintarChips('funnelChips', ['Todas', ...funnelPorDiaDatos.fuentes].map(f => ({ valor: f, texto: f })), funnelFiltro, v => { funnelFiltro = v; renderFunnelChart(); });
     }
     const s = seriesFunnel(funnelFiltro);
-    const badges = document.getElementById('funnelBadges');
-    badges.innerHTML = SERIES_FUNNEL.map(m => {
-      const total = s[m.key].reduce((a, b) => a + b, 0);
-      return `<span><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${m.color};margin-right:5px;"></i>${m.texto.slice(0,2)}: ${total.toLocaleString('es-AR')}</span>`;
-    }).join('');
     drawFunnelChart('chartFunnel', 'tooltipFunnel', s, ctxMes.anio, ctxMes.mes);
   }
 
