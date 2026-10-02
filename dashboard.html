@@ -760,6 +760,26 @@
 </head>
 <body>
 
+  <!-- Candado de entrada a toda la plataforma — una sola contraseña
+       compartida, no por usuario. Se persiste en localStorage para no
+       pedirla de nuevo en cada visita desde el mismo navegador. -->
+  <div id="siteGateOverlay" style="position:fixed; inset:0; z-index:9999; background:linear-gradient(160deg, var(--wine-3), #0d0304); display:flex; align-items:center; justify-content:center; padding:20px;">
+    <div class="modal-card" style="max-width:360px; text-align:center;">
+      <div class="modal-title" style="font-size:24px;">Step Her Up</div>
+      <p class="modal-sub">Plataforma privada — ingresá la contraseña para entrar.</p>
+      <input type="password" id="siteGateInput" class="modal-input" placeholder="Contraseña" autocomplete="off">
+      <div class="modal-error" id="siteGateError">Contraseña incorrecta.</div>
+      <button type="button" class="btn-small" id="siteGateConfirm" style="width:100%;">Entrar</button>
+    </div>
+  </div>
+  <script>
+    try {
+      if (localStorage.getItem('shu_site_ok') === '1') {
+        document.getElementById('siteGateOverlay').style.display = 'none';
+      }
+    } catch (e) {}
+  </script>
+
   <!-- ===================== PANTALLA 1: Preview al dashboard ===================== -->
   <section class="screen active" id="loadingScreen">
     <div class="loading-card">
@@ -1864,6 +1884,24 @@
   editPasswordCancel.addEventListener('click', () => editPasswordOverlay.classList.remove('open'));
   editPasswordOverlay.addEventListener('click', (e) => { if(e.target === editPasswordOverlay) editPasswordOverlay.classList.remove('open'); });
   actualizarBotonEditar();
+
+  // Candado de entrada a toda la plataforma (distinto del de modo
+  // edición) — una sola contraseña compartida para cualquiera que abra
+  // el link, persistida en localStorage una vez que la pone bien.
+  const siteGateOverlay = document.getElementById('siteGateOverlay');
+  const siteGateInput = document.getElementById('siteGateInput');
+  const siteGateError = document.getElementById('siteGateError');
+  const siteGateConfirm = document.getElementById('siteGateConfirm');
+  function intentarSiteGate(){
+    if(siteGateInput.value === 'shu100k'){
+      try { localStorage.setItem('shu_site_ok', '1'); } catch(e){}
+      siteGateOverlay.style.display = 'none';
+    } else {
+      siteGateError.classList.add('show');
+    }
+  }
+  siteGateConfirm.addEventListener('click', intentarSiteGate);
+  siteGateInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') intentarSiteGate(); });
 
   // Generador de UTM — botón "Admin" chiquito en la pantalla de
   // entrada. Solo arma el link con los parámetros, no guarda nada.
