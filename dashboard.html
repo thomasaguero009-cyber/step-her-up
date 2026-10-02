@@ -400,6 +400,18 @@
     text-align:center; padding:24px; color:var(--text-dim); font-size:14px; line-height:1.5;
     background:linear-gradient(160deg, var(--wine-3), #0d0304);
   }
+  /* Spinner mientras el iframe de Drive (o el video) todavía está
+     cargando — sin esto, la pantalla queda en negro sólido unos
+     segundos (más en datos móviles) y parece que el video no anda. */
+  .video-loading{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:#000; z-index:2;
+  }
+  .video-loading.show{ display:flex; }
+  .video-loading-spinner{
+    width:32px; height:32px; border:3px solid rgba(255,255,255,0.22); border-top-color:var(--blush-2);
+    border-radius:50%; animation:shu-girar .8s linear infinite;
+  }
   .video-center-btn{
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,0.92); color:var(--wine-2);
@@ -882,6 +894,7 @@
             <video id="onboardingVideo" playsinline poster="assets/onboarding-bienvenida-poster.jpg"></video>
             <iframe id="onboardingIframe" style="display:none;width:100%;height:100%;border:none;" allow="autoplay" allowfullscreen></iframe>
             <div class="video-empty" id="videoEmpty" style="display:none;"></div>
+            <div class="video-loading" id="videoLoading"><div class="video-loading-spinner"></div></div>
             <button type="button" class="video-center-btn" id="videoCenterBtn" aria-label="Reproducir">
               <svg viewBox="0 0 24 24" width="26" height="26"><polygon points="6,4 20,12 6,20" fill="currentColor"></polygon></svg>
             </button>
@@ -1772,6 +1785,7 @@
   const onboardingIframe = document.getElementById('onboardingIframe');
   const videoShell = document.getElementById('videoShell');
   const videoEmpty = document.getElementById('videoEmpty');
+  const videoLoading = document.getElementById('videoLoading');
   const videoCenterBtn = document.getElementById('videoCenterBtn');
   const videoControlsBar = document.getElementById('videoControlsBar');
   const videoDescription = document.getElementById('videoDescription');
@@ -1987,6 +2001,8 @@
 
   function cargarVideoDeLeccion(lec){
     onboardingVideo.pause();
+    onboardingIframe.onload = null;
+    onboardingVideo.oncanplay = null;
     if(lec.videoUrl && esLinkDrive(lec.videoUrl)){
       const id = idDeDrive(lec.videoUrl);
       videoEmpty.style.display = 'none';
@@ -1995,6 +2011,8 @@
       videoControlsBar.style.display = 'none';
       videoCenterBtn.style.display = 'none';
       onboardingIframe.style.display = 'block';
+      videoLoading.classList.add('show');
+      onboardingIframe.onload = () => videoLoading.classList.remove('show');
       onboardingIframe.src = id ? ('https://drive.google.com/file/d/' + id + '/preview') : '';
       limiteActivo = null;
     } else if(lec.videoUrl){
@@ -2004,6 +2022,8 @@
       onboardingVideo.style.display = '';
       videoControlsBar.style.display = '';
       videoCenterBtn.style.display = '';
+      videoLoading.classList.add('show');
+      onboardingVideo.oncanplay = () => videoLoading.classList.remove('show');
       onboardingVideo.poster = lec.poster || '';
       onboardingVideo.src = lec.videoUrl;
       limiteActivo = (typeof lec.inicio === 'number' && typeof lec.fin === 'number') ? { inicio: lec.inicio, fin: lec.fin } : null;
@@ -2015,6 +2035,7 @@
       onboardingVideo.style.display = 'none';
       videoControlsBar.style.display = 'none';
       videoCenterBtn.style.display = 'none';
+      videoLoading.classList.remove('show');
       videoEmpty.style.display = 'flex';
       videoEmpty.textContent = modoEdicion
         ? 'Todavía no se subió el video de esta lección — subilo a Drive y pegá el link en la pestaña "Lecciones" del Sheet.'
@@ -2044,6 +2065,7 @@
       onboardingVideo.style.display = 'none';
       videoControlsBar.style.display = 'none';
       videoCenterBtn.style.display = 'none';
+      videoLoading.classList.remove('show');
       videoEmpty.style.display = 'flex';
       videoEmpty.textContent = pistasCargando ? 'Cargando…' : 'Todavía no hay lecciones en esta pista.';
       videoDescription.classList.add('hidden');
