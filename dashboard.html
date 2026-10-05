@@ -2029,6 +2029,10 @@
   // o como archivo directo (asset del repo o blob local de prueba) — el
   // de Drive se muestra en un <iframe> con el reproductor propio de
   // Drive (no el nuestro, porque Drive no deja controlarlo desde afuera).
+  function idDeFathom(url){
+    const m = (url || '').match(/fathom\.video\/(?:share|embed|calls)\/([A-Za-z0-9_-]+)/);
+    return m ? m[1] : null;
+  }
   function esLinkDrive(url){
     return /drive\.google\.com\/(file\/d\/|open\?id=)/.test(url || '');
   }
@@ -2041,8 +2045,9 @@
     onboardingVideo.pause();
     onboardingIframe.onload = null;
     onboardingVideo.oncanplay = null;
-    if(lec.videoUrl && esLinkDrive(lec.videoUrl)){
-      const id = idDeDrive(lec.videoUrl);
+    if(lec.videoUrl && (esLinkDrive(lec.videoUrl) || idDeFathom(lec.videoUrl))){
+      const idFathom = idDeFathom(lec.videoUrl);
+      const id = idFathom || idDeDrive(lec.videoUrl);
       videoEmpty.style.display = 'none';
       onboardingVideo.style.display = 'none';
       onboardingVideo.removeAttribute('src');
@@ -2050,8 +2055,14 @@
       videoCenterBtn.style.display = 'none';
       onboardingIframe.style.display = 'block';
       videoLoading.classList.add('show');
-      onboardingIframe.onload = () => videoLoading.classList.remove('show');
-      onboardingIframe.src = id ? ('https://drive.google.com/file/d/' + id + '/preview') : '';
+      // Fathom avisa "cargado" varios segundos antes de pintar su reproductor.
+      onboardingIframe.onload = () => {
+        const src = onboardingIframe.src;
+        setTimeout(() => { if(onboardingIframe.src === src) videoLoading.classList.remove('show'); }, idFathom ? 10000 : 0);
+      };
+      onboardingIframe.src = !id ? ''
+        : idFathom ? ('https://fathom.video/embed/' + id)
+        : ('https://drive.google.com/file/d/' + id + '/preview');
       limiteActivo = null;
     } else if(lec.videoUrl){
       onboardingIframe.style.display = 'none';
