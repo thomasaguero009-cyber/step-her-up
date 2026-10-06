@@ -218,7 +218,11 @@ var COLOR_VINO = '#5a1626';
 var COLOR_ROSA = '#e88aa8';
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Step Her Up').addItem('Ordenar hoja', 'ordenarHoja').addToUi();
+  SpreadsheetApp.getUi().createMenu('Step Her Up')
+    .addItem('Ordenar hoja ahora', 'ordenarHoja')
+    .addItem('Activar orden automático', 'activarOrdenAutomatico')
+    .addItem('Desactivar orden automático', 'desactivarOrdenAutomatico')
+    .addToUi();
 }
 
 function encabezados(sheet) {
@@ -267,7 +271,8 @@ function limpiarTexto(sheet, columnas) {
   return cambios;
 }
 
-function ordenarHoja() {
+// Hace todo el ordenamiento y devuelve { reporte, avisos } (sin mostrar nada).
+function ejecutarOrden() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var reporte = [];
   var avisos = [];
@@ -431,7 +436,87 @@ function ordenarHoja() {
   ordenadas.forEach(function (x, pos) { ss.setActiveSheet(x.sh); ss.moveActiveSheet(pos + 1); });
   ss.setActiveSheet(ordenadas[0].sh);
 
-  var texto = 'Listo. Lo que hice:\n\n• ' + reporte.join('\n• ');
-  if (avisos.length) texto += '\n\nPara revisar a mano:\n\n• ' + avisos.join('\n• ');
-  SpreadsheetApp.getUi().alert('Hoja ordenada', texto, SpreadsheetApp.getUi().ButtonSet.OK);
+  return { reporte: reporte, avisos: avisos };
+}
+
+function textoDeReporte(r) {
+  var texto = 'Lo que hice:\n\n• ' + r.reporte.join('\n• ');
+  if (r.avisos.length) texto += '\n\nPara revisar a mano:\n\n• ' + r.avisos.join('\n• ');
+  return texto;
+}
+
+// A mano, desde el menú.
+function ordenarHoja() {
+  var ui = SpreadsheetApp.getUi();
+  ui.alert('Hoja ordenada', textoDeReporte(ejecutarOrden()), ui.ButtonSet.OK);
+}
+
+// ===== Orden automático ===================================================
+// 1) Cada día de madrugada (trigger de tiempo): corre todo el ordenamiento.
+//    Si queda algo que no puede arreglar solo (por ejemplo datos fuera de la
+//    tabla), manda UN mail con el aviso (y no repite el mismo aviso cada día).
+// 2) En el momento en que alguien escribe o pega (onEdit): limpia espacios y
+//    unifica mayúsculas de Setter / Closer / Fuente al instante.
+// 3) Las métricas que llegan del formulario ya entran limpias (addMetricas).
+// Se activa UNA sola vez desde el menú: Step Her Up → Activar orden automático.
+function ordenarHojaAutomatico() {
+  var r = ejecutarOrden();
+  var props = PropertiesService.getScriptProperties();
+  var firma = r.avisos.join('||');
+  if (r.avisos.length && props.getProperty('avisosEnviados') !== firma) {
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(),
+      'Step Her Up: hay cosas para revisar en el Sheet',
+      'El orden automático del Sheet encontró esto y no puede arreglarlo solo:\n\n• ' + r.avisos.join('\n• ')
+      + '\n\nSheet: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl());
+    props.setProperty('avisosEnviados', firma);
+  }
+  if (!r.avisos.length) props.deleteProperty('avisosEnviados');
+}
+
+function activarOrdenAutomatico() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'ordenarHojaAutomatico') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('ordenarHojaAutomatico').timeBased().everyDays(1).atHour(5).create();
+  var ui = SpreadsheetApp.getUi();
+  ui.alert('Orden automático activado',
+    'Desde ahora el Sheet se ordena solo todos los días de madrugada, y al escribir se limpian al instante los nombres y fuentes.\n\nOrdené una vez ahora mismo:\n\n' + textoDeReporte(ejecutarOrden()),
+    ui.ButtonSet.OK);
+}
+
+function desactivarOrdenAutomatico() {
+  var borrados = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'ordenarHojaAutomatico') { ScriptApp.deleteTrigger(t); borrados++; }
+  });
+  SpreadsheetApp.getUi().alert(borrados ? 'Orden automático desactivado.' : 'No había orden automático activado.');
+}
+
+// Se ejecuta solo cada vez que alguien edita una celda (trigger simple).
+function onEdit(e) {
+  try {
+    if (!e || !e.range || e.range.getRow() < 2 || e.range.getNumRows() * e.range.getNumColumns() > 500) return;
+    var sheet = e.range.getSheet();
+    var h = encabezados(sheet);
+    var tipo = tipoDePestana(h);
+    if (tipo !== 'tracker' && tipo !== 'closers') return;
+    var valores = e.range.getValues();
+    var cambio = false;
+    for (var i = 0; i < valores.length; i++) {
+      for (var j = 0; j < valores[i].length; j++) {
+        var campo = h[e.range.getColumn() - 1 + j];
+        var v = valores[i][j];
+        if (['setter', 'closer', 'fuente'].indexOf(campo) === -1 || typeof v !== 'string') continue;
+        var t = v.replace(/\s+/g, ' ').trim();
+        var conocidos = campo === 'setter' ? SETTERS : campo === 'fuente' ? FUENTES_BASE : [];
+        for (var k = 0; k < conocidos.length; k++) {
+          if (t.toLowerCase() === conocidos[k].toLowerCase()) t = conocidos[k];
+        }
+        if (t !== v) { valores[i][j] = t; cambio = true; }
+      }
+    }
+    if (cambio) e.range.setValues(valores);
+  } catch (err) {
+    // un fallo acá no debe molestar a quien está escribiendo
+  }
 }
