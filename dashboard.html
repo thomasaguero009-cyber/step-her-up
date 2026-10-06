@@ -721,11 +721,13 @@
   .metricas-fecha{ font-size:13px; color:var(--text-dim); margin:-8px 0 0; text-align:center; }
   .metricas-field{ display:flex; flex-direction:column; gap:6px; }
   .metricas-field label{ font-size:12.5px; color:var(--text-dim); }
-  .metricas-field input{
+  .metricas-field input, .metricas-field select{
     padding:13px 14px; border-radius:10px; border:1px solid var(--border);
     background:rgba(0,0,0,0.25); color:var(--cream); font-size:14.5px; font-family:inherit;
   }
   .metricas-field input::placeholder{ color:rgba(247,236,233,0.4); }
+  .metricas-field select option{ background:#2a0c14; color:var(--cream); }
+  .metricas-hint{ color:rgba(247,236,233,0.5); font-size:11.5px; }
   .metricas-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
   @media(max-width:520px){ .metricas-grid{ grid-template-columns:1fr; } }
 
@@ -1536,8 +1538,13 @@
 
       <div class="metricas-card">
         <div class="metricas-field">
-          <label for="metricasNombre">¿Quién sos?</label>
-          <input type="text" id="metricasNombre" placeholder="Tu nombre">
+          <label for="metricasNombre">Nombre</label>
+          <select id="metricasNombre">
+            <option value="">Elegí tu nombre</option>
+            <option value="Paula">Paula</option>
+            <option value="Paola">Paola</option>
+            <option value="Mia">Mia</option>
+          </select>
         </div>
         <p class="metricas-fecha" id="metricasFecha"></p>
         <div class="metricas-grid">
@@ -1554,12 +1561,12 @@
             <input type="number" min="0" inputmode="numeric" id="metricasShows" placeholder="0">
           </div>
           <div class="metricas-field">
-            <label for="metricasCierres">Cierres</label>
+            <label for="metricasCierres">Cierres <span class="metricas-hint">(cantidad de ventas cerradas)</span></label>
             <input type="number" min="0" inputmode="numeric" id="metricasCierres" placeholder="0">
           </div>
           <div class="metricas-field">
-            <label for="metricasVentas">Ventas</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasVentas" placeholder="0">
+            <label for="metricasVentas">Cash collected <span class="metricas-hint">(US$ cobrados)</span></label>
+            <input type="number" min="0" step="any" inputmode="decimal" id="metricasVentas" placeholder="0">
           </div>
         </div>
         <button type="button" class="btn" id="metricasGuardarBtn">Guardar métricas</button>
@@ -3288,6 +3295,7 @@
   function prepararPantallaMetricas(){
     const nombreInput = document.getElementById('metricasNombre');
     try { nombreInput.value = localStorage.getItem(METRICAS_NOMBRE_KEY) || ''; } catch(e) {}
+    if(nombreInput.selectedIndex === -1) nombreInput.value = ''; // nombre viejo que ya no está en la lista
     document.getElementById('metricasFecha').textContent = 'Hoy: ' + formatearFechaHoy();
     METRICAS_CAMPOS.forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('metricasStatus').textContent = '';
@@ -3297,7 +3305,7 @@
     const statusEl = document.getElementById('metricasStatus');
     const nombre = document.getElementById('metricasNombre').value.trim();
     if(!nombre){
-      statusEl.textContent = 'Escribí tu nombre antes de guardar.';
+      statusEl.textContent = 'Elegí tu nombre antes de guardar.';
       return;
     }
     try { localStorage.setItem(METRICAS_NOMBRE_KEY, nombre); } catch(e) {}
