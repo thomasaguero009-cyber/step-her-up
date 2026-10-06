@@ -710,12 +710,6 @@
   }
   .counter-add-card:hover{ border-color:var(--blush-2); color:var(--cream); }
   .counter-add-icon{ font-size:30px; color:var(--blush); line-height:1; }
-  .tools-metricas{ display:flex; flex-direction:column; gap:18px; }
-  .tools-metricas-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; }
-  .tools-metricas-sub{ margin:6px 0 0; font-size:14px; color:var(--text-dim); }
-  .tools-roles{ display:grid; grid-template-columns:1fr 1fr; gap:10px; min-width:240px; }
-  .tools-roles .metricas-rol{ padding:11px 18px; font-size:15px; }
-  .counter-card.fijo .counter-name{ cursor:default; }
 
   /* ===== Métricas: formulario donde cada setter/closer carga sus
      números del día — a diferencia de Herramientas, esto se sube al
@@ -1537,25 +1531,8 @@
         </div>
       </header>
 
-      <div class="tools-metricas">
-        <div class="tools-metricas-head">
-          <div>
-            <div class="section-label" style="margin:0;">Contadores del día</div>
-            <p class="tools-metricas-sub">Contá mientras trabajás y al final pasá los números a Métricas.</p>
-          </div>
-          <div class="tools-roles">
-            <button type="button" class="metricas-rol" data-trol="setter">Setter</button>
-            <button type="button" class="metricas-rol" data-trol="closer">Closer</button>
-          </div>
-        </div>
-        <div class="counter-grid" id="metricCounterGrid"></div>
-        <button type="button" class="btn" id="toolsPasarBtn" style="margin-top:6px;">Pasar a Métricas</button>
-        <p class="chart-status" style="text-align:center;">Se reinician solos cada día y después de guardar en Métricas. El cash collected lo cargás en Métricas.</p>
-      </div>
-
-      <div class="section-label" style="margin-top:44px;">Contadores libres</div>
       <div class="counter-grid" id="counterGrid"></div>
-      <p class="chart-status" style="margin-top:24px; text-align:center;">Los contadores libres se guardan solo en este navegador — no se suben al Sheet.</p>
+      <p class="chart-status" style="margin-top:24px; text-align:center;">Los contadores se guardan en este navegador — no se comparten entre setters/closers ni se suben al Sheet.</p>
     </div>
   </section>
 
@@ -1758,7 +1735,6 @@
   function entrarAHerramientas(){
     cambiarDeSeccion(toolsScreen, 'Herramientas', () => {
       renderContadores();
-      renderContadoresMetricas();
     });
   }
   document.getElementById('goHerramientasBtn').addEventListener('click', entrarAHerramientas);
@@ -3387,8 +3363,6 @@
     document.getElementById('metricasGuardarBtn').hidden = !(nombre && metricasRol);
   }
 
-  let metricasPrefill = null; // números que vienen de los contadores del día
-
   function prepararPantallaMetricas(){
     const nombreInput = document.getElementById('metricasNombre');
     try { nombreInput.value = localStorage.getItem(METRICAS_NOMBRE_KEY) || ''; } catch(e) {}
@@ -3398,10 +3372,6 @@
     document.getElementById('metricasFecha').textContent = 'Hoy: ' + formatearFechaHoy();
     [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER].forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('metricasStatus').textContent = '';
-    if(metricasPrefill){
-      Object.entries(metricasPrefill).forEach(([id, v]) => { if(v) document.getElementById(id).value = v; });
-      metricasPrefill = null;
-    }
     actualizarPasosMetricas();
   }
 
@@ -3451,91 +3421,9 @@
       statusEl.textContent = '✓ Guardado — gracias ' + nombre + '. Se ve en el Dashboard en unos minutos.';
       [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER].forEach(id => { document.getElementById(id).value = ''; });
       filasTrackerCache = null; filasRankingCache = null; // para que el Dashboard vuelva a leer el Sheet
-      reiniciarContadoresMetricas(metricasRol);
     } catch(e) {
       statusEl.textContent = 'No se pudo guardar: ' + e.message;
     }
-  });
-
-  // ===== Contadores del día, conectados a Métricas. Cada contador es uno de
-  // los datos del formulario (mismos nombres). Se guardan en este navegador,
-  // se reinician solos cada día y "Pasar a Métricas" los vuelca en el
-  // formulario (que sí sube al Sheet y alimenta el Dashboard). =====
-  const CONTADORES_METRICAS = {
-    setter: [
-      { id: 'llamadas', nombre: 'Llamadas', campo: 'metricasLlamadas' },
-      { id: 'agendadas', nombre: 'Agendadas', campo: 'metricasAgendadas' },
-      { id: 'noCalifica', nombre: 'No califica', campo: 'metricasNoCalifica' },
-      { id: 'noRespondio', nombre: 'No respondió', campo: 'metricasNoRespondio' },
-      { id: 'shows', nombre: 'Shows', campo: 'metricasShows' },
-      { id: 'cierres', nombre: 'Cierres', campo: 'metricasCierres' },
-    ],
-    closer: [
-      { id: 'agendas', nombre: 'Agendas', campo: 'metricasCAgendas' },
-      { id: 'shows', nombre: 'Shows', campo: 'metricasCShows' },
-      { id: 'noShows', nombre: 'No shows', campo: 'metricasCNoShows' },
-      { id: 'cierres', nombre: 'Cierres', campo: 'metricasCCierres' },
-    ],
-  };
-  const CONTADORES_METRICAS_KEY = 'shu_contadores_metricas';
-  function cargarContadoresMetricas(){
-    const vacio = { fecha: formatearFechaHoy(), rol: 'setter', valores: { setter: {}, closer: {} } };
-    try {
-      const g = JSON.parse(localStorage.getItem(CONTADORES_METRICAS_KEY) || 'null');
-      if(g && g.fecha === vacio.fecha){
-        g.valores = g.valores || { setter: {}, closer: {} };
-        g.valores.setter = g.valores.setter || {}; g.valores.closer = g.valores.closer || {};
-        if(g.rol !== 'setter' && g.rol !== 'closer') g.rol = 'setter';
-        return g;
-      }
-    } catch(e) {}
-    return vacio;
-  }
-  let contadoresMetricas = cargarContadoresMetricas();
-  function guardarContadoresMetricas(){
-    try { localStorage.setItem(CONTADORES_METRICAS_KEY, JSON.stringify(contadoresMetricas)); } catch(e) {}
-  }
-  function reiniciarContadoresMetricas(rol){
-    contadoresMetricas = cargarContadoresMetricas();
-    contadoresMetricas.valores[rol] = {};
-    guardarContadoresMetricas();
-  }
-  function renderContadoresMetricas(){
-    contadoresMetricas = cargarContadoresMetricas(); // si cambió el día, arranca en cero
-    const rol = contadoresMetricas.rol;
-    document.querySelectorAll('[data-trol]').forEach(b => b.classList.toggle('active', b.dataset.trol === rol));
-    document.getElementById('metricCounterGrid').innerHTML = CONTADORES_METRICAS[rol].map(c => `
-      <div class="counter-card fijo" data-cid="${c.id}">
-        <div class="counter-card-head"><span class="counter-name">${escapeHtml(c.nombre)}</span></div>
-        <div class="counter-value">${contadoresMetricas.valores[rol][c.id] || 0}</div>
-        <div class="counter-btns">
-          <button type="button" class="counter-btn" data-maction="dec">−</button>
-          <button type="button" class="counter-btn" data-maction="inc">+</button>
-        </div>
-      </div>`).join('');
-  }
-  document.querySelectorAll('[data-trol]').forEach(b => b.addEventListener('click', () => {
-    contadoresMetricas.rol = b.dataset.trol;
-    guardarContadoresMetricas();
-    renderContadoresMetricas();
-  }));
-  document.getElementById('metricCounterGrid').addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-maction]');
-    const card = ev.target.closest('.counter-card');
-    if(!btn || !card) return;
-    const vals = contadoresMetricas.valores[contadoresMetricas.rol];
-    const id = card.dataset.cid;
-    vals[id] = Math.max(0, (vals[id] || 0) + (btn.dataset.maction === 'inc' ? 1 : -1));
-    guardarContadoresMetricas();
-    card.querySelector('.counter-value').textContent = vals[id];
-  });
-  document.getElementById('toolsPasarBtn').addEventListener('click', () => {
-    const rol = contadoresMetricas.rol;
-    const vals = contadoresMetricas.valores[rol];
-    metricasPrefill = {};
-    CONTADORES_METRICAS[rol].forEach(c => { metricasPrefill[c.campo] = vals[c.id] || 0; });
-    try { localStorage.setItem(METRICAS_ROL_KEY, rol); } catch(e) {}
-    entrarAMetricas();
   });
 
   // ===== Conexión al Google Sheet "Step Her Up - Tracker" (pestaña
