@@ -28,6 +28,8 @@ function doPost(e) {
       resultado = reorderLessons(getSheet(body.sheetName || 'Lecciones'), body.orden, body.moduloCambiado);
     } else if (body.action === 'moveLesson') {
       resultado = moveLesson(getSheet(body.sheetNameOrigen), getSheet(body.sheetNameDestino), body.titulo, body.modulo);
+    } else if (body.action === 'addMetricas') {
+      resultado = addMetricas(body);
     } else {
       throw new Error('Acción desconocida: ' + body.action);
     }
@@ -162,4 +164,274 @@ function renumerar(sheet) {
   ordenadas.forEach(function (f, i) {
     sheet.getRange(f.rowIndex, data.idx.orden + 1).setValue(i + 1);
   });
+}
+
+
+// ===== Métricas del día (formulario "Métricas" del dashboard) ===========
+// Agrega UNA fila al tracker (la pestaña que tiene las columnas Fecha y
+// Setter). Ubica cada dato por el NOMBRE de la columna, así no importa en
+// qué orden estén ni si dice "Leads" o "Llamadas", "Agendas" o "Agendadas".
+function encontrarTracker() {
+  var hojas = SpreadsheetApp.getActiveSpreadsheet().getSheets();
+  for (var i = 0; i < hojas.length; i++) {
+    var h = encabezados(hojas[i]);
+    if (tipoDePestana(h) === 'tracker') return hojas[i];
+  }
+  throw new Error('No encontré la pestaña del tracker (la que tiene las columnas Fecha y Setter)');
+}
+
+function addMetricas(body) {
+  var nombre = String(body.setter || '').trim();
+  if (!nombre) throw new Error('Falta el nombre');
+  var sheet = encontrarTracker();
+  var h = encabezados(sheet);
+  var fila = new Array(h.length).fill('');
+  var poner = function (opciones, valor) {
+    for (var i = 0; i < opciones.length; i++) {
+      var c = h.indexOf(opciones[i]);
+      if (c > -1) { fila[c] = valor; return; }
+    }
+  };
+  poner(['fecha'], String(body.fecha || ''));
+  poner(['setter'], nombre);
+  poner(['fuente'], String(body.fuente || 'Crm'));
+  poner(['llamadas', 'leads'], Number(body.llamadas) || 0);
+  poner(['agendadas', 'agendas', 'llamadas agendadas'], Number(body.agendadas) || 0);
+  poner(['shows'], Number(body.shows) || 0);
+  poner(['cierres'], Number(body.cierres) || 0);
+  poner(['ventas'], Number(body.ventas) || 0);
+  sheet.appendRow(fila);
+  return {};
+}
+
+// ===== Ordenar la hoja ===================================================
+// Menú "Step Her Up → Ordenar hoja". Es SEGURO para el dashboard: no mueve
+// ni renombra columnas, no cambia los nombres de las pestañas ni los
+// formatos de fecha/número (el dashboard lee los valores tal como se ven).
+// Solo: limpia espacios, unifica nombres, ordena el tracker por fecha,
+// completa números de "orden" vacíos, agrega listas desplegables, da
+// formato a los encabezados y ordena/colorea las pestañas. Se puede correr
+// las veces que haga falta. Lo que no puede arreglar solo lo avisa al final.
+var SETTERS = ['Paula', 'Paola', 'Mia'];
+var FUENTES_BASE = ['Ads', 'Orgánico', 'Crm'];
+var COLOR_VINO = '#5a1626';
+var COLOR_ROSA = '#e88aa8';
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Step Her Up').addItem('Ordenar hoja', 'ordenarHoja').addToUi();
+}
+
+function encabezados(sheet) {
+  if (sheet.getLastColumn() < 1) return [];
+  return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function (x) { return String(x).trim().toLowerCase(); });
+}
+
+function tipoDePestana(h) {
+  if (h.indexOf('orden') > -1 && h.indexOf('titulo') > -1) return 'lecciones';
+  if (h.indexOf('fecha') > -1 && h.indexOf('setter') > -1) return 'tracker';
+  if (h.indexOf('fecha') > -1 && h.indexOf('closer') > -1) return 'closers';
+  if (h.indexOf('fecha') > -1 && h.indexOf('gasto') > -1) return 'ads';
+  return 'otra';
+}
+
+function parseFechaSheet(v) {
+  if (v instanceof Date) return v.getTime();
+  var m = String(v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime() : null;
+}
+
+function letraDeColumna(n) {
+  var s = '';
+  while (n > 0) { var r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+// Saca espacios sobrantes de las columnas de texto; devuelve cuántas celdas cambió.
+function limpiarTexto(sheet, columnas) {
+  var ultima = sheet.getLastRow();
+  if (ultima < 2) return 0;
+  var cambios = 0;
+  columnas.forEach(function (c) {
+    var rango = sheet.getRange(2, c + 1, ultima - 1, 1);
+    var valores = rango.getValues();
+    var nuevos = valores.map(function (f) {
+      var v = f[0];
+      if (typeof v !== 'string') return [v];
+      var t = v.replace(/\s+/g, ' ').trim();
+      if (t !== v) cambios++;
+      return [t];
+    });
+    if (cambios) rango.setValues(nuevos);
+  });
+  return cambios;
+}
+
+function ordenarHoja() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var reporte = [];
+  var avisos = [];
+  var hojas = ss.getSheets();
+
+  hojas.forEach(function (sheet) {
+    var nombre = sheet.getName();
+    try {
+      var h = encabezados(sheet);
+      if (!h.length) return;
+      var tipo = tipoDePestana(h);
+
+      // Encabezado: vino con letras blancas, fila fija.
+      var cantidadEncabezados = 0;
+      while (cantidadEncabezados < h.length && h[cantidadEncabezados] !== '') cantidadEncabezados++;
+      var rangoHeader = sheet.getRange(1, 1, 1, Math.max(cantidadEncabezados, 1));
+      rangoHeader.setBackground(COLOR_VINO).setFontColor('#ffffff').setFontWeight('bold').setVerticalAlignment('middle');
+      sheet.setFrozenRows(1);
+
+      var ultima = sheet.getLastRow();
+      var hechas = [];
+
+      if (tipo === 'tracker' || tipo === 'closers') {
+        var colNombre = h.indexOf(tipo === 'tracker' ? 'setter' : 'closer');
+        var colFuente = h.indexOf('fuente');
+        var textos = [colNombre];
+        if (colFuente > -1) textos.push(colFuente);
+        var limpias = limpiarTexto(sheet, textos);
+        if (limpias) hechas.push('sacó espacios sobrantes en ' + limpias + ' celdas');
+
+        // Unifica mayúsculas de los nombres conocidos (paula -> Paula).
+        if (tipo === 'tracker' && ultima > 1) {
+          var rN = sheet.getRange(2, colNombre + 1, ultima - 1, 1);
+          var vN = rN.getValues();
+          var corregidos = 0;
+          vN = vN.map(function (f) {
+            var v = String(f[0]);
+            for (var i = 0; i < SETTERS.length; i++) {
+              if (v.toLowerCase() === SETTERS[i].toLowerCase() && v !== SETTERS[i]) { corregidos++; return [SETTERS[i]]; }
+            }
+            return [f[0]];
+          });
+          if (corregidos) { rN.setValues(vN); hechas.push('unificó ' + corregidos + ' nombres'); }
+        }
+
+        // Ordena por fecha (más vieja arriba), salvo que haya fórmulas.
+        if (ultima > 2) {
+          var rango = sheet.getRange(2, 1, ultima - 1, h.length);
+          var hayFormulas = rango.getFormulas().some(function (f) { return f.some(function (c) { return c !== ''; }); });
+          var colFecha = h.indexOf('fecha');
+          if (!hayFormulas && colFecha > -1) {
+            var datos = rango.getValues();
+            var sinFecha = datos.filter(function (f) { return parseFechaSheet(f[colFecha]) === null && f.some(function (c) { return c !== ''; }); });
+            var conFecha = datos.map(function (f, i) { return { f: f, i: i, t: parseFechaSheet(f[colFecha]) }; })
+              .filter(function (x) { return x.t !== null; });
+            conFecha.sort(function (a, b) { return a.t - b.t || a.i - b.i; });
+            var orden = conFecha.map(function (x) { return x.f; }).concat(sinFecha);
+            var vacias = datos.length - orden.length;
+            for (var k = 0; k < vacias; k++) orden.push(new Array(h.length).fill(''));
+            var cambioOrden = orden.some(function (f, i) { return f.join('|') !== datos[i].join('|'); });
+            if (cambioOrden) { rango.setValues(orden); hechas.push('ordenó las filas por fecha'); }
+            if (sinFecha.length) avisos.push('"' + nombre + '": ' + sinFecha.length + ' fila(s) con la fecha mal escrita (deben ser DD/MM/AAAA); quedaron al final.');
+          }
+        }
+
+        // Listas desplegables (aceptan otros valores, solo avisan).
+        var filasValidar = Math.max(sheet.getMaxRows() - 1, 1);
+        var lista = function (valores) {
+          return SpreadsheetApp.newDataValidation().requireValueInList(valores, true).setAllowInvalid(true).build();
+        };
+        var existentes = function (col) {
+          var vistos = [];
+          if (col < 0 || ultima < 2) return vistos;
+          sheet.getRange(2, col + 1, ultima - 1, 1).getValues().forEach(function (f) {
+            var v = String(f[0]).trim();
+            if (v && vistos.indexOf(v) === -1) vistos.push(v);
+          });
+          return vistos;
+        };
+        if (tipo === 'tracker') {
+          sheet.getRange(2, colNombre + 1, filasValidar, 1).setDataValidation(lista(SETTERS));
+          hechas.push('lista desplegable de setters');
+        } else {
+          var closers = ['Gianie'].concat(existentes(colNombre).filter(function (v) { return v !== 'Gianie'; }));
+          sheet.getRange(2, colNombre + 1, filasValidar, 1).setDataValidation(lista(closers));
+          hechas.push('lista desplegable de closers');
+        }
+        if (colFuente > -1) {
+          var fuentes = FUENTES_BASE.slice();
+          existentes(colFuente).forEach(function (v) {
+            if (!fuentes.some(function (x) { return x.toLowerCase() === v.toLowerCase(); })) fuentes.push(v);
+          });
+          sheet.getRange(2, colFuente + 1, filasValidar, 1).setDataValidation(lista(fuentes));
+          hechas.push('lista desplegable de fuentes');
+        }
+        // Los números no pueden ser negativos (solo avisa).
+        ['llamadas', 'leads', 'agendadas', 'agendas', 'shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
+          var c = h.indexOf(n);
+          if (c > -1) {
+            sheet.getRange(2, c + 1, filasValidar, 1).setDataValidation(
+              SpreadsheetApp.newDataValidation().requireNumberGreaterThanOrEqualTo(0).setAllowInvalid(true).build());
+          }
+        });
+        sheet.setTabColor(COLOR_VINO);
+      }
+
+      if (tipo === 'ads') sheet.setTabColor(COLOR_VINO);
+
+      if (tipo === 'lecciones') {
+        var cT = h.indexOf('titulo'), cO = h.indexOf('orden');
+        var cV = h.indexOf('videourl'), cD = h.indexOf('descripcion');
+        var l = limpiarTexto(sheet, [cT]);
+        if (l) hechas.push('sacó espacios sobrantes en ' + l + ' títulos');
+
+        // Completa los "orden" vacíos con el siguiente número libre.
+        if (ultima > 1) {
+          var rO = sheet.getRange(2, 1, ultima - 1, h.length);
+          var vals = rO.getValues();
+          var max = vals.reduce(function (m, f) { return Math.max(m, Number(f[cO]) || 0); }, 0);
+          var completados = 0;
+          vals.forEach(function (f, i) {
+            if (f[cT] && (f[cO] === '' || f[cO] === null)) { max++; sheet.getRange(i + 2, cO + 1).setValue(max); completados++; }
+          });
+          if (completados) hechas.push('numeró ' + completados + ' lección(es) que no tenían orden');
+        }
+        // Datos que quedaron fuera de la tabla (columnas a la derecha).
+        var ultimaCol = sheet.getLastColumn();
+        if (ultimaCol > cantidadEncabezados && ultima > 1) {
+          var fuera = sheet.getRange(2, cantidadEncabezados + 1, ultima - 1, ultimaCol - cantidadEncabezados).getValues();
+          fuera.forEach(function (f, i) {
+            var contenido = f.filter(function (c) { return c !== ''; });
+            if (contenido.length) {
+              avisos.push('"' + nombre + '": en la fila ' + (i + 2) + ', columnas ' + letraDeColumna(cantidadEncabezados + 1) + ' a ' + letraDeColumna(ultimaCol)
+                + ' hay datos fuera de la tabla (' + contenido.filter(function (c) { return isNaN(Number(c)); }).join(' · ').slice(0, 90) + '). Mové esa fila a la pestaña que corresponda.');
+            }
+          });
+        }
+        [cV, cD].forEach(function (c) {
+          if (c > -1 && ultima > 1) sheet.getRange(2, c + 1, ultima - 1, 1).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+        });
+        sheet.setTabColor(COLOR_ROSA);
+      }
+
+      // Ancho de columnas razonable (sin pasarse con los links largos).
+      for (var c2 = 1; c2 <= Math.max(cantidadEncabezados, 1); c2++) {
+        sheet.autoResizeColumn(c2);
+        var ancho = sheet.getColumnWidth(c2);
+        if (ancho > 360) sheet.setColumnWidth(c2, 360);
+        else if (ancho < 90) sheet.setColumnWidth(c2, 90);
+      }
+      reporte.push(nombre + ' (' + tipo + '): ' + (hechas.length ? hechas.join(', ') : 'encabezado y anchos'));
+    } catch (err) {
+      avisos.push('"' + nombre + '": no se pudo ordenar (' + err + ')');
+    }
+  });
+
+  // Orden de las pestañas: tracker, closers, ads, otras, lecciones.
+  var peso = { tracker: 0, closers: 1, ads: 2, otra: 3, lecciones: 4 };
+  var ordenadas = ss.getSheets().map(function (sh, i) { return { sh: sh, i: i, p: peso[tipoDePestana(encabezados(sh))] }; });
+  ordenadas.sort(function (a, b) { return a.p - b.p || a.i - b.i; });
+  ordenadas.forEach(function (x, pos) { ss.setActiveSheet(x.sh); ss.moveActiveSheet(pos + 1); });
+  ss.setActiveSheet(ordenadas[0].sh);
+
+  var texto = 'Listo. Lo que hice:\n\n• ' + reporte.join('\n• ');
+  if (avisos.length) texto += '\n\nPara revisar a mano:\n\n• ' + avisos.join('\n• ');
+  SpreadsheetApp.getUi().alert('Hoja ordenada', texto, SpreadsheetApp.getUi().ButtonSet.OK);
 }
