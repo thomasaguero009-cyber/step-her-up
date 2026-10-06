@@ -496,6 +496,46 @@
   }
   .utm-copied-msg{ font-size:12px; color:#5fd39a; display:none; }
   .utm-copied-msg.show{ display:block; }
+
+  /* Pantalla Estrategias (Admin) */
+  #estrategiasScreen .wrap{ padding-top:26px; padding-bottom:60px; }
+  .estr-layout{ display:grid; grid-template-columns:minmax(0,300px) minmax(0,1fr); gap:16px; align-items:start; }
+  @media(max-width:760px){ .estr-layout{ grid-template-columns:1fr; } }
+  .estr-list{ display:flex; flex-direction:column; gap:8px; }
+  .estr-item{
+    text-align:left; background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:14px 16px; cursor:pointer; font-family:inherit; color:var(--cream);
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .estr-item:hover{ background:rgba(255,255,255,0.08); }
+  .estr-item.active{ border-color:var(--blush-2); background:rgba(240,168,190,0.12); }
+  .estr-item-name{ font-weight:700; font-size:15px; }
+  .estr-item-sub{ font-size:12.5px; color:var(--text-dim); margin:2px 0 8px; }
+  .estr-badge{
+    display:inline-block; font-size:11.5px; font-weight:700; border-radius:999px; padding:4px 10px;
+    border:1px solid var(--border); color:var(--text-dim); background:rgba(255,255,255,0.06);
+  }
+  .estr-badge-ejemplo{ color:var(--blush); border-color:var(--blush-2); background:rgba(240,168,190,0.12); }
+  .estr-badge.recibido{ color:#9ec5ff; border-color:rgba(158,197,255,0.5); }
+  .estr-badge.borrador{ color:#ffd166; border-color:rgba(255,209,102,0.5); }
+  .estr-badge.revision{ color:#d9b4ff; border-color:rgba(217,180,255,0.5); }
+  .estr-badge.entregada{ color:#5fd39a; border-color:rgba(95,211,154,0.5); }
+  .estr-detail{ background:var(--card); border:1px solid var(--border); border-radius:18px; padding:22px 22px 26px; display:flex; flex-direction:column; gap:16px; }
+  .estr-detail h2{ margin:0; font-family:"Playfair Display",Georgia,serif; font-size:22px; font-weight:600; }
+  .estr-detail-sub{ margin:2px 0 0; font-size:13.5px; color:var(--text-dim); }
+  .estr-block{ border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,0.18); }
+  .estr-block > summary{ cursor:pointer; padding:12px 14px; font-weight:700; font-size:14px; }
+  .estr-block-body{ padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
+  .estr-qa-q{ font-size:12.5px; color:var(--text-dim); }
+  .estr-qa-a{ font-size:14px; line-height:1.55; white-space:pre-wrap; }
+  .estr-detail textarea.modal-input{ width:100%; min-height:150px; resize:vertical; line-height:1.5; }
+  .estr-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .estr-note{ font-size:12.5px; color:var(--text-dim); margin:0; }
+  .estr-draft{
+    background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+    font-size:14px; line-height:1.6; white-space:pre-wrap;
+  }
+  .estr-warn{ font-size:12.5px; color:#ffd166; margin:0; }
   @media(max-width:760px){
     .onboarding-body{ flex-direction:column; }
     .onboarding-lesson-col{ width:100%; }
@@ -820,6 +860,18 @@
       <button type="button" class="admin-tiny-btn" id="openUtmBuilderBtn">Admin</button>
     </div>
   </section>
+
+  <div class="modal-overlay" id="adminMenuOverlay">
+    <div class="modal-card" style="max-width:340px;">
+      <div class="modal-title">Admin</div>
+      <p class="modal-sub">Herramientas internas.</p>
+      <button type="button" class="ghost-link-btn" id="adminGoUtm" style="text-align:left; border-radius:12px;">Generador de UTM</button>
+      <button type="button" class="ghost-link-btn" id="adminGoEstrategias" style="text-align:left; border-radius:12px;">Estrategias de alumnas</button>
+      <div class="modal-actions">
+        <button type="button" class="ghost-link-btn" id="adminMenuClose">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-overlay" id="utmBuilderOverlay">
     <div class="modal-card utm-card">
@@ -1450,6 +1502,28 @@
     </div>
   </section>
 
+  <!-- ===================== Estrategias de alumnas (solo Admin) — hoy
+       con datos de EJEMPLO; todavía no está conectada a las respuestas
+       reales del formulario ni a la IA. ===================== -->
+  <section class="screen" id="estrategiasScreen">
+    <div class="wrap">
+      <header class="dash-header">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div class="section-label" style="margin:0;">Estrategias</div>
+          <span class="estr-badge estr-badge-ejemplo">Datos de ejemplo</span>
+        </div>
+        <div class="dash-header-right">
+          <button type="button" class="ghost-link-btn" id="estrVolverBtn">← Volver</button>
+        </div>
+      </header>
+
+      <div class="estr-layout">
+        <div class="estr-list" id="estrList"></div>
+        <div class="estr-detail" id="estrDetail"></div>
+      </div>
+    </div>
+  </section>
+
 <script>
   // ===== Navegación entre las 3 pantallas de la maqueta =====
   const loadingScreen = document.getElementById('loadingScreen');
@@ -1459,9 +1533,10 @@
   const rankingScreen = document.getElementById('rankingScreen');
   const toolsScreen = document.getElementById('toolsScreen');
   const metricasScreen = document.getElementById('metricasScreen');
+  const estrategiasScreen = document.getElementById('estrategiasScreen');
 
   function showScreen(el){
-    [loadingScreen, onboardingScreen, transitionScreen, dashboardScreen, rankingScreen, toolsScreen, metricasScreen].forEach(s => s.classList.remove('active'));
+    [loadingScreen, onboardingScreen, transitionScreen, dashboardScreen, rankingScreen, toolsScreen, metricasScreen, estrategiasScreen].forEach(s => s.classList.remove('active'));
     el.classList.add('active');
   }
 
@@ -1871,7 +1946,7 @@
       if(accionPendientePassword === 'utm'){
         adminDesbloqueado = true;
         try { sessionStorage.setItem('shu_admin_utm_ok', '1'); } catch(e){}
-        abrirUtmBuilder();
+        abrirAdminMenu();
       } else {
         entrarModoEdicion();
       }
@@ -1940,9 +2015,137 @@
     utmBaseLink.focus();
   }
   openUtmBuilderBtn.addEventListener('click', () => {
-    if(adminDesbloqueado){ abrirUtmBuilder(); return; }
+    if(adminDesbloqueado){ abrirAdminMenu(); return; }
     abrirModalPassword('utm');
   });
+
+  // ===== Menú Admin — después de la contraseña, elige qué herramienta abrir.
+  const adminMenuOverlay = document.getElementById('adminMenuOverlay');
+  function abrirAdminMenu(){ adminMenuOverlay.classList.add('open'); }
+  document.getElementById('adminMenuClose').addEventListener('click', () => adminMenuOverlay.classList.remove('open'));
+  adminMenuOverlay.addEventListener('click', (e) => { if(e.target === adminMenuOverlay) adminMenuOverlay.classList.remove('open'); });
+  document.getElementById('adminGoUtm').addEventListener('click', () => { adminMenuOverlay.classList.remove('open'); abrirUtmBuilder(); });
+  document.getElementById('adminGoEstrategias').addEventListener('click', () => { adminMenuOverlay.classList.remove('open'); entrarAEstrategias(); });
+
+  // ===== Estrategias de alumnas (Admin) — por ahora con DATOS DE EJEMPLO.
+  // Todavía no lee las respuestas reales del formulario ni llama a la IA.
+  const ESTR_ESTADOS = { recibido: 'Formularios recibidos', borrador: 'Borrador listo', revision: 'En revisión', entregada: 'Entregada' };
+  const ESTR_PROMPT_DEFAULT = [
+    'Eres la estratega de marca personal de Step Her Up. Con las respuestas del formulario "Diagnóstico Estratégico 360°" de una alumna, redacta su estrategia personalizada en español neutro, tono cercano, claro y profesional.',
+    '',
+    'Estructura (usa estos títulos): 1. Punto de partida (diagnóstico y meta a 12 meses) · 2. Fundamento de marca (clienta ideal, posicionamiento, propuesta de valor) · 3. Perfil (3 opciones de bio, palabra clave, 3 pineadas, 6 destacadas) · 4. Contenido orgánico (pilares, frecuencia, banco de ideas) · 5. Meta Ads (estructura y 5 ángulos de venta) · 6. Embudo y plan de 90 días.',
+    '',
+    'Reglas:',
+    '- Usa SOLO lo que dijo la alumna. Si falta un dato o respondió "No aplica", no lo inventes: escribe "(dato no provisto — validar)".',
+    '- Si infieres algo, márcalo como "(inferido — validar con la alumna)".',
+    '- Sé específica con números y fechas cuando los haya. No prometas resultados garantizados.',
+    '- Si la alumna escribió algo en la pregunta de confidencialidad, NO lo incluyas en el texto y avisa al inicio.',
+  ].join('\n');
+  const ESTR_EJEMPLOS = [
+    { id: 'e1', nombre: 'Alumna de ejemplo 1', negocio: 'Estética facial y corporal', estado: 'recibido', borrador: '',
+      respuestas: [
+        { seccion: '1. Datos básicos y punto de partida', qa: [
+          ['Etapa del negocio', 'Ya vendo, pero de manera irregular'],
+          ['Resultado concreto a 90 días', 'Llegar a 10 clientas nuevas por mes'],
+          ['Ingreso mensual actual', 'Entre $1,000 y $4,999'] ] },
+        { seccion: '4. Cliente ideal', qa: [
+          ['¿A quién quieres ayudar?', 'Mujeres de 25 a 40 años que quieren verse más cuidadas y seguras.'],
+          ['Objeciones más comunes', 'Precio, no saber si funcionará para ellas, falta de tiempo.'] ] },
+        { seccion: '7. Proceso de ventas', qa: [
+          ['Cómo realiza la mayoría de sus ventas', 'Mensajes directos o WhatsApp'],
+          ['Tiempo de respuesta', 'Entre 1 y 3 horas'] ] } ] },
+    { id: 'e2', nombre: 'Alumna de ejemplo 2', negocio: 'Consultoría de nutrición', estado: 'borrador',
+      borrador: '(Texto de ejemplo — no lo generó la IA.)\n\n1. Punto de partida\nAquí iría el diagnóstico y la meta a 12 meses.\n\n2. Fundamento de marca\nAquí irían la clienta ideal, el posicionamiento y la propuesta de valor.',
+      respuestas: [
+        { seccion: '1. Datos básicos y punto de partida', qa: [
+          ['Etapa del negocio', 'Tengo ventas consistentes y quiero aumentar los resultados'],
+          ['Resultado concreto a 90 días', 'Duplicar las citas mensuales'] ] } ] },
+    { id: 'e3', nombre: 'Alumna de ejemplo 3', negocio: 'Diseño de interiores', estado: 'entregada',
+      borrador: '(Texto de ejemplo — no lo generó la IA.)',
+      respuestas: [
+        { seccion: '1. Datos básicos y punto de partida', qa: [
+          ['Etapa del negocio', 'Estoy cambiando el posicionamiento de una marca existente'] ] } ] },
+  ];
+  let estrSeleccion = ESTR_EJEMPLOS[0].id;
+
+  function estrPromptGuardado(){
+    try { return localStorage.getItem('shu_estr_prompt') || ESTR_PROMPT_DEFAULT; } catch(e){ return ESTR_PROMPT_DEFAULT; }
+  }
+  function renderEstrategias(){
+    const lista = document.getElementById('estrList');
+    lista.innerHTML = ESTR_EJEMPLOS.map(a => `
+      <button type="button" class="estr-item${a.id === estrSeleccion ? ' active' : ''}" data-id="${a.id}">
+        <div class="estr-item-name">${escapeHtml(a.nombre)}</div>
+        <div class="estr-item-sub">${escapeHtml(a.negocio)}</div>
+        <span class="estr-badge ${a.estado}">${ESTR_ESTADOS[a.estado]}</span>
+      </button>`).join('');
+    lista.querySelectorAll('.estr-item').forEach(b => b.addEventListener('click', () => { estrSeleccion = b.dataset.id; renderEstrategias(); }));
+
+    const a = ESTR_EJEMPLOS.find(x => x.id === estrSeleccion);
+    const det = document.getElementById('estrDetail');
+    det.innerHTML = `
+      <div>
+        <h2>${escapeHtml(a.nombre)}</h2>
+        <p class="estr-detail-sub">${escapeHtml(a.negocio)}</p>
+      </div>
+      <div class="estr-actions">
+        <label class="estr-note" for="estrEstado">Estado</label>
+        <select id="estrEstado" class="modal-input" style="width:auto;">
+          ${Object.keys(ESTR_ESTADOS).map(k => `<option value="${k}"${a.estado === k ? ' selected' : ''}>${ESTR_ESTADOS[k]}</option>`).join('')}
+        </select>
+      </div>
+      <details class="estr-block" open>
+        <summary>Respuestas del formulario</summary>
+        <div class="estr-block-body">
+          ${a.respuestas.map(sec => `
+            <div>
+              <div class="estr-qa-q" style="font-weight:700; color:var(--blush);">${escapeHtml(sec.seccion)}</div>
+              ${sec.qa.map(([q, r]) => `<div style="margin-top:8px;"><div class="estr-qa-q">${escapeHtml(q)}</div><div class="estr-qa-a">${escapeHtml(r)}</div></div>`).join('')}
+            </div>`).join('')}
+        </div>
+      </details>
+      <details class="estr-block">
+        <summary>Prompt maestro</summary>
+        <div class="estr-block-body">
+          <p class="estr-note">Provisorio. Gianie puede reemplazarlo por el suyo y guardarlo acá.</p>
+          <textarea id="estrPrompt" class="modal-input"></textarea>
+          <div class="estr-actions">
+            <button type="button" class="btn-small" id="estrPromptGuardar">Guardar prompt</button>
+            <span class="estr-note" id="estrPromptMsg"></span>
+          </div>
+        </div>
+      </details>
+      <div class="estr-actions">
+        <button type="button" class="btn-small" id="estrGenerar">Generar borrador</button>
+        <button type="button" class="ghost-link-btn" id="estrCopiar">Copiar borrador</button>
+        <span class="estr-note" id="estrMsg"></span>
+      </div>
+      <div class="estr-draft" id="estrDraft">${a.borrador ? escapeHtml(a.borrador) : 'Todavía no hay borrador para esta alumna.'}</div>
+      <p class="estr-warn">Modo ejemplo: todavía no está conectada a las respuestas reales del formulario ni a la IA.</p>`;
+
+    document.getElementById('estrPrompt').value = estrPromptGuardado();
+    document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; renderEstrategias(); });
+    document.getElementById('estrPromptGuardar').addEventListener('click', () => {
+      const msg = document.getElementById('estrPromptMsg');
+      try { localStorage.setItem('shu_estr_prompt', document.getElementById('estrPrompt').value); msg.textContent = 'Guardado en este navegador.'; }
+      catch(e){ msg.textContent = 'No se pudo guardar.'; }
+    });
+    document.getElementById('estrGenerar').addEventListener('click', () => {
+      a.borrador = '(Texto de ejemplo — no lo generó la IA.)\n\nCuando se conecte la API de Claude, acá aparece el borrador redactado con el prompt maestro y las respuestas de esta alumna.';
+      if(a.estado === 'recibido') a.estado = 'borrador';
+      renderEstrategias();
+    });
+    document.getElementById('estrCopiar').addEventListener('click', async () => {
+      const msg = document.getElementById('estrMsg');
+      if(!a.borrador){ msg.textContent = 'Primero generá un borrador.'; return; }
+      try { await navigator.clipboard.writeText(a.borrador); msg.textContent = 'Copiado'; }
+      catch(e){ msg.textContent = 'No se pudo copiar.'; }
+    });
+  }
+  function entrarAEstrategias(){
+    cambiarDeSeccion(estrategiasScreen, 'Estrategias', () => { renderEstrategias(); });
+  }
+  document.getElementById('estrVolverBtn').addEventListener('click', () => showScreen(loadingScreen));
   utmBuilderClose.addEventListener('click', () => utmBuilderOverlay.classList.remove('open'));
   utmBuilderOverlay.addEventListener('click', (e) => { if(e.target === utmBuilderOverlay) utmBuilderOverlay.classList.remove('open'); });
   utmSource.addEventListener('change', () => { utmSourceOtro.style.display = utmSource.value === 'otro' ? 'block' : 'none'; });
