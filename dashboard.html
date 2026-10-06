@@ -2239,6 +2239,10 @@
     const m = (url || '').match(/fathom\.video\/(?:share|embed|calls)\/([A-Za-z0-9_-]+)/);
     return m ? m[1] : null;
   }
+  function idDeLoom(url){
+    const m = (url || '').match(/loom\.com\/(?:share|embed)\/([A-Za-z0-9]+)/);
+    return m ? m[1] : null;
+  }
   function esLinkDrive(url){
     return /drive\.google\.com\/(file\/d\/|open\?id=)/.test(url || '');
   }
@@ -2251,9 +2255,10 @@
     onboardingVideo.pause();
     onboardingIframe.onload = null;
     onboardingVideo.oncanplay = null;
-    if(lec.videoUrl && (esLinkDrive(lec.videoUrl) || idDeFathom(lec.videoUrl))){
+    if(lec.videoUrl && (esLinkDrive(lec.videoUrl) || idDeFathom(lec.videoUrl) || idDeLoom(lec.videoUrl))){
       const idFathom = idDeFathom(lec.videoUrl);
-      const id = idFathom || idDeDrive(lec.videoUrl);
+      const idLoom = idDeLoom(lec.videoUrl);
+      const id = idFathom || idLoom || idDeDrive(lec.videoUrl);
       videoEmpty.style.display = 'none';
       onboardingVideo.style.display = 'none';
       onboardingVideo.removeAttribute('src');
@@ -2268,6 +2273,7 @@
       };
       onboardingIframe.src = !id ? ''
         : idFathom ? ('https://fathom.video/embed/' + id)
+        : idLoom ? ('https://www.loom.com/embed/' + id)
         : ('https://drive.google.com/file/d/' + id + '/preview');
       limiteActivo = null;
     } else if(lec.videoUrl){
