@@ -536,11 +536,11 @@
   .es-dot.revision{ background:#2f6fb8; }
   .es-dot.entregada{ background:#2e8b57; }
   .es-vacio{ padding:12px; font-size:14px; color:var(--es-mute); }
-  .es-main{ background:var(--es-surface); border:1px solid var(--es-line); border-radius:12px; }
-  .es-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:24px 28px 18px; }
-  .es-head h2{ margin:0; font-size:26px; font-weight:700; letter-spacing:-0.015em; line-height:1.2; }
+  .es-main{ background:var(--es-surface); border:1px solid var(--es-line); border-radius:12px; min-height:calc(100vh - 140px); }
+  .es-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:20px 24px 14px; }
+  .es-head h2{ margin:0; font-size:24px; font-weight:700; letter-spacing:-0.015em; line-height:1.2; }
   .es-head p{ margin:4px 0 0; font-size:14px; color:var(--es-mute); }
-  .es-tabs{ display:flex; gap:26px; padding:0 28px; border-bottom:1px solid var(--es-line); overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  .es-tabs{ display:flex; gap:26px; padding:0 24px; border-bottom:1px solid var(--es-line); overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
   .es-tabs::-webkit-scrollbar{ display:none; }
   .es-tab{
     background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px; padding:12px 0;
@@ -548,8 +548,9 @@
   }
   .es-tab:hover{ color:var(--es-ink); }
   .es-tab.active{ color:var(--es-ink); border-bottom-color:var(--es-accent); }
-  .es-body{ padding:26px 28px 30px; }
-  .es-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:22px; }
+  .es-body{ padding:20px 24px 28px; }
+  .es-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--es-line); }
+  .es-bar .es-msg{ margin-left:auto; }
   .es-btn{
     background:var(--es-accent); color:#fff; border:0; border-radius:8px; padding:10px 16px;
     font:600 14px Inter,sans-serif; cursor:pointer;
@@ -567,15 +568,18 @@
   .es-draft ul{ margin:0 0 14px; padding-left:20px; max-width:68ch; }
   .es-draft li{ margin-bottom:6px; }
   .es-draft strong{ font-weight:600; }
-  .es-draft-vacio{ margin:0; padding:36px 0; color:var(--es-mute); font-size:15px; max-width:52ch; }
+  .es-draft-vacio{ margin:0; padding:8px 0; color:var(--es-mute); font-size:14.5px; max-width:52ch; }
+  .es-cargando{ display:flex; align-items:center; gap:14px; padding:8px 0; color:var(--es-mute); font-size:14.5px; }
+  .es-spinner{ width:22px; height:22px; flex:none; border-radius:50%; border:3px solid var(--es-line); border-top-color:var(--es-accent); animation:shu-girar 0.8s linear infinite; }
+  .es-cargando strong{ display:block; color:var(--es-ink); font-weight:600; }
   .es-qa-sec{ margin-bottom:26px; }
   .es-qa-sec h3{ margin:0 0 4px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--es-accent); }
   .es-qa{ display:grid; grid-template-columns:minmax(0,230px) minmax(0,1fr); gap:6px 24px; padding:11px 0; border-top:1px solid var(--es-line); font-size:14.5px; }
   .es-qa-q{ color:var(--es-mute); }
   .es-qa-a{ white-space:pre-wrap; }
-  @media(max-width:640px){ .es-top{ align-items:flex-start; } .es-count{ display:block; margin:4px 0 0; } .es-qa{ grid-template-columns:1fr; } .es-head, .es-body{ padding-left:18px; padding-right:18px; } .es-tabs{ padding:0 18px; } }
+  @media(max-width:640px){ .es-bar .es-msg{ margin-left:0; width:100%; } .es-top{ align-items:flex-start; } .es-count{ display:block; margin:4px 0 0; } .es-qa{ grid-template-columns:1fr; } .es-head, .es-body{ padding-left:18px; padding-right:18px; } .es-tabs{ padding:0 18px; } }
   .es-note{ margin:0 0 12px; font-size:13.5px; color:var(--es-mute); max-width:62ch; }
-  .es-foot{ margin:22px 0 0; font-size:12.5px; color:var(--es-mute); }
+
   @media(max-width:760px){
     .onboarding-body{ flex-direction:column; }
     .onboarding-lesson-col{ width:100%; }
@@ -2146,6 +2150,101 @@
   function estrPromptGuardado(){
     try { return localStorage.getItem('shu_estr_prompt_v2') || ESTR_PROMPT_DEFAULT; } catch(e){ return ESTR_PROMPT_DEFAULT; }
   }
+  // ===== Descarga en .docx (se abre directo en Google Docs o Word) =====
+  // Arma el archivo a mano (un .docx es un zip de XML), sin librerías.
+  const ESTR_CRC_TABLE = (() => {
+    const t = [];
+    for(let n = 0; n < 256; n++){ let c = n; for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; }
+    return t;
+  })();
+  function estrCrc32(bytes){
+    let c = 0xFFFFFFFF;
+    for(let i = 0; i < bytes.length; i++) c = ESTR_CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function estrZip(archivos){
+    const enc = new TextEncoder();
+    const u16 = (n) => [n & 255, (n >> 8) & 255];
+    const u32 = (n) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+    const partes = [], central = [];
+    let offset = 0;
+    archivos.forEach(f => {
+      const nom = enc.encode(f.nombre), dat = enc.encode(f.texto), crc = estrCrc32(dat);
+      const comun = [...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(dat.length), ...u32(dat.length), ...u16(nom.length), ...u16(0)];
+      partes.push(new Uint8Array([0x50, 0x4b, 3, 4, ...u16(20), ...comun]), nom, dat);
+      central.push(new Uint8Array([0x50, 0x4b, 1, 2, ...u16(20), ...u16(20), ...comun, ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), nom);
+      offset += 30 + nom.length + dat.length;
+    });
+    const tamCentral = central.reduce((s, p) => s + p.length, 0);
+    const fin = new Uint8Array([0x50, 0x4b, 5, 6, ...u16(0), ...u16(0), ...u16(archivos.length), ...u16(archivos.length), ...u32(tamCentral), ...u32(offset), ...u16(0)]);
+    return new Blob([...partes, ...central, fin], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  }
+  function estrXml(t){
+    return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  }
+  function estrRuns(texto){
+    return texto.split(/\*\*(.+?)\*\*/g).map((t, i) => t ? `<w:r>${i % 2 ? '<w:rPr><w:b/></w:rPr>' : ''}<w:t xml:space="preserve">${estrXml(t)}</w:t></w:r>` : '').join('');
+  }
+  function estrDocxBlob(titulo, subtitulo, markdown){
+    const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    const parrafo = (estilo, texto, extra) => `<w:p><w:pPr><w:pStyle w:val="${estilo}"/>${extra || ''}</w:pPr>${estrRuns(texto)}</w:p>`;
+    let cuerpo = parrafo('Title', titulo);
+    if(subtitulo) cuerpo += parrafo('Subtitle', subtitulo);
+    String(markdown).split('\n').forEach(linea => {
+      const l = linea.trim();
+      if(!l) return;
+      const item = l.match(/^[-*]\s+(.*)/);
+      if(item){ cuerpo += parrafo('ListParagraph', item[1], '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>'); return; }
+      const t = l.match(/^(#{1,4})\s+(.*)/);
+      if(t){ cuerpo += parrafo(t[1].length <= 2 ? 'Heading1' : 'Heading2', t[2]); return; }
+      cuerpo += parrafo('Normal', l);
+    });
+    const estilo = (id, nombre, rpr, ppr, extra) => `<w:style w:type="paragraph" w:styleId="${id}"${id === 'Normal' ? ' w:default="1"' : ''}><w:name w:val="${nombre}"/>${extra || ''}<w:qFormat/><w:pPr>${ppr}</w:pPr><w:rPr>${rpr}</w:rPr></w:style>`;
+    const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:lang w:val="es-ES"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>`
+      + estilo('Normal', 'Normal', '', '')
+      + estilo('Title', 'Title', '<w:b/><w:sz w:val="48"/>', '<w:spacing w:after="60"/>')
+      + estilo('Subtitle', 'Subtitle', '<w:color w:val="6B5E61"/><w:sz w:val="24"/>', '<w:spacing w:after="320"/>')
+      + estilo('Heading1', 'heading 1', '<w:b/><w:color w:val="5A1626"/><w:sz w:val="32"/>', '<w:keepNext/><w:spacing w:before="400" w:after="120"/><w:outlineLvl w:val="0"/>', '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>')
+      + estilo('Heading2', 'heading 2', '<w:b/><w:sz w:val="26"/>', '<w:keepNext/><w:spacing w:before="280" w:after="80"/><w:outlineLvl w:val="1"/>', '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>')
+      + estilo('ListParagraph', 'List Paragraph', '', '<w:spacing w:after="80"/><w:ind w:left="720"/>', '<w:basedOn w:val="Normal"/>')
+      + '</w:styles>';
+    const numbering = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ${W}><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`;
+    const documento = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${cuerpo}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+    const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    return estrZip([
+      { nombre: '[Content_Types].xml', texto: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>' },
+      { nombre: '_rels/.rels', texto: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="word/document.xml"/></Relationships>` },
+      { nombre: 'word/_rels/document.xml.rels', texto: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/styles" Target="styles.xml"/><Relationship Id="rId2" Type="${R}/numbering" Target="numbering.xml"/></Relationships>` },
+      { nombre: 'word/document.xml', texto: documento },
+      { nombre: 'word/styles.xml', texto: styles },
+      { nombre: 'word/numbering.xml', texto: numbering },
+    ]);
+  }
+  function estrDescargarDocx(a){
+    const blob = estrDocxBlob('Estrategia · ' + a.nombre, a.negocio, a.borrador);
+    const nombre = ('Estrategia - ' + a.nombre).replace(/[\\/:*?"<>|]+/g, '').trim() + '.docx';
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url; enlace.download = nombre;
+    document.body.appendChild(enlace); enlace.click(); enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  // Los borradores se guardan en este navegador para no perderlos al recargar.
+  const ESTR_LS_BORRADORES = 'shu_estr_borradores';
+  function estrCargarBorradores(){
+    try {
+      const g = JSON.parse(localStorage.getItem(ESTR_LS_BORRADORES) || '{}');
+      ESTR_EJEMPLOS.forEach(a => { if(g[a.id]) { a.borrador = g[a.id].borrador; a.estado = g[a.id].estado || a.estado; } });
+    } catch(e){}
+  }
+  function estrGuardarBorrador(a){
+    try {
+      const g = JSON.parse(localStorage.getItem(ESTR_LS_BORRADORES) || '{}');
+      g[a.id] = { borrador: a.borrador, estado: a.estado };
+      localStorage.setItem(ESTR_LS_BORRADORES, JSON.stringify(g));
+    } catch(e){}
+  }
+  estrCargarBorradores();
   let estrTab = 'estrategia';
   let estrBusqueda = '';
   function renderListaEstr(){
@@ -2181,12 +2280,14 @@
       </div>
       <div class="es-body" data-panel="estrategia"${estrTab === 'estrategia' ? '' : ' hidden'}>
         <div class="es-bar">
-          <button type="button" class="es-btn" id="estrGenerar">${a.borrador ? 'Generar de nuevo' : 'Generar estrategia'}</button>
-          <button type="button" class="es-btn es-btn-ghost" id="estrCopiar">Copiar texto</button>
+          ${a.borrador ? `
+            <button type="button" class="es-btn" id="estrDescargar">Descargar (.docx)</button>
+            <button type="button" class="es-btn es-btn-ghost" id="estrCopiar">Copiar texto</button>
+            <button type="button" class="es-btn es-btn-ghost" id="estrGenerar">Generar de nuevo</button>`
+          : `<button type="button" class="es-btn" id="estrGenerar">Generar estrategia</button>`}
           <span class="es-msg" id="estrMsg"></span>
         </div>
-        <div class="es-draft" id="estrDraft">${a.borrador ? estrMarkdown(a.borrador) : '<p class="es-draft-vacio">Todavía no hay estrategia para ' + escapeHtml(a.nombre) + '. Se genera a partir de sus respuestas del formulario y del prompt de la pestaña Prompt.</p>'}</div>
-        <p class="es-foot">Las respuestas son de ejemplo: todavía no está conectado el formulario real. La estrategia sí la genera la IA.</p>
+        <div class="es-draft" id="estrDraft">${a.borrador ? estrMarkdown(a.borrador) : '<p class="es-draft-vacio">Todavía no hay estrategia. Se genera con las respuestas del formulario y el prompt de esta alumna.</p>'}</div>
       </div>
       <div class="es-body" data-panel="respuestas"${estrTab === 'respuestas' ? '' : ' hidden'}>
         ${a.respuestas.map(sec => `
@@ -2210,7 +2311,7 @@
       det.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== estrTab; });
     }));
     document.getElementById('estrPrompt').value = estrPromptGuardado();
-    document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; renderEstrategias(); });
+    document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; estrGuardarBorrador(a); renderEstrategias(); });
     document.getElementById('estrPromptGuardar').addEventListener('click', () => {
       const msg = document.getElementById('estrPromptMsg');
       try { localStorage.setItem('shu_estr_prompt_v2', document.getElementById('estrPrompt').value); msg.textContent = 'Guardado en este navegador.'; }
@@ -2222,7 +2323,10 @@
       let clave = '';
       try { clave = sessionStorage.getItem('shu_estr_key') || ''; } catch(e){}
       const respuestas = a.respuestas.map(sec => sec.seccion + '\n' + sec.qa.map(([q, r]) => '- ' + q + ': ' + r).join('\n')).join('\n\n');
-      btn.disabled = true; msg.textContent = 'Generando… puede tardar hasta un minuto.';
+      const draftEl = document.getElementById('estrDraft');
+      const draftPrevio = draftEl.innerHTML;
+      btn.disabled = true; btn.textContent = 'Generando…';
+      draftEl.innerHTML = '<div class="es-cargando"><span class="es-spinner"></span><div><strong>Escribiendo la estrategia</strong>Tarda entre 20 y 60 segundos. Podés cambiar de pestaña, no se pierde.</div></div>';
       try {
         const res = await fetch(`${WORKER_URL}/estrategia/generar`, {
           method: 'POST',
@@ -2232,25 +2336,35 @@
         const data = await res.json().catch(() => ({}));
         if(res.status === 401){
           try { sessionStorage.removeItem('shu_estr_key'); sessionStorage.removeItem('shu_admin_utm_ok'); } catch(e){}
+          draftEl.innerHTML = draftPrevio;
           msg.textContent = 'El servidor no aceptó la contraseña de Admin. Salí y volvé a entrar a Admin.';
           return;
         }
-        if(!res.ok || !data.ok){ msg.textContent = 'No se pudo generar (' + (data.error || res.status) + ').'; return; }
+        if(!res.ok || !data.ok){ draftEl.innerHTML = draftPrevio; msg.textContent = 'No se pudo generar (' + (data.error || res.status) + ').'; return; }
         a.borrador = data.borrador;
         if(a.estado === 'recibido') a.estado = 'borrador';
-        renderEstrategias();
-        document.getElementById('estrMsg').textContent = 'Estrategia generada.';
+        estrGuardarBorrador(a);
+        if(estrSeleccion === a.id){
+          renderEstrategias();
+          document.getElementById('estrMsg').textContent = 'Lista. Descargala o copiala.';
+        } else renderListaEstr();
       } catch(e){
+        draftEl.innerHTML = draftPrevio;
         msg.textContent = 'No se pudo conectar. Probá de nuevo.';
       } finally {
-        const b = document.getElementById('estrGenerar'); if(b) b.disabled = false;
+        const b = document.getElementById('estrGenerar'); if(b){ b.disabled = false; b.textContent = a.borrador ? 'Generar de nuevo' : 'Generar estrategia'; }
       }
     });
-    document.getElementById('estrCopiar').addEventListener('click', async () => {
+    const botonCopiar = document.getElementById('estrCopiar');
+    if(botonCopiar) botonCopiar.addEventListener('click', async () => {
       const msg = document.getElementById('estrMsg');
-      if(!a.borrador){ msg.textContent = 'Primero generá la estrategia.'; return; }
       try { await navigator.clipboard.writeText(estrTextoPlano(a.borrador)); msg.textContent = 'Copiado'; }
       catch(e){ msg.textContent = 'No se pudo copiar.'; }
+    });
+    const botonDescargar = document.getElementById('estrDescargar');
+    if(botonDescargar) botonDescargar.addEventListener('click', () => {
+      estrDescargarDocx(a);
+      document.getElementById('estrMsg').textContent = 'Descargado. Abrilo en Google Docs desde Drive.';
     });
   }
   document.getElementById('estrBuscar').addEventListener('input', (e) => { estrBusqueda = e.target.value; renderListaEstr(); });
