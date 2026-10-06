@@ -1612,7 +1612,7 @@
           </div>
           <div class="metricas-field">
             <label for="metricasVentas">Cash collected <span class="metricas-hint">(US$ cobrados)</span></label>
-            <input type="number" min="0" step="any" inputmode="decimal" id="metricasVentas" placeholder="0">
+            <input type="number" min="0" step="any" inputmode="decimal" id="metricasVentas" placeholder="0" data-stepper="500">
           </div>
         </div>
 
@@ -1631,7 +1631,7 @@
           </div>
           <div class="metricas-field">
             <label for="metricasCCash">Cash collected <span class="metricas-hint">(US$ cobrados)</span></label>
-            <input type="number" min="0" step="any" inputmode="decimal" id="metricasCCash" placeholder="0">
+            <input type="number" min="0" step="any" inputmode="decimal" id="metricasCCash" placeholder="0" data-stepper="500">
           </div>
           <div class="metricas-field">
             <label for="metricasCCierres">Cierres <span class="metricas-hint">(cantidad de ventas cerradas)</span></label>
@@ -3390,6 +3390,12 @@
   }
 
   document.getElementById('metricasNombre').addEventListener('change', () => {
+    // El nombre queda guardado en este navegador apenas se elige: la próxima
+    // vez que cada persona entre, ya aparece el suyo.
+    try {
+      const n = document.getElementById('metricasNombre').value;
+      if(n) localStorage.setItem(METRICAS_NOMBRE_KEY, n); else localStorage.removeItem(METRICAS_NOMBRE_KEY);
+    } catch(e) {}
     document.getElementById('metricasStatus').textContent = '';
     actualizarPasosMetricas();
   });
@@ -3426,13 +3432,14 @@
     const mas = document.createElement('button'); mas.type = 'button'; mas.className = 'metricas-step-btn'; mas.textContent = '+'; mas.setAttribute('aria-label', 'Sumar uno');
     input.replaceWith(caja);
     caja.append(menos, input, mas);
+    const paso = Number(input.dataset.stepper) || 1; // el cash sube y baja de 500 en 500
     const cambiar = (d) => { input.value = Math.max(0, (Number(input.value) || 0) + d); guardarBorradorMetricas(); };
-    menos.addEventListener('click', () => cambiar(-1));
-    mas.addEventListener('click', () => cambiar(1));
+    menos.addEventListener('click', () => cambiar(-paso));
+    mas.addEventListener('click', () => cambiar(paso));
+    if(paso > 1){ menos.setAttribute('aria-label', 'Restar ' + paso); mas.setAttribute('aria-label', 'Sumar ' + paso); }
     input.addEventListener('input', guardarBorradorMetricas);
   });
-  document.getElementById('metricasVentas').addEventListener('input', guardarBorradorMetricas);
-  document.getElementById('metricasCCash').addEventListener('input', guardarBorradorMetricas);
+
 
   document.getElementById('metricasGuardarBtn').addEventListener('click', async () => {
     const statusEl = document.getElementById('metricasStatus');
