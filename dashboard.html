@@ -714,22 +714,39 @@
   /* ===== Métricas: formulario donde cada setter/closer carga sus
      números del día — a diferencia de Herramientas, esto se sube al
      Sheet y sí se comparte/refleja en el dashboard. ===== */
+  #metricasScreen.active{ display:flex; flex-direction:column; }
+  #metricasScreen .wrap{ width:100%; flex:1; display:flex; flex-direction:column; padding-bottom:40px; }
   .metricas-card{
-    background:var(--card); border:1px solid var(--border); border-radius:18px;
-    padding:28px; max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:18px;
+    background:var(--card); border:1px solid var(--border); border-radius:24px;
+    padding:44px 48px 40px; width:100%; max-width:700px; margin:auto; display:flex; flex-direction:column; gap:26px;
   }
-  .metricas-fecha{ font-size:13px; color:var(--text-dim); margin:-8px 0 0; text-align:center; }
-  .metricas-field{ display:flex; flex-direction:column; gap:6px; }
-  .metricas-field label{ font-size:12.5px; color:var(--text-dim); }
+  .metricas-card [hidden]{ display:none !important; }
+  .metricas-titulo{ font-family:"Playfair Display",Georgia,serif; font-size:30px; font-weight:600; margin:0; text-align:center; }
+  .metricas-fecha{ font-size:15px; color:var(--text-dim); margin:-14px 0 0; text-align:center; }
+  .metricas-field{ display:flex; flex-direction:column; gap:9px; }
+  .metricas-field label{ font-size:15px; font-weight:600; color:var(--cream); }
   .metricas-field input, .metricas-field select{
-    padding:13px 14px; border-radius:10px; border:1px solid var(--border);
-    background:rgba(0,0,0,0.25); color:var(--cream); font-size:14.5px; font-family:inherit;
+    padding:17px 18px; border-radius:14px; border:1px solid var(--border);
+    background:rgba(0,0,0,0.28); color:var(--cream); font-size:18px; font-family:inherit; width:100%;
   }
+  .metricas-field input:focus, .metricas-field select:focus{ outline:none; border-color:var(--blush-2); }
   .metricas-field input::placeholder{ color:rgba(247,236,233,0.4); }
   .metricas-field select option{ background:#2a0c14; color:var(--cream); }
-  .metricas-hint{ color:rgba(247,236,233,0.5); font-size:11.5px; }
-  .metricas-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  @media(max-width:520px){ .metricas-grid{ grid-template-columns:1fr; } }
+  .metricas-hint{ color:rgba(247,236,233,0.55); font-size:13px; font-weight:400; }
+  .metricas-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .metricas-roles{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .metricas-rol{
+    padding:18px; border-radius:14px; border:1px solid var(--border); background:rgba(0,0,0,0.22);
+    color:var(--cream); font:600 18px Inter,sans-serif; cursor:pointer; transition:background .15s, border-color .15s;
+  }
+  .metricas-rol:hover{ background:rgba(255,255,255,0.07); }
+  .metricas-rol.active{ background:rgba(240,168,190,0.16); border-color:var(--blush-2); }
+  #metricasGuardarBtn{ padding:18px; font-size:18px; }
+  @media(max-width:560px){
+    .metricas-card{ padding:30px 22px 28px; border-radius:20px; }
+    .metricas-grid, .metricas-roles{ grid-template-columns:1fr; }
+    .metricas-titulo{ font-size:26px; }
+  }
 
   /* Chips para filtrar un gráfico (setter / closer / origen, métrica). */
   .chart-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
@@ -1134,7 +1151,6 @@
         <button type="button" class="quick-nav-btn" data-tab="matematica">Matemática del éxito</button>
         <button type="button" class="quick-nav-btn" data-tab="setters">Setters</button>
         <button type="button" class="quick-nav-btn" data-tab="closers">Closers</button>
-        <button type="button" class="quick-nav-btn" data-tab="fuentes">Fuentes</button>
       </div>
 
       <!-- Segunda fila, más chica/tenue a propósito — no aísla una
@@ -1150,7 +1166,6 @@
         <button type="button" class="quick-nav-btn-jump" data-jump="matematica">Matemática</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="setters">Setters</button>
         <button type="button" class="quick-nav-btn-jump" data-jump="closers">Closers</button>
-        <button type="button" class="quick-nav-btn-jump" data-jump="fuentes">Fuentes</button>
       </div>
 
       <!-- Cluster único de "números de arriba" — antes eran 3 bloques
@@ -1423,12 +1438,6 @@
         <div class="chart-status" id="statusClosers" style="margin-bottom:44px;">Sin datos todavía — se va a conectar a un Google Sheet</div>
       </div>
 
-      <div class="tab-panel active" data-tab-panel="fuentes">
-        <div class="section-label" id="fuentes">Llamadas por fuente</div>
-        <div class="breakdown-grid" id="fuentesGrid"></div>
-        <div class="chart-status" id="statusFuentes">Sin datos todavía — se va a conectar a un Google Sheet</div>
-      </div>
-
     </div>
   </section>
 
@@ -1542,6 +1551,9 @@
       </header>
 
       <div class="metricas-card">
+        <h2 class="metricas-titulo">Cargá tus números de hoy</h2>
+        <p class="metricas-fecha" id="metricasFecha"></p>
+
         <div class="metricas-field">
           <label for="metricasNombre">Nombre</label>
           <select id="metricasNombre">
@@ -1551,8 +1563,16 @@
             <option value="Mia">Mia</option>
           </select>
         </div>
-        <p class="metricas-fecha" id="metricasFecha"></p>
-        <div class="metricas-grid">
+
+        <div class="metricas-field" id="metricasPasoRol" hidden>
+          <label>¿Cargás como…?</label>
+          <div class="metricas-roles">
+            <button type="button" class="metricas-rol" data-rol="setter">Setter</button>
+            <button type="button" class="metricas-rol" data-rol="closer">Closer</button>
+          </div>
+        </div>
+
+        <div class="metricas-grid" id="metricasCamposSetter" hidden>
           <div class="metricas-field">
             <label for="metricasLlamadas">Llamadas</label>
             <input type="number" min="0" inputmode="numeric" id="metricasLlamadas" placeholder="0">
@@ -1574,8 +1594,32 @@
             <input type="number" min="0" step="any" inputmode="decimal" id="metricasVentas" placeholder="0">
           </div>
         </div>
-        <button type="button" class="btn" id="metricasGuardarBtn">Guardar métricas</button>
-        <p class="chart-status" id="metricasStatus" style="text-align:center;"></p>
+
+        <div class="metricas-grid" id="metricasCamposCloser" hidden>
+          <div class="metricas-field">
+            <label for="metricasCAgendas">Agendas <span class="metricas-hint">(confirmadas el mismo día)</span></label>
+            <input type="number" min="0" inputmode="numeric" id="metricasCAgendas" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasCShows">Shows</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasCShows" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasCNoShows">No shows</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasCNoShows" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasCCash">Cash collected <span class="metricas-hint">(US$ cobrados)</span></label>
+            <input type="number" min="0" step="any" inputmode="decimal" id="metricasCCash" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasCCierres">Cierres <span class="metricas-hint">(cantidad de ventas cerradas)</span></label>
+            <input type="number" min="0" inputmode="numeric" id="metricasCCierres" placeholder="0">
+          </div>
+        </div>
+
+        <button type="button" class="btn" id="metricasGuardarBtn" hidden>Guardar métricas</button>
+        <p class="chart-status" id="metricasStatus" style="text-align:center; font-size:15px;"></p>
       </div>
     </div>
   </section>
@@ -3288,7 +3332,10 @@
   // escribirLecciones/LECCIONES_WRITE_URL más abajo) y alimenta el
   // dashboard igual que si lo hubiera cargado alguien a mano ahí. =====
   const METRICAS_NOMBRE_KEY = 'shu_metricas_nombre';
-  const METRICAS_CAMPOS = ['metricasLlamadas', 'metricasAgendadas', 'metricasShows', 'metricasCierres', 'metricasVentas'];
+  const METRICAS_ROL_KEY = 'shu_metricas_rol';
+  const METRICAS_CAMPOS_SETTER = ['metricasLlamadas', 'metricasAgendadas', 'metricasShows', 'metricasCierres', 'metricasVentas'];
+  const METRICAS_CAMPOS_CLOSER = ['metricasCAgendas', 'metricasCShows', 'metricasCNoShows', 'metricasCCash', 'metricasCCierres'];
+  let metricasRol = '';
 
   function formatearFechaHoy(){
     const hoy = new Date();
@@ -3297,41 +3344,73 @@
     return dd + '/' + mm + '/' + hoy.getFullYear();
   }
 
+  // Paso 1: nombre. Paso 2 (recién con nombre): setter o closer.
+  // Paso 3 (recién con rol): las preguntas de ese rol y el botón de guardar.
+  function actualizarPasosMetricas(){
+    const nombre = document.getElementById('metricasNombre').value;
+    document.getElementById('metricasPasoRol').hidden = !nombre;
+    document.querySelectorAll('.metricas-rol').forEach(b => b.classList.toggle('active', b.dataset.rol === metricasRol));
+    document.getElementById('metricasCamposSetter').hidden = !(nombre && metricasRol === 'setter');
+    document.getElementById('metricasCamposCloser').hidden = !(nombre && metricasRol === 'closer');
+    document.getElementById('metricasGuardarBtn').hidden = !(nombre && metricasRol);
+  }
+
   function prepararPantallaMetricas(){
     const nombreInput = document.getElementById('metricasNombre');
     try { nombreInput.value = localStorage.getItem(METRICAS_NOMBRE_KEY) || ''; } catch(e) {}
     if(nombreInput.selectedIndex === -1) nombreInput.value = ''; // nombre viejo que ya no está en la lista
+    try { metricasRol = localStorage.getItem(METRICAS_ROL_KEY) || ''; } catch(e) { metricasRol = ''; }
+    if(metricasRol !== 'setter' && metricasRol !== 'closer') metricasRol = '';
     document.getElementById('metricasFecha').textContent = 'Hoy: ' + formatearFechaHoy();
-    METRICAS_CAMPOS.forEach(id => { document.getElementById(id).value = ''; });
+    [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER].forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('metricasStatus').textContent = '';
+    actualizarPasosMetricas();
   }
+
+  document.getElementById('metricasNombre').addEventListener('change', () => {
+    document.getElementById('metricasStatus').textContent = '';
+    actualizarPasosMetricas();
+  });
+  document.querySelectorAll('.metricas-rol').forEach(b => b.addEventListener('click', () => {
+    metricasRol = b.dataset.rol;
+    try { localStorage.setItem(METRICAS_ROL_KEY, metricasRol); } catch(e) {}
+    document.getElementById('metricasStatus').textContent = '';
+    actualizarPasosMetricas();
+  }));
+
+  const numeroDe = (id) => Number(document.getElementById(id).value) || 0;
 
   document.getElementById('metricasGuardarBtn').addEventListener('click', async () => {
     const statusEl = document.getElementById('metricasStatus');
     const nombre = document.getElementById('metricasNombre').value.trim();
-    if(!nombre){
-      statusEl.textContent = 'Elegí tu nombre antes de guardar.';
-      return;
-    }
+    if(!nombre){ statusEl.textContent = 'Elegí tu nombre antes de guardar.'; return; }
+    if(!metricasRol){ statusEl.textContent = 'Elegí si cargás como setter o como closer.'; return; }
     try { localStorage.setItem(METRICAS_NOMBRE_KEY, nombre); } catch(e) {}
 
-    const body = {
-      action: 'addMetricas',
-      setter: nombre,
-      fecha: formatearFechaHoy(),
-      llamadas: Number(document.getElementById('metricasLlamadas').value) || 0,
-      agendadas: Number(document.getElementById('metricasAgendadas').value) || 0,
-      shows: Number(document.getElementById('metricasShows').value) || 0,
-      cierres: Number(document.getElementById('metricasCierres').value) || 0,
-      ventas: Number(document.getElementById('metricasVentas').value) || 0,
-    };
+    const body = metricasRol === 'closer'
+      ? {
+          action: 'addMetricas', rol: 'closer', closer: nombre, fecha: formatearFechaHoy(),
+          agendas: numeroDe('metricasCAgendas'),
+          shows: numeroDe('metricasCShows'),
+          noShows: numeroDe('metricasCNoShows'),
+          ventas: numeroDe('metricasCCash'),
+          cierres: numeroDe('metricasCCierres'),
+        }
+      : {
+          action: 'addMetricas', rol: 'setter', setter: nombre, fecha: formatearFechaHoy(),
+          llamadas: numeroDe('metricasLlamadas'),
+          agendadas: numeroDe('metricasAgendadas'),
+          shows: numeroDe('metricasShows'),
+          cierres: numeroDe('metricasCierres'),
+          ventas: numeroDe('metricasVentas'),
+        };
 
     statusEl.textContent = 'Guardando…';
     try {
       await escribirLecciones(body);
       statusEl.textContent = '✓ Guardado — gracias ' + nombre + '. Se ve en el Dashboard en unos minutos.';
-      filasTrackerCache = null; // para que el Dashboard vuelva a leer el Sheet
-      METRICAS_CAMPOS.forEach(id => { document.getElementById(id).value = ''; });
+      [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER].forEach(id => { document.getElementById(id).value = ''; });
+      filasTrackerCache = null; filasRankingCache = null; // para que el Dashboard vuelva a leer el Sheet
     } catch(e) {
       statusEl.textContent = 'No se pudo guardar: ' + e.message;
     }
@@ -3534,6 +3613,10 @@
         fecha: header.indexOf('fecha'),
         closer: header.indexOf('closer'),
         monto: header.indexOf('monto'),
+        agendas: header.indexOf('agendas'),
+        shows: header.indexOf('shows'),
+        noShows: Math.max(header.indexOf('no shows'), header.indexOf('noshows'), header.indexOf('no show')),
+        cierres: header.indexOf('cierres'),
       };
       const datos = [];
       for(let i=1;i<filas.length;i++){
@@ -3544,6 +3627,10 @@
           fecha,
           closer: (idx.closer > -1 && r[idx.closer] ? r[idx.closer].trim() : '') || 'Sin asignar',
           monto: parseNumSheet(r[idx.monto]),
+          agendas: idx.agendas > -1 ? parseNumSheet(r[idx.agendas]) : 0,
+          shows: idx.shows > -1 ? parseNumSheet(r[idx.shows]) : 0,
+          noShows: idx.noShows > -1 ? parseNumSheet(r[idx.noShows]) : 0,
+          cierres: idx.cierres > -1 ? parseNumSheet(r[idx.cierres]) : 0,
         });
       }
       filasRankingCache = datos;
@@ -3652,7 +3739,6 @@
     const ventas = new Array(dias).fill(0);
     let totLlamadas = 0, totAgendadas = 0, totShows = 0, totCierres = 0, totVentas = 0, totVentasAds = 0, totCierresAds = 0, huboDatos = false;
     const porSetter = new Map();
-    const porFuente = new Map();
 
     const seriesSetters = new Map();
     filas.forEach(f => {
@@ -3674,9 +3760,6 @@
       const s = porSetter.get(f.setter);
       s.llamadas += f.llamadas; s.agendadas += f.agendadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
 
-      if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { llamadas:0, ventas:0 });
-      const fu = porFuente.get(f.fuente);
-      fu.llamadas += f.llamadas; fu.ventas += f.ventas;
     });
 
     const seriesClosers = new Map();
@@ -3685,10 +3768,11 @@
       if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
       huboDatosClosers = true;
       const dia = f.fecha.getDate() - 1;
-      if(!seriesClosers.has(f.closer)) seriesClosers.set(f.closer, { cash: new Array(dias).fill(0), cobros: new Array(dias).fill(0) });
+      if(!seriesClosers.has(f.closer)) seriesClosers.set(f.closer, { cash: new Array(dias).fill(0), cobros: new Array(dias).fill(0), agendas: new Array(dias).fill(0), shows: new Array(dias).fill(0), noShows: new Array(dias).fill(0), cierres: new Array(dias).fill(0) });
       const sc = seriesClosers.get(f.closer);
       sc.cash[dia] += f.monto;
       if(f.monto > 0) sc.cobros[dia]++;
+      sc.agendas[dia] += f.agendas; sc.shows[dia] += f.shows; sc.noShows[dia] += f.noShows; sc.cierres[dia] += f.cierres;
     });
 
     let totGastoAds = 0, huboDatosAds = false;
@@ -3765,9 +3849,7 @@
     // por cada nombre distinto que aparezca ese mes en las columnas
     // Setter y Fuente del Sheet (cantidad variable, no fija). =====
     renderBreakdownSetters(porSetter);
-    renderBreakdownFuentes(porFuente, totVentas);
     document.getElementById('statusSetters').textContent = statusTxt;
-    document.getElementById('statusFuentes').textContent = statusTxt;
 
     // Gráficos + tarjetas de setters y closers (con filtros por chips).
     ctxMes = { anio, mes, dias, diasAMostrar };
@@ -3884,8 +3966,12 @@
   }
 
   const METRICAS_CLOSER = [
-    { valor: 'cash', texto: 'Cash cobrado $', color: '#f0a8be', prefijo: '$' },
+    { valor: 'cash', texto: 'Cash collected $', color: '#f0a8be', prefijo: '$' },
     { valor: 'cobros', texto: 'Cobros', color: '#8fb8f0' },
+    { valor: 'agendas', texto: 'Agendas', color: '#d9b4ff' },
+    { valor: 'shows', texto: 'Shows', color: '#5fd39a' },
+    { valor: 'noShows', texto: 'No shows', color: '#ff9b9b' },
+    { valor: 'cierres', texto: 'Cierres', color: '#f0c674' },
   ];
   let datosClosers = new Map(), closerMetrica = 'cash', closerFiltro = 'Todos';
   function renderGraficoClosers(){
@@ -3898,16 +3984,20 @@
   }
   function renderBreakdownClosers(mapa){
     const grid = document.getElementById('closersGrid');
+    const suma = (arr) => arr.reduce((a, b) => a + b, 0);
+    const pct = (a, b) => b > 0 ? Math.round(a / b * 100) + '%' : '–';
     const filas = [...mapa.entries()].map(([nombre, s]) => {
-      const cash = s.cash.reduce((a, b) => a + b, 0);
-      const cobros = s.cobros.reduce((a, b) => a + b, 0);
-      return { nombre, cash, cobros };
+      const cash = suma(s.cash), cobros = suma(s.cobros);
+      return { nombre, cash, cobros, agendas: suma(s.agendas), shows: suma(s.shows), noShows: suma(s.noShows), cierres: suma(s.cierres) };
     }).sort((a, b) => b.cash - a.cash);
     grid.innerHTML = filas.map(f => `<div class="breakdown-card">
       <h4>${escapeHtml(f.nombre)}</h4>
-      <div class="breakdown-stat-row"><span class="label">Cash cobrado</span><span class="val">$${Math.round(f.cash).toLocaleString('es-AR')}</span></div>
-      <div class="breakdown-stat-row"><span class="label">Cobros</span><span class="val">${f.cobros.toLocaleString('es-AR')}</span></div>
-      <div class="breakdown-stat-row"><span class="label">Ticket promedio</span><span class="val">${f.cobros > 0 ? '$' + Math.round(f.cash / f.cobros).toLocaleString('es-AR') : '–'}</span></div>
+      <div class="breakdown-stat-row"><span class="label">Cash collected</span><span class="val">$${Math.round(f.cash).toLocaleString('es-AR')}</span></div>
+      <div class="breakdown-stat-row"><span class="label">Agendas</span><span class="val">${f.agendas.toLocaleString('es-AR')}</span></div>
+      <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${f.shows.toLocaleString('es-AR')} (${pct(f.shows, f.agendas)})</span></div>
+      <div class="breakdown-stat-row"><span class="label">No shows</span><span class="val">${f.noShows.toLocaleString('es-AR')}</span></div>
+      <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${f.cierres.toLocaleString('es-AR')} (${pct(f.cierres, f.shows)})</span></div>
+      <div class="breakdown-stat-row"><span class="label">Ticket promedio</span><span class="val">${f.cierres > 0 ? '$' + Math.round(f.cash / f.cierres).toLocaleString('es-AR') : (f.cobros > 0 ? '$' + Math.round(f.cash / f.cobros).toLocaleString('es-AR') : '–')}</span></div>
     </div>`).join('');
   }
 
@@ -4285,20 +4375,6 @@
         <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${s.shows.toLocaleString('es-AR')} (${pct(s.shows, s.agendadas)})</span></div>
         <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${s.cierres.toLocaleString('es-AR')} (${pct(s.cierres, s.shows)})</span></div>
         <div class="breakdown-stat-row"><span class="label">Cash collected</span><span class="val">$${Math.round(s.ventas).toLocaleString('es-AR')}</span></div>
-      </div>`;
-    }).join('');
-  }
-
-  function renderBreakdownFuentes(mapa, totalVentas){
-    const grid = document.getElementById('fuentesGrid');
-    const nombres = [...mapa.keys()].sort((a,b) => mapa.get(b).ventas - mapa.get(a).ventas);
-    grid.innerHTML = nombres.map(nombre => {
-      const f = mapa.get(nombre);
-      const pctVentas = totalVentas > 0 ? Math.round(f.ventas / totalVentas * 100) + '%' : '–';
-      return `<div class="breakdown-card">
-        <h4>${escapeHtml(nombre)}</h4>
-        <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${f.llamadas.toLocaleString('es-AR')}</span></div>
-        <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(f.ventas).toLocaleString('es-AR')} (${pctVentas})</span></div>
       </div>`;
     }).join('');
   }

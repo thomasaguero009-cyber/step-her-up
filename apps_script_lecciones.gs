@@ -168,39 +168,79 @@ function renumerar(sheet) {
 
 
 // ===== Métricas del día (formulario "Métricas" del dashboard) ===========
-// Agrega UNA fila al tracker (la pestaña que tiene las columnas Fecha y
-// Setter). Ubica cada dato por el NOMBRE de la columna, así no importa en
-// qué orden estén ni si dice "Leads" o "Llamadas", "Agendas" o "Agendadas".
-function encontrarTracker() {
+// El formulario manda un rol: "setter" o "closer".
+//  - Setter -> UNA fila en el tracker (pestaña con las columnas Fecha y Setter).
+//  - Closer -> UNA fila en la pestaña de closers (la que tiene Fecha y Closer,
+//    "Ranking"): Closer, Monto (= cash collected), Agendas, Shows, No shows y
+//    Cierres. Si a esa pestaña le faltan las columnas Agendas / Shows /
+//    No shows / Cierres, se agregan solas a la derecha (no mueve las que ya hay).
+// Cada dato se ubica por el NOMBRE de la columna, así no importa el orden ni
+// si dice "Leads" o "Llamadas", "Agendas" o "Agendadas".
+function encontrarPestana(tipo) {
   var hojas = SpreadsheetApp.getActiveSpreadsheet().getSheets();
   for (var i = 0; i < hojas.length; i++) {
-    var h = encabezados(hojas[i]);
-    if (tipoDePestana(h) === 'tracker') return hojas[i];
+    if (tipoDePestana(encabezados(hojas[i])) === tipo) return hojas[i];
   }
-  throw new Error('No encontré la pestaña del tracker (la que tiene las columnas Fecha y Setter)');
+  throw new Error('No encontré la pestaña de ' + tipo + ' (revisá que tenga la fila de encabezados)');
+}
+
+// Agrega al final del encabezado las columnas que falten (devuelve los encabezados actualizados).
+function asegurarColumnas(sheet, nombres) {
+  var h = encabezados(sheet);
+  nombres.forEach(function (n) {
+    if (h.indexOf(n.toLowerCase()) === -1) {
+      var ultima = h.length;
+      while (ultima > 0 && h[ultima - 1] === '') ultima--;
+      sheet.getRange(1, ultima + 1).setValue(n);
+      h = encabezados(sheet);
+    }
+  });
+  return h;
+}
+
+function filaPorEncabezado(h, valores) {
+  var fila = new Array(h.length).fill('');
+  Object.keys(valores).forEach(function (k) {
+    var opciones = k.split('|');
+    for (var i = 0; i < opciones.length; i++) {
+      var c = h.indexOf(opciones[i]);
+      if (c > -1) { fila[c] = valores[k]; return; }
+    }
+  });
+  return fila;
 }
 
 function addMetricas(body) {
-  var nombre = String(body.setter || '').trim();
+  var esCloser = body.rol === 'closer';
+  var nombre = String(esCloser ? (body.closer || body.setter) : (body.setter || body.closer) || '').trim();
   if (!nombre) throw new Error('Falta el nombre');
-  var sheet = encontrarTracker();
-  var h = encabezados(sheet);
-  var fila = new Array(h.length).fill('');
-  var poner = function (opciones, valor) {
-    for (var i = 0; i < opciones.length; i++) {
-      var c = h.indexOf(opciones[i]);
-      if (c > -1) { fila[c] = valor; return; }
-    }
-  };
-  poner(['fecha'], String(body.fecha || ''));
-  poner(['setter'], nombre);
-  poner(['fuente'], String(body.fuente || 'Crm'));
-  poner(['llamadas', 'leads'], Number(body.llamadas) || 0);
-  poner(['agendadas', 'agendas', 'llamadas agendadas'], Number(body.agendadas) || 0);
-  poner(['shows'], Number(body.shows) || 0);
-  poner(['cierres'], Number(body.cierres) || 0);
-  poner(['ventas'], Number(body.ventas) || 0);
-  sheet.appendRow(fila);
+  var fecha = String(body.fecha || '');
+  var cash = Number(body.ventas) || 0;
+  if (esCloser) {
+    var sheetC = encontrarPestana('closers');
+    var hC = asegurarColumnas(sheetC, ['Agendas', 'Shows', 'No shows', 'Cierres']);
+    sheetC.appendRow(filaPorEncabezado(hC, {
+      'fecha': fecha,
+      'closer': nombre,
+      'monto': cash,
+      'agendas': Number(body.agendas) || 0,
+      'shows': Number(body.shows) || 0,
+      'no shows|noshows|no show': Number(body.noShows) || 0,
+      'cierres': Number(body.cierres) || 0,
+    }));
+  } else {
+    var sheet = encontrarPestana('tracker');
+    var h = encabezados(sheet);
+    sheet.appendRow(filaPorEncabezado(h, {
+      'fecha': fecha,
+      'setter': nombre,
+      'llamadas|leads': Number(body.llamadas) || 0,
+      'agendadas|agendas|llamadas agendadas': Number(body.agendadas) || 0,
+      'shows': Number(body.shows) || 0,
+      'cierres': Number(body.cierres) || 0,
+      'ventas': cash,
+    }));
+  }
   return {};
 }
 
@@ -213,7 +253,6 @@ function addMetricas(body) {
 // formato a los encabezados y ordena/colorea las pestañas. Se puede correr
 // las veces que haga falta. Lo que no puede arreglar solo lo avisa al final.
 var SETTERS = ['Paula', 'Paola', 'Mia'];
-var FUENTES_BASE = ['Ads', 'Orgánico', 'Crm'];
 var COLOR_VINO = '#5a1626';
 var COLOR_ROSA = '#e88aa8';
 
@@ -297,10 +336,7 @@ function ejecutarOrden() {
 
       if (tipo === 'tracker' || tipo === 'closers') {
         var colNombre = h.indexOf(tipo === 'tracker' ? 'setter' : 'closer');
-        var colFuente = h.indexOf('fuente');
-        var textos = [colNombre];
-        if (colFuente > -1) textos.push(colFuente);
-        var limpias = limpiarTexto(sheet, textos);
+        var limpias = limpiarTexto(sheet, [colNombre]);
         if (limpias) hechas.push('sacó espacios sobrantes en ' + limpias + ' celdas');
 
         // Unifica mayúsculas de los nombres conocidos (paula -> Paula).
@@ -356,20 +392,13 @@ function ejecutarOrden() {
           sheet.getRange(2, colNombre + 1, filasValidar, 1).setDataValidation(lista(SETTERS));
           hechas.push('lista desplegable de setters');
         } else {
-          var closers = ['Gianie'].concat(existentes(colNombre).filter(function (v) { return v !== 'Gianie'; }));
+          var closers = ['Gianie'].concat(SETTERS);
+          existentes(colNombre).forEach(function (v) { if (closers.indexOf(v) === -1) closers.push(v); });
           sheet.getRange(2, colNombre + 1, filasValidar, 1).setDataValidation(lista(closers));
           hechas.push('lista desplegable de closers');
         }
-        if (colFuente > -1) {
-          var fuentes = FUENTES_BASE.slice();
-          existentes(colFuente).forEach(function (v) {
-            if (!fuentes.some(function (x) { return x.toLowerCase() === v.toLowerCase(); })) fuentes.push(v);
-          });
-          sheet.getRange(2, colFuente + 1, filasValidar, 1).setDataValidation(lista(fuentes));
-          hechas.push('lista desplegable de fuentes');
-        }
         // Los números no pueden ser negativos (solo avisa).
-        ['llamadas', 'leads', 'agendadas', 'agendas', 'shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
+        ['llamadas', 'leads', 'agendadas', 'agendas', 'shows', 'no shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
           var c = h.indexOf(n);
           if (c > -1) {
             sheet.getRange(2, c + 1, filasValidar, 1).setDataValidation(
@@ -456,7 +485,7 @@ function ordenarHoja() {
 //    Si queda algo que no puede arreglar solo (por ejemplo datos fuera de la
 //    tabla), manda UN mail con el aviso (y no repite el mismo aviso cada día).
 // 2) En el momento en que alguien escribe o pega (onEdit): limpia espacios y
-//    unifica mayúsculas de Setter / Closer / Fuente al instante.
+//    unifica mayúsculas de Setter / Closer al instante.
 // 3) Las métricas que llegan del formulario ya entran limpias (addMetricas).
 // Se activa UNA sola vez desde el menú: Step Her Up → Activar orden automático.
 function ordenarHojaAutomatico() {
@@ -480,7 +509,7 @@ function activarOrdenAutomatico() {
   ScriptApp.newTrigger('ordenarHojaAutomatico').timeBased().everyDays(1).atHour(5).create();
   var ui = SpreadsheetApp.getUi();
   ui.alert('Orden automático activado',
-    'Desde ahora el Sheet se ordena solo todos los días de madrugada, y al escribir se limpian al instante los nombres y fuentes.\n\nOrdené una vez ahora mismo:\n\n' + textoDeReporte(ejecutarOrden()),
+    'Desde ahora el Sheet se ordena solo todos los días de madrugada, y al escribir se limpian al instante los nombres.\n\nOrdené una vez ahora mismo:\n\n' + textoDeReporte(ejecutarOrden()),
     ui.ButtonSet.OK);
 }
 
@@ -506,9 +535,9 @@ function onEdit(e) {
       for (var j = 0; j < valores[i].length; j++) {
         var campo = h[e.range.getColumn() - 1 + j];
         var v = valores[i][j];
-        if (['setter', 'closer', 'fuente'].indexOf(campo) === -1 || typeof v !== 'string') continue;
+        if (['setter', 'closer'].indexOf(campo) === -1 || typeof v !== 'string') continue;
         var t = v.replace(/\s+/g, ' ').trim();
-        var conocidos = campo === 'setter' ? SETTERS : campo === 'fuente' ? FUENTES_BASE : [];
+        var conocidos = campo === 'setter' ? SETTERS : SETTERS.concat(['Gianie']);
         for (var k = 0; k < conocidos.length; k++) {
           if (t.toLowerCase() === conocidos[k].toLowerCase()) t = conocidos[k];
         }
