@@ -742,6 +742,19 @@
   .metricas-rol:hover{ background:rgba(255,255,255,0.07); }
   .metricas-rol.active{ background:rgba(240,168,190,0.16); border-color:var(--blush-2); }
   #metricasGuardarBtn{ padding:18px; font-size:18px; }
+  /* Contador con − / + (mismo estilo que los contadores de Herramientas). */
+  .metricas-stepper{ display:grid; grid-template-columns:60px minmax(0,1fr) 60px; gap:10px; align-items:stretch; }
+  .metricas-stepper input{
+    text-align:center; font-size:30px; font-weight:800; color:var(--blush); padding:10px 6px;
+    -moz-appearance:textfield; appearance:textfield;
+  }
+  .metricas-stepper input::-webkit-outer-spin-button, .metricas-stepper input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .metricas-step-btn{
+    border-radius:14px; border:1px solid var(--border); background:rgba(255,255,255,0.09); color:var(--cream);
+    font:700 28px Inter,sans-serif; cursor:pointer; transition:background .12s, border-color .12s; user-select:none; -webkit-user-select:none;
+  }
+  .metricas-step-btn:hover{ background:rgba(255,255,255,0.16); border-color:var(--blush-2); }
+  .metricas-step-btn:active{ transform:scale(0.96); }
   @media(max-width:560px){
     .metricas-card{ padding:30px 22px 28px; border-radius:20px; }
     .metricas-grid, .metricas-roles{ grid-template-columns:1fr; }
@@ -1575,27 +1588,27 @@
         <div class="metricas-grid" id="metricasCamposSetter" hidden>
           <div class="metricas-field">
             <label for="metricasLlamadas">Llamadas</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasLlamadas" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasLlamadas" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasAgendadas">Agendadas</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasAgendadas" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasAgendadas" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasNoCalifica">No califica</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasNoCalifica" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasNoCalifica" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasNoRespondio">No respondió</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasNoRespondio" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasNoRespondio" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasShows">Shows</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasShows" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasShows" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasCierres">Cierres <span class="metricas-hint">(cantidad de ventas cerradas)</span></label>
-            <input type="number" min="0" inputmode="numeric" id="metricasCierres" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasCierres" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasVentas">Cash collected <span class="metricas-hint">(US$ cobrados)</span></label>
@@ -1606,15 +1619,15 @@
         <div class="metricas-grid" id="metricasCamposCloser" hidden>
           <div class="metricas-field">
             <label for="metricasCAgendas">Agendas <span class="metricas-hint">(confirmadas el mismo día)</span></label>
-            <input type="number" min="0" inputmode="numeric" id="metricasCAgendas" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasCAgendas" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasCShows">Shows</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasCShows" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasCShows" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasCNoShows">No shows</label>
-            <input type="number" min="0" inputmode="numeric" id="metricasCNoShows" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasCNoShows" placeholder="0" data-stepper>
           </div>
           <div class="metricas-field">
             <label for="metricasCCash">Cash collected <span class="metricas-hint">(US$ cobrados)</span></label>
@@ -1622,7 +1635,7 @@
           </div>
           <div class="metricas-field">
             <label for="metricasCCierres">Cierres <span class="metricas-hint">(cantidad de ventas cerradas)</span></label>
-            <input type="number" min="0" inputmode="numeric" id="metricasCCierres" placeholder="0">
+            <input type="number" min="0" inputmode="numeric" id="metricasCCierres" placeholder="0" data-stepper>
           </div>
         </div>
 
@@ -3371,6 +3384,7 @@
     if(metricasRol !== 'setter' && metricasRol !== 'closer') metricasRol = '';
     document.getElementById('metricasFecha').textContent = 'Hoy: ' + formatearFechaHoy();
     [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER].forEach(id => { document.getElementById(id).value = ''; });
+    restaurarBorradorMetricas();
     document.getElementById('metricasStatus').textContent = '';
     actualizarPasosMetricas();
   }
@@ -3387,6 +3401,38 @@
   }));
 
   const numeroDe = (id) => Number(document.getElementById(id).value) || 0;
+
+  // Los campos de conteo se convierten en contadores con − y + (se puede
+  // tocar el número y escribirlo igual). Lo que vas contando se guarda en este
+  // navegador durante el día, así no se pierde si cerrás la pestaña.
+  const METRICAS_BORRADOR_KEY = 'shu_metricas_borrador';
+  const METRICAS_CAMPOS_TODOS = () => [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER];
+  function guardarBorradorMetricas(){
+    const valores = {};
+    METRICAS_CAMPOS_TODOS().forEach(id => { const v = document.getElementById(id).value; if(v !== '') valores[id] = v; });
+    try { localStorage.setItem(METRICAS_BORRADOR_KEY, JSON.stringify({ fecha: formatearFechaHoy(), valores })); } catch(e) {}
+  }
+  function restaurarBorradorMetricas(){
+    try {
+      const g = JSON.parse(localStorage.getItem(METRICAS_BORRADOR_KEY) || 'null');
+      if(g && g.fecha === formatearFechaHoy()) Object.entries(g.valores || {}).forEach(([id, v]) => { const el = document.getElementById(id); if(el) el.value = v; });
+    } catch(e) {}
+  }
+  function borrarBorradorMetricas(){ try { localStorage.removeItem(METRICAS_BORRADOR_KEY); } catch(e) {} }
+  document.querySelectorAll('#metricasScreen input[data-stepper]').forEach(input => {
+    const caja = document.createElement('div');
+    caja.className = 'metricas-stepper';
+    const menos = document.createElement('button'); menos.type = 'button'; menos.className = 'metricas-step-btn'; menos.textContent = '−'; menos.setAttribute('aria-label', 'Restar uno');
+    const mas = document.createElement('button'); mas.type = 'button'; mas.className = 'metricas-step-btn'; mas.textContent = '+'; mas.setAttribute('aria-label', 'Sumar uno');
+    input.replaceWith(caja);
+    caja.append(menos, input, mas);
+    const cambiar = (d) => { input.value = Math.max(0, (Number(input.value) || 0) + d); guardarBorradorMetricas(); };
+    menos.addEventListener('click', () => cambiar(-1));
+    mas.addEventListener('click', () => cambiar(1));
+    input.addEventListener('input', guardarBorradorMetricas);
+  });
+  document.getElementById('metricasVentas').addEventListener('input', guardarBorradorMetricas);
+  document.getElementById('metricasCCash').addEventListener('input', guardarBorradorMetricas);
 
   document.getElementById('metricasGuardarBtn').addEventListener('click', async () => {
     const statusEl = document.getElementById('metricasStatus');
@@ -3420,6 +3466,7 @@
       await escribirLecciones(body);
       statusEl.textContent = '✓ Guardado — gracias ' + nombre + '. Se ve en el Dashboard en unos minutos.';
       [...METRICAS_CAMPOS_SETTER, ...METRICAS_CAMPOS_CLOSER].forEach(id => { document.getElementById(id).value = ''; });
+      borrarBorradorMetricas();
       filasTrackerCache = null; filasRankingCache = null; // para que el Dashboard vuelva a leer el Sheet
     } catch(e) {
       statusEl.textContent = 'No se pudo guardar: ' + e.message;
