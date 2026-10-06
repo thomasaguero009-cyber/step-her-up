@@ -861,6 +861,19 @@
     </div>
   </section>
 
+  <div class="modal-overlay" id="editPasswordOverlay">
+    <div class="modal-card">
+      <div class="modal-title" id="editPasswordTitle">Modo edición</div>
+      <p class="modal-sub" id="editPasswordSub">Ingresá la contraseña para editar el onboarding.</p>
+      <input type="password" id="editPasswordInput" class="modal-input" placeholder="Contraseña" autocomplete="off">
+      <div class="modal-error" id="editPasswordError">Contraseña incorrecta.</div>
+      <div class="modal-actions">
+        <button type="button" class="ghost-link-btn" id="editPasswordCancel">Cancelar</button>
+        <button type="button" class="btn-small" id="editPasswordConfirm">Entrar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="adminMenuOverlay">
     <div class="modal-card" style="max-width:340px;">
       <div class="modal-title">Admin</div>
@@ -990,18 +1003,6 @@
         </div>
       </div>
 
-      <div class="modal-overlay" id="editPasswordOverlay">
-        <div class="modal-card">
-          <div class="modal-title">Modo edición</div>
-          <p class="modal-sub">Ingresá la contraseña para editar el onboarding.</p>
-          <input type="password" id="editPasswordInput" class="modal-input" placeholder="Contraseña" autocomplete="off">
-          <div class="modal-error" id="editPasswordError">Contraseña incorrecta.</div>
-          <div class="modal-actions">
-            <button type="button" class="ghost-link-btn" id="editPasswordCancel">Cancelar</button>
-            <button type="button" class="btn-small" id="editPasswordConfirm">Entrar</button>
-          </div>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -1931,6 +1932,8 @@
   let accionPendientePassword = 'editar';
   function abrirModalPassword(accion){
     accionPendientePassword = accion;
+    document.getElementById('editPasswordTitle').textContent = accion === 'utm' ? 'Admin' : 'Modo edición';
+    document.getElementById('editPasswordSub').textContent = accion === 'utm' ? 'Ingresá la contraseña para entrar a las herramientas de admin.' : 'Ingresá la contraseña para editar el onboarding.';
     editPasswordInput.value = '';
     editPasswordError.classList.remove('show');
     editPasswordOverlay.classList.add('open');
