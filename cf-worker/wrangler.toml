@@ -18,3 +18,9 @@ OPENAI_MODEL = "gpt-4.1"
 [[r2_buckets]]
 binding = "VIDEOS"
 bucket_name = "step-her-up-videos"
+
+# Ejemplos reales de estrategias (privados: NO van al repo, que es público).
+# Se cargan con `npx wrangler kv key put --binding=ESTRATEGIAS --remote ...`.
+[[kv_namespaces]]
+binding = "ESTRATEGIAS"
+id = "e4cf8c7402e5449592cb0c64c7fda7ef"

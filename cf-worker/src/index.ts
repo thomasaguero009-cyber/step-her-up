@@ -12,6 +12,7 @@ export interface Env {
   OPENAI_API_KEY: string;
   ADMIN_KEY: string;
   OPENAI_MODEL: string;
+  ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
 }
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
@@ -551,6 +552,71 @@ function igualesSeguro(a: string, b: string): boolean {
   return r === 0;
 }
 
+// Las 8 secciones de la estrategia, con la estructura de la plantilla de Gianie.
+// Cada una se genera por separado (así se puede rehacer una sola).
+const SECCIONES: Record<string, { titulo: string; estructura: string }> = {
+  punto: {
+    titulo: "1. Punto de partida",
+    estructura: `### Resumen del diagnóstico: estado actual (etapa del negocio, ingresos, clientas o ventas, seguidores), el problema raíz de comunicación o de percepción de valor, y qué frena más las ventas. Cierra con una tabla de una sola celda titulada "Diagnóstico clave".
+### Tu meta principal a 12 meses: meta clara y con números (facturación, seguidores, clientas por mes), más una tabla "Meta | Resultado esperado" con filas de marca personal, contenido, embudo, publicidad y confianza.
+### Análisis SWOT estratégico: tabla de dos columnas Fortalezas | Debilidades, y otra Oportunidades | Amenazas.`,
+  },
+  marca: {
+    titulo: "2. Fundamento de marca",
+    estructura: `### Tu clienta ideal: "[nombre de arquetipo]": tabla "Dimensión | Tu clienta ideal" con las filas Quién es (edad, profesión, ubicación, ingresos, etapa de vida), Qué le duele (3 frustraciones), Qué desea (3 aspiraciones), Dónde está (plataformas, horarios, contenido que sigue), Qué la frena (objeción raíz).
+### Tu posicionamiento: 2 o 3 oraciones: a quién ayuda, qué problema resuelve y cómo lo hace distinto.
+### Tu propuesta de valor: "Lo que ofreces" (qué es exactamente, rango de precio, tiempos) y "Lo que te diferencia" con 3 puntos que empiezan con ✓.
+### La psicología maestra de tu contenido: las ideas psicológicas que mueven a su clienta ideal y cómo se aplican en su contenido.`,
+  },
+  perfil: {
+    titulo: "3. Perfil de Instagram: la vitrina de venta",
+    estructura: `### Qué depurar y arreglar del perfil actual: solo si hay datos del perfil en las respuestas; si no los hay, déjalo fuera.
+### Tu bio optimizada: Opción 1, Opción 2 y Opción 3, y una "Palabra clave" (UNA sola palabra).
+### Tus 3 publicaciones pineadas: tabla "Pineada | Qué es y por qué": #1 Quién eres (video donde sale ella, prioridad semana 1), #2 Prueba social, #3 Tu oferta (con la palabra clave).
+### Tus historias destacadas: tabla de 6: Empieza aquí, Resultados, Servicios, Proceso, Preguntas, Mi vida, adaptadas a su negocio.`,
+  },
+  contenido: {
+    titulo: "4. Pilar 1: contenido orgánico",
+    estructura: `### Data que funciona hoy: estos 6 puntos, tal cual: Reels de 15 a 30 segundos tienen la mejor interacción y pasados 90 segundos cae fuerte; 85% se ve sin sonido, así que subtítulos siempre; el algoritmo premia guardados, compartidos por DM y tiempo de visualización; el contenido detrás de cámaras rinde 34% más que el promocional; un caption con CTA sube la interacción 42%; los Reels constantes crecen 25% más rápido.
+### La regla de contenido: una regla simple y propia de su negocio.
+### Tus pilares de contenido: tabla "Pilar | Objetivo | Temas" con Autoridad, Conexión, Prueba y Venta, con temas concretos de su nicho.
+### Tu frecuencia de publicación: nivel recomendado según su meta y tiempo, y tabla de los niveles 1 (mantener, 3 Reels por semana), 2 (crecer, 5 Reels por semana) y 3 (acelerar, 7 a 14).
+### Tu secuencia diaria de historias: humaniza, valor, proceso, interacción y CTA suave, con ejemplos de su negocio.
+### Los 4 frameworks de creación: guion hablado (hook 0-3 s, desarrollo, valor, cierre, CTA), b-roll con texto, historia de vida (antes, quiebre, decisión, hoy, lección, CTA suave) y anuncio (hook, problema, solución, prueba, CTA único), cada uno con un ejemplo aplicado a su caso.
+### Banco de ideas probadas: ideas para Atraer, Confianza, Comunidad, Conectar y Vender.
+### 10 ideas personalizadas de alto impacto: lista numerada con ideas muy concretas para su nicho.`,
+  },
+  ads: {
+    titulo: "5. Pilar 2: Meta Ads",
+    estructura: `### La campaña única: objetivo (mensajes de WhatsApp, prospectos o conversiones), presupuesto por mes (mes 1, mes 2, mes 3 en adelante), público (demografía, intereses, comportamientos) y CTA.
+### La mecánica: el recorrido paso a paso desde el anuncio hasta la venta.
+### Los 5 ángulos de venta + psicología: tabla "Ángulo | Descripción", cada uno con nombre, hook, problema, solución, CTA y mensaje precompilado.
+### Respuestas de WhatsApp + cómo cerrar: respuesta en menos de 1 hora y preguntas de calificación.
+### A/B testing: cómo identificar el ganador.
+### Métricas a vigilar: CPM $5-15, CPC $0.50-1.50, CTR 2-5%, tasa de conversión 8-15%.
+### Presupuesto y timeline según meta: tabla "Mes | Presupuesto | Objetivo" con mes 1 (testing), mes 2 (escala) y mes 3 en adelante (optimizar).
+### Red flags: señales de que algo falla y qué ajustar.`,
+  },
+  embudo: {
+    titulo: "6. Pilar 3: tu embudo de venta",
+    estructura: `### Las 5 etapas del embudo: tabla "Etapa | Qué pasa | Herramienta | Métrica" con Descubrimiento, Conexión, Confianza, Conversión y Fidelización, adaptadas a su negocio.
+### Tu punto de conversión: dónde y cómo se cierra la venta en su caso.
+### Lead magnets para convertir contenido en prospectos: 2 o 3 ideas concretas.
+### Qué montar en orden: pasos numerados.`,
+  },
+  plan: {
+    titulo: "7. Tu plan de 90 días",
+    estructura: `### Timeline mensual: tabla "Mes | Enfoque | Acciones | Meta" para los meses 1, 2 y 3, con metas con números.
+### Plan semanal de ejecución - Mes 1: semana 1 (fundamento), semana 2 (vitrina visual), semana 3 (contenido orgánico), semana 4 (primera pauta), cada una con su checklist y las preguntas para revisar si algo falla.
+### Tus próximos pasos inmediatos: lista corta y concreta.
+### Guiones listos para grabar esta semana: 2 o 3 guiones completos para su nicho.`,
+  },
+  cierre: {
+    titulo: "8. Cierre estratégico",
+    estructura: `Un párrafo breve que le habla directamente por su nombre y resume cómo se va a construir su marca, y una tabla de una sola celda titulada "Tu nueva promesa de marca". Termina con las líneas: **Step Her Up**, Consultoría de posicionamiento y monetización, **Sanar · Creer · Conquistar**.`,
+  },
+};
+
 async function handleEstrategiaGenerar(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.ADMIN_KEY || !env.OPENAI_API_KEY) {
     return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -559,16 +625,40 @@ async function handleEstrategiaGenerar(request: Request, env: Env, cors: Headers
   if (!igualesSeguro(clave, env.ADMIN_KEY)) {
     return json({ ok: false, error: "unauthorized" }, 401, cors);
   }
-  let body: { prompt?: string; respuestas?: string };
+  let body: { seccion?: string; prompt?: string; respuestas?: string; contexto?: string; instruccion?: string; textoActual?: string };
   try {
     body = await request.json();
   } catch {
     return json({ ok: false, error: "bad_json" }, 400, cors);
   }
+  const sec = SECCIONES[body.seccion || ""];
   const prompt = (body.prompt || "").trim();
   const respuestas = (body.respuestas || "").trim();
+  const contexto = (body.contexto || "").trim();
+  const instruccion = (body.instruccion || "").trim();
+  const textoActual = (body.textoActual || "").trim();
+  if (!sec) return json({ ok: false, error: "bad_section" }, 400, cors);
   if (!prompt || !respuestas) return json({ ok: false, error: "missing_fields" }, 400, cors);
-  if (prompt.length > 20000 || respuestas.length > 30000) return json({ ok: false, error: "too_long" }, 413, cors);
+  if (prompt.length > 20000 || respuestas.length > 30000 || contexto.length > 30000 || textoActual.length > 30000 || instruccion.length > 2000) {
+    return json({ ok: false, error: "too_long" }, 413, cors);
+  }
+
+  const ejemplo = env.ESTRATEGIAS ? await env.ESTRATEGIAS.get("ejemplo:" + body.seccion) : null;
+  let sistema = prompt
+    + `\n\nAhora escribes SOLO esta sección de la estrategia: "${sec.titulo}". Empieza con el título exacto en una línea "## ${sec.titulo}". Usa Markdown: "### " para subtítulos, ** para negritas, "- " para listas y tablas con barras verticales (| col | col |) donde la estructura las pide.`
+    + `\n\nEstructura obligatoria de la sección:\n${sec.estructura}`;
+  if (ejemplo) {
+    sistema += `\n\nEjemplo real de cómo Gianie escribió esta misma sección para OTRA alumna. Imita su nivel de detalle, su formato (tablas incluidas) y su tono. NO copies sus datos, frases ni casos: todo lo que escribas debe salir de las respuestas de esta alumna.\n<ejemplo>\n${ejemplo}\n</ejemplo>`;
+  }
+  let usuario = "Respuestas del formulario de la alumna:\n\n" + respuestas;
+  if (contexto) usuario += "\n\nSecciones ya escritas de esta misma estrategia (mantén coherencia con ellas):\n\n" + contexto;
+  if (textoActual && instruccion) {
+    usuario += "\n\nTexto actual de esta sección:\n\n" + textoActual
+      + "\n\nInstrucción de Gianie para esta versión: " + instruccion
+      + "\nReescribe la sección completa aplicando la instrucción y conservando lo que no se pidió cambiar.";
+  } else if (instruccion) {
+    usuario += "\n\nIndicación extra de Gianie para esta sección: " + instruccion;
+  }
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -576,8 +666,8 @@ async function handleEstrategiaGenerar(request: Request, env: Env, cors: Headers
     body: JSON.stringify({
       model: env.OPENAI_MODEL || "gpt-4.1",
       messages: [
-        { role: "system", content: prompt },
-        { role: "user", content: "Respuestas del formulario de la alumna:\n\n" + respuestas },
+        { role: "system", content: sistema },
+        { role: "user", content: usuario },
       ],
     }),
   });
@@ -585,8 +675,8 @@ async function handleEstrategiaGenerar(request: Request, env: Env, cors: Headers
   if (!r.ok) {
     return json({ ok: false, error: "openai_error", status: r.status, detail: data?.error?.message || "" }, 502, cors);
   }
-  const borrador = data?.choices?.[0]?.message?.content || "";
-  return json({ ok: true, borrador }, 200, cors);
+  const texto = data?.choices?.[0]?.message?.content || "";
+  return json({ ok: true, seccion: body.seccion, texto }, 200, cors);
 }
 
 export default {

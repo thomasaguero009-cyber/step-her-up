@@ -512,7 +512,8 @@
   .es-link{ background:none; border:0; padding:6px 0; font:600 14px Inter,sans-serif; color:var(--es-mute); cursor:pointer; }
   .es-link:hover{ color:var(--es-ink); }
   .es-layout{ display:grid; grid-template-columns:280px minmax(0,1fr); gap:28px; align-items:start; }
-  @media(max-width:820px){ .es-layout{ grid-template-columns:1fr; gap:18px; } }
+  @media(max-width:820px){ .es-layout{ grid-template-columns:minmax(0,1fr); gap:18px; } }
+  .es-layout > *{ min-width:0; }
   .es-input{
     width:100%; padding:10px 12px; border:1px solid var(--es-line); border-radius:8px; background:var(--es-surface);
     font:400 14px/1.5 Inter,sans-serif; color:var(--es-ink);
@@ -560,7 +561,27 @@
   .es-btn-ghost{ background:transparent; color:var(--es-ink); border:1px solid var(--es-line); }
   .es-btn-ghost:hover{ background:rgba(33,23,24,0.05); }
   .es-msg{ font-size:13.5px; color:var(--es-mute); }
+  .es-sec{ padding:20px 0 8px; border-top:1px solid var(--es-line); }
+  .es-sec:first-child{ border-top:0; padding-top:0; }
+  .es-sec-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:28px; margin-bottom:6px; }
+  .es-sec-nombre{ font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--es-mute); }
+  .es-sec-acciones{ display:flex; gap:2px; margin-left:auto; }
+  .es-mini{ background:none; border:0; padding:4px 9px; border-radius:6px; font:600 13px Inter,sans-serif; color:var(--es-accent); cursor:pointer; }
+  .es-mini:hover{ background:rgba(90,22,38,0.08); }
+  .es-regen{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+  .es-regen .es-input{ flex:1 1 260px; width:auto; }
+  .es-sec-error{ margin:0; padding:6px 0; font-size:14px; color:#b3261e; }
+  textarea.es-edit{ min-height:340px; font-size:14px; }
   .es-draft{ font-size:16px; line-height:1.75; }
+  .es-draft h5{ margin:14px 0 4px; font-size:14px; font-weight:700; }
+  .es-draft ol{ margin:0 0 14px; padding-left:22px; max-width:68ch; }
+  .es-tabla{ overflow-x:auto; margin:6px 0 18px; }
+  .es-tabla table{ border-collapse:collapse; width:100%; min-width:520px; font-size:14px; line-height:1.5; }
+  .es-tabla th, .es-tabla td{ border:1px solid var(--es-line); padding:8px 11px; text-align:left; vertical-align:top; }
+  .es-tabla th{ background:#f6ecee; font-weight:700; }
+  .es-callout{ background:#f6ecee; border-radius:8px; padding:12px 16px; margin:6px 0 18px; max-width:68ch; }
+  .es-callout p{ margin:0 0 6px; }
+  .es-callout p:last-child{ margin:0; }
   .es-draft h3{ margin:32px 0 8px; font-size:18px; font-weight:700; line-height:1.3; }
   .es-draft h3:first-child{ margin-top:0; }
   .es-draft h4{ margin:20px 0 6px; font-size:15px; font-weight:700; }
@@ -2071,85 +2092,119 @@
   document.getElementById('adminGoUtm').addEventListener('click', () => { adminMenuOverlay.classList.remove('open'); abrirUtmBuilder(); });
   document.getElementById('adminGoEstrategias').addEventListener('click', () => { adminMenuOverlay.classList.remove('open'); entrarAEstrategias(); });
 
-  // ===== Estrategias de alumnas (Admin) — por ahora con DATOS DE EJEMPLO.
-  // Todavía no lee las respuestas reales del formulario ni llama a la IA.
+  // ===== Estrategias de alumnas (Admin). Las RESPUESTAS siguen siendo de
+  // ejemplo (falta conectar el Sheet del formulario); la generación con IA es real.
   const ESTR_ESTADOS = { recibido: 'Formularios recibidos', borrador: 'Borrador listo', revision: 'En revisión', entregada: 'Entregada' };
+  // Las 8 secciones de la estrategia de Gianie. Cada una se genera por separado
+  // (la estructura detallada de cada una vive en el Worker).
+  const ESTR_SECCIONES = [
+    { id: 'punto', titulo: '1. Punto de partida' },
+    { id: 'marca', titulo: '2. Fundamento de marca' },
+    { id: 'perfil', titulo: '3. Perfil de Instagram: la vitrina de venta' },
+    { id: 'contenido', titulo: '4. Pilar 1: contenido orgánico' },
+    { id: 'ads', titulo: '5. Pilar 2: Meta Ads' },
+    { id: 'embudo', titulo: '6. Pilar 3: tu embudo de venta' },
+    { id: 'plan', titulo: '7. Tu plan de 90 días' },
+    { id: 'cierre', titulo: '8. Cierre estratégico' },
+  ];
   const ESTR_PROMPT_DEFAULT = [
     'Eres Gianie, estratega de marca personal en Step Her Up, y le escribes su estrategia a una alumna. Tienes sus respuestas del formulario "Diagnóstico Estratégico 360°". Háblale directamente a ella, en español neutro y con tuteo, como si le explicaras su plan en una videollamada: cercano, seguro, concreto.',
     '',
-    'Estructura, con estos títulos: 1. Punto de partida · 2. Fundamento de marca · 3. Perfil de Instagram · 4. Contenido orgánico · 5. Meta Ads · 6. Embudo y plan de 90 días. Al final, una sección "Para validar con ella" con los datos que faltaron.',
-    '',
-    'Contenido de cada parte:',
-    '- Punto de partida: dónde está hoy y qué meta a 12 meses tiene.',
-    '- Fundamento de marca: clienta ideal, posicionamiento y propuesta de valor.',
-    '- Perfil: 3 opciones de bio, la palabra clave, 3 publicaciones pineadas y 6 historias destacadas.',
-    '- Contenido orgánico: pilares, frecuencia y un banco de ideas.',
-    '- Meta Ads: estructura de campañas y 5 ángulos de venta.',
-    '- Embudo y plan de 90 días: pasos por mes.',
-    '',
     'Estilo:',
-    '- Escribe en prosa natural, con párrafos cortos. Usa listas solo donde hagan falta (bios, ideas, ángulos).',
+    '- Escribe en prosa natural, con párrafos cortos. Usa listas y tablas solo donde la estructura de la sección las pide.',
     '- Nada de relleno ni frases de manual. Evita palabras como "potenciar", "elevar", "sinergia", "en el mundo actual", "no es solo X, es Y". Si una frase sirve para cualquier negocio, bórrala y escribe algo que solo aplique a ella.',
     '- Usa sus propias palabras, su nicho, sus cifras y sus objeciones. Da ejemplos concretos de su negocio.',
     '- Sin emojis, sin guiones largos (—), sin mayúsculas sostenidas, sin comentarios sobre ti ni sobre el formulario.',
-    '- Formato: Markdown simple. Títulos con "## ", subtítulos con "### ", negritas con **, listas con "- ".',
     '',
     'Reglas:',
-    '- Usa solo lo que dijo la alumna. Si falta un dato o respondió "No aplica", no lo inventes ni lo menciones en el texto: anótalo en "Para validar con ella".',
-    '- Si infieres algo importante, agrégalo también a "Para validar con ella".',
+    '- Usa solo lo que dijo la alumna. No inventes cifras (ingresos, seguidores, presupuestos, precios, metas) que no estén en sus respuestas. Si una cifra hace falta y no la dio, propón un rango razonable y márcalo así: [por validar: qué dato confirmar]. Si falta otro dato importante o respondió "No aplica", escribe la mejor recomendación posible con lo que hay y márcalo igual.',
+    '- Si infieres algo importante, márcalo también con [por validar: ...].',
+    '- Si una meta de la alumna ya trae número (por ejemplo "10 clientas por mes"), respétalo tal cual y no lo cambies.',
     '- Sé específica con números y fechas cuando los haya. No prometas resultados garantizados.',
     '- Si la alumna escribió algo en la pregunta de confidencialidad, no lo incluyas en el texto.',
   ].join('\n');
   const ESTR_EJEMPLOS = [
-    { id: 'e1', nombre: 'Alumna de ejemplo 1', negocio: 'Estética facial y corporal', estado: 'recibido', borrador: '',
+    { id: 'e1', nombre: 'Alumna de ejemplo 1', negocio: 'Estética facial y corporal', estado: 'recibido', secciones: {},
       respuestas: [
         { seccion: '1. Datos básicos y punto de partida', qa: [
+          ['Nombre del negocio', 'Glow Studio by Mariana'],
+          ['Ciudad', 'Guadalajara, México'],
           ['Etapa del negocio', 'Ya vendo, pero de manera irregular'],
           ['Resultado concreto a 90 días', 'Llegar a 10 clientas nuevas por mes'],
           ['Ingreso mensual actual', 'Entre $1,000 y $4,999'] ] },
+        { seccion: '2. Oferta', qa: [
+          ['Qué vende', 'Limpiezas faciales profundas, hidratación con aparatología y paquetes de tratamientos corporales reductores.'],
+          ['Rango de precios', 'Entre $45 y $120 por sesión; paquetes de 6 sesiones desde $350.'],
+          ['Qué la diferencia', 'Hace un diagnóstico de piel de 15 minutos antes de cada tratamiento y manda un plan de cuidado en casa por WhatsApp.'] ] },
+        { seccion: '3. Presencia digital', qa: [
+          ['Instagram', '@glowstudio.mariana · 2,300 seguidores'],
+          ['Qué publica hoy', 'Fotos de antes y después y promociones. Publica 2 o 3 veces por semana sin horario fijo.'],
+          ['Bio actual', 'Estética facial y corporal 💆‍♀️ Agenda por WhatsApp'] ] },
         { seccion: '4. Cliente ideal', qa: [
           ['¿A quién quieres ayudar?', 'Mujeres de 25 a 40 años que quieren verse más cuidadas y seguras.'],
           ['Objeciones más comunes', 'Precio, no saber si funcionará para ellas, falta de tiempo.'] ] },
         { seccion: '7. Proceso de ventas', qa: [
           ['Cómo realiza la mayoría de sus ventas', 'Mensajes directos o WhatsApp'],
           ['Tiempo de respuesta', 'Entre 1 y 3 horas'] ] } ] },
-    { id: 'e2', nombre: 'Alumna de ejemplo 2', negocio: 'Consultoría de nutrición', estado: 'borrador',
-      borrador: '(Texto de ejemplo — no lo generó la IA.)\n\n1. Punto de partida\nAquí iría el diagnóstico y la meta a 12 meses.\n\n2. Fundamento de marca\nAquí irían la clienta ideal, el posicionamiento y la propuesta de valor.',
+    { id: 'e2', nombre: 'Alumna de ejemplo 2', negocio: 'Consultoría de nutrición', estado: 'recibido', secciones: {},
       respuestas: [
         { seccion: '1. Datos básicos y punto de partida', qa: [
           ['Etapa del negocio', 'Tengo ventas consistentes y quiero aumentar los resultados'],
           ['Resultado concreto a 90 días', 'Duplicar las citas mensuales'] ] } ] },
-    { id: 'e3', nombre: 'Alumna de ejemplo 3', negocio: 'Diseño de interiores', estado: 'entregada',
-      borrador: '(Texto de ejemplo — no lo generó la IA.)',
+    { id: 'e3', nombre: 'Alumna de ejemplo 3', negocio: 'Diseño de interiores', estado: 'recibido', secciones: {},
       respuestas: [
         { seccion: '1. Datos básicos y punto de partida', qa: [
           ['Etapa del negocio', 'Estoy cambiando el posicionamiento de una marca existente'] ] } ] },
   ];
   let estrSeleccion = ESTR_EJEMPLOS[0].id;
 
-  // Convierte el Markdown simple del borrador en HTML (títulos, negritas, listas).
-  function estrMarkdown(texto){
-    const inline = (t) => escapeHtml(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    let html = '', enLista = false;
+  // ----- Markdown simple -> bloques (títulos, listas, tablas, párrafos) -----
+  function estrBloques(texto){
+    const bloques = [];
+    let tabla = null;
     String(texto).split('\n').forEach(linea => {
       const l = linea.trim();
-      const item = l.match(/^[-*]\s+(.*)/);
-      if(item){ if(!enLista){ html += '<ul>'; enLista = true; } html += '<li>' + inline(item[1]) + '</li>'; return; }
-      if(enLista){ html += '</ul>'; enLista = false; }
+      if(l.startsWith('|')){
+        const celdas = l.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+        if(celdas.every(c => /^:?-{2,}:?$/.test(c))) return; // fila separadora
+        if(!tabla){ tabla = { t: 'tabla', filas: [] }; bloques.push(tabla); }
+        tabla.filas.push(celdas);
+        return;
+      }
+      tabla = null;
       if(!l) return;
-      const t = l.match(/^(#{1,4})\s+(.*)/);
-      if(t){ html += (t[1].length <= 2 ? '<h3>' : '<h4>') + inline(t[2]) + (t[1].length <= 2 ? '</h3>' : '</h4>'); return; }
-      html += '<p>' + inline(l) + '</p>';
+      let m;
+      if((m = l.match(/^(#{1,4})\s+(.*)/))) bloques.push({ t: 'h', n: m[1].length, texto: m[2] });
+      else if((m = l.match(/^[-*•✓]\s+(.*)/))) bloques.push({ t: 'li', texto: m[1] });
+      else if((m = l.match(/^(\d+)[.)]\s+(.*)/))) bloques.push({ t: 'ol', n: +m[1], texto: m[2] });
+      else bloques.push({ t: 'p', texto: l });
     });
-    if(enLista) html += '</ul>';
+    bloques.forEach(b => { if(b.t === 'tabla'){ const n = Math.max(...b.filas.map(f => f.length)); b.filas = b.filas.map(f => f.concat(Array(n - f.length).fill(''))); } });
+    return bloques;
+  }
+  function estrMarkdown(texto){
+    const inline = (t) => escapeHtml(t).replace(/&lt;br\s*\/?&gt;/gi, '<br>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    let html = '', lista = null;
+    const cerrar = () => { if(lista){ html += '</' + lista + '>'; lista = null; } };
+    estrBloques(texto).forEach(b => {
+      if(b.t === 'li'){ if(lista !== 'ul'){ cerrar(); html += '<ul>'; lista = 'ul'; } html += '<li>' + inline(b.texto) + '</li>'; return; }
+      if(b.t === 'ol'){ if(lista !== 'ol'){ cerrar(); html += '<ol start="' + b.n + '">'; lista = 'ol'; } html += '<li>' + inline(b.texto) + '</li>'; return; }
+      cerrar();
+      if(b.t === 'h') html += b.n <= 2 ? '<h3>' + inline(b.texto) + '</h3>' : b.n === 3 ? '<h4>' + inline(b.texto) + '</h4>' : '<h5>' + inline(b.texto) + '</h5>';
+      else if(b.t === 'tabla'){
+        if(b.filas[0].length === 1) html += '<div class="es-callout">' + b.filas.map(f => '<p>' + inline(f[0]) + '</p>').join('') + '</div>';
+        else html += '<div class="es-tabla"><table><thead><tr>' + b.filas[0].map(c => '<th>' + inline(c) + '</th>').join('') + '</tr></thead><tbody>'
+          + b.filas.slice(1).map(f => '<tr>' + f.map(c => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+      }
+      else html += '<p>' + inline(b.texto) + '</p>';
+    });
+    cerrar();
     return html;
   }
   function estrTextoPlano(texto){
-    return String(texto).replace(/^#{1,4}\s*/gm, '').replace(/\*\*/g, '').replace(/^\*\s+/gm, '- ');
+    return String(texto).replace(/^#{1,4}\s*/gm, '').replace(/\*\*/g, '').replace(/<br\s*\/?>/gi, '\n');
   }
-  function estrPromptGuardado(){
-    try { return localStorage.getItem('shu_estr_prompt_v2') || ESTR_PROMPT_DEFAULT; } catch(e){ return ESTR_PROMPT_DEFAULT; }
-  }
+
   // ===== Descarga en .docx (se abre directo en Google Docs o Word) =====
   // Arma el archivo a mano (un .docx es un zip de XML), sin librerías.
   const ESTR_CRC_TABLE = (() => {
@@ -2182,22 +2237,32 @@
   function estrXml(t){
     return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
   }
-  function estrRuns(texto){
-    return texto.split(/\*\*(.+?)\*\*/g).map((t, i) => t ? `<w:r>${i % 2 ? '<w:rPr><w:b/></w:rPr>' : ''}<w:t xml:space="preserve">${estrXml(t)}</w:t></w:r>` : '').join('');
+  // Texto con **negritas** y <br> -> runs de Word.
+  function estrRuns(texto, todoNegrita){
+    return String(texto).split(/<br\s*\/?>/i).map(linea =>
+      linea.split(/\*\*(.+?)\*\*/g).map((t, i) => t ? `<w:r>${(i % 2 || todoNegrita) ? '<w:rPr><w:b/></w:rPr>' : ''}<w:t xml:space="preserve">${estrXml(t)}</w:t></w:r>` : '').join('')
+    ).join('<w:r><w:br/></w:r>');
+  }
+  function estrTablaXml(filas){
+    const n = filas[0].length, ancho = Math.floor(9360 / n);
+    const bordes = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(b => `<w:${b} w:val="single" w:sz="4" w:space="0" w:color="D9CFCC"/>`).join('');
+    const filasXml = filas.map((f, i) => '<w:tr>' + f.map(c => {
+      const sombra = (n === 1 || i === 0) ? '<w:shd w:val="clear" w:color="auto" w:fill="F6ECEE"/>' : '';
+      return `<w:tc><w:tcPr><w:tcW w:w="${ancho}" w:type="dxa"/>${sombra}</w:tcPr><w:p><w:pPr><w:pStyle w:val="TableText"/></w:pPr>${estrRuns(c, n > 1 && i === 0)}</w:p></w:tc>`;
+    }).join('') + '</w:tr>').join('');
+    return `<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders>${bordes}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:top w:w="60" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${Array(n).fill(`<w:gridCol w:w="${ancho}"/>`).join('')}</w:tblGrid>${filasXml}</w:tbl><w:p><w:pPr><w:spacing w:after="120"/></w:pPr></w:p>`;
   }
   function estrDocxBlob(titulo, subtitulo, markdown){
     const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
     const parrafo = (estilo, texto, extra) => `<w:p><w:pPr><w:pStyle w:val="${estilo}"/>${extra || ''}</w:pPr>${estrRuns(texto)}</w:p>`;
     let cuerpo = parrafo('Title', titulo);
     if(subtitulo) cuerpo += parrafo('Subtitle', subtitulo);
-    String(markdown).split('\n').forEach(linea => {
-      const l = linea.trim();
-      if(!l) return;
-      const item = l.match(/^[-*]\s+(.*)/);
-      if(item){ cuerpo += parrafo('ListParagraph', item[1], '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>'); return; }
-      const t = l.match(/^(#{1,4})\s+(.*)/);
-      if(t){ cuerpo += parrafo(t[1].length <= 2 ? 'Heading1' : 'Heading2', t[2]); return; }
-      cuerpo += parrafo('Normal', l);
+    estrBloques(markdown).forEach(b => {
+      if(b.t === 'li') cuerpo += parrafo('ListParagraph', b.texto, '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>');
+      else if(b.t === 'ol') cuerpo += parrafo('ListParagraph', b.n + '. ' + b.texto, '<w:ind w:left="720" w:hanging="360"/>');
+      else if(b.t === 'h') cuerpo += parrafo(b.n <= 2 ? 'Heading1' : b.n === 3 ? 'Heading2' : 'Heading3', b.texto);
+      else if(b.t === 'tabla') cuerpo += estrTablaXml(b.filas);
+      else cuerpo += parrafo('Normal', b.texto);
     });
     const estilo = (id, nombre, rpr, ppr, extra) => `<w:style w:type="paragraph" w:styleId="${id}"${id === 'Normal' ? ' w:default="1"' : ''}><w:name w:val="${nombre}"/>${extra || ''}<w:qFormat/><w:pPr>${ppr}</w:pPr><w:rPr>${rpr}</w:rPr></w:style>`;
     const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:lang w:val="es-ES"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>`
@@ -2206,7 +2271,9 @@
       + estilo('Subtitle', 'Subtitle', '<w:color w:val="6B5E61"/><w:sz w:val="24"/>', '<w:spacing w:after="320"/>')
       + estilo('Heading1', 'heading 1', '<w:b/><w:color w:val="5A1626"/><w:sz w:val="32"/>', '<w:keepNext/><w:spacing w:before="400" w:after="120"/><w:outlineLvl w:val="0"/>', '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>')
       + estilo('Heading2', 'heading 2', '<w:b/><w:sz w:val="26"/>', '<w:keepNext/><w:spacing w:before="280" w:after="80"/><w:outlineLvl w:val="1"/>', '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>')
+      + estilo('Heading3', 'heading 3', '<w:b/><w:color w:val="5A1626"/><w:sz w:val="23"/>', '<w:keepNext/><w:spacing w:before="200" w:after="60"/><w:outlineLvl w:val="2"/>', '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>')
       + estilo('ListParagraph', 'List Paragraph', '', '<w:spacing w:after="80"/><w:ind w:left="720"/>', '<w:basedOn w:val="Normal"/>')
+      + estilo('TableText', 'Table Text', '<w:sz w:val="20"/>', '<w:spacing w:after="40" w:line="260" w:lineRule="auto"/>', '<w:basedOn w:val="Normal"/>')
       + '</w:styles>';
     const numbering = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:numbering ${W}><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="hybridMultilevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`;
     const documento = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${cuerpo}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`;
@@ -2220,8 +2287,50 @@
       { nombre: 'word/numbering.xml', texto: numbering },
     ]);
   }
+
+  // ----- Estado, guardado en el navegador y utilidades -----
+  const ESTR_LS = 'shu_estr_borradores_v2';
+  function estrCargar(){
+    try {
+      const g = JSON.parse(localStorage.getItem(ESTR_LS) || '{}');
+      ESTR_EJEMPLOS.forEach(a => { if(g[a.id]){ a.secciones = g[a.id].secciones || {}; a.estado = g[a.id].estado || a.estado; } });
+    } catch(e){}
+  }
+  function estrGuardar(a){
+    try {
+      const g = JSON.parse(localStorage.getItem(ESTR_LS) || '{}');
+      g[a.id] = { secciones: a.secciones, estado: a.estado };
+      localStorage.setItem(ESTR_LS, JSON.stringify(g));
+    } catch(e){}
+  }
+  estrCargar();
+  let estrTab = 'estrategia';
+  let estrBusqueda = '';
+  let estrEditando = null;      // 'alumna:seccion' en edición
+  let estrTextoEdicion = '';
+  let estrRegenAbierto = null;  // 'alumna:seccion' con el panel "Regenerar" abierto
+  let estrMsgTexto = '';
+  let estrConfirmarNueva = false;
+  const estrEstadoSec = {};     // { alumna: { seccion: 'espera' | 'cargando' | 'error' } }
+  const estrErrores = {};       // { 'alumna:seccion': mensaje }
+
+  const estrTieneTexto = (a) => ESTR_SECCIONES.some(s => a.secciones[s.id]);
+  const estrOcupada = (a) => Object.values(estrEstadoSec[a.id] || {}).some(v => v === 'espera' || v === 'cargando');
+  function estrMarkdownCompleto(a){
+    return ESTR_SECCIONES.filter(s => a.secciones[s.id]).map(s => a.secciones[s.id].trim()).join('\n\n');
+  }
+  function estrRespuestasTexto(a){
+    return a.respuestas.map(sec => sec.seccion + '\n' + sec.qa.map(([q, r]) => '- ' + q + ': ' + r).join('\n')).join('\n\n');
+  }
+  function estrPromptGuardado(){
+    try { return localStorage.getItem('shu_estr_prompt_v4') || ESTR_PROMPT_DEFAULT; } catch(e){ return ESTR_PROMPT_DEFAULT; }
+  }
+  function estrPromptActual(){
+    const t = document.getElementById('estrPrompt');
+    return t ? t.value : estrPromptGuardado();
+  }
   function estrDescargarDocx(a){
-    const blob = estrDocxBlob('Estrategia · ' + a.nombre, a.negocio, a.borrador);
+    const blob = estrDocxBlob('Estrategia de Marca Personal', 'Preparada para ' + a.nombre + ' · ' + a.negocio, estrMarkdownCompleto(a));
     const nombre = ('Estrategia - ' + a.nombre).replace(/[\\/:*?"<>|]+/g, '').trim() + '.docx';
     const url = URL.createObjectURL(blob);
     const enlace = document.createElement('a');
@@ -2229,24 +2338,79 @@
     document.body.appendChild(enlace); enlace.click(); enlace.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
-  // Los borradores se guardan en este navegador para no perderlos al recargar.
-  const ESTR_LS_BORRADORES = 'shu_estr_borradores';
-  function estrCargarBorradores(){
-    try {
-      const g = JSON.parse(localStorage.getItem(ESTR_LS_BORRADORES) || '{}');
-      ESTR_EJEMPLOS.forEach(a => { if(g[a.id]) { a.borrador = g[a.id].borrador; a.estado = g[a.id].estado || a.estado; } });
-    } catch(e){}
+
+  // ----- Llamadas al Worker (una por sección) -----
+  async function estrPedirSeccion(a, secId, extra){
+    let clave = '';
+    try { clave = sessionStorage.getItem('shu_estr_key') || ''; } catch(e){}
+    const contexto = ['punto', 'marca'].filter(k => k !== secId && a.secciones[k]).map(k => a.secciones[k]).join('\n\n');
+    const res = await fetch(`${WORKER_URL}/estrategia/generar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': clave },
+      body: JSON.stringify({ seccion: secId, prompt: estrPromptActual(), respuestas: estrRespuestasTexto(a), contexto, ...(extra || {}) })
+    });
+    const data = await res.json().catch(() => ({}));
+    if(res.status === 401){
+      try { sessionStorage.removeItem('shu_estr_key'); sessionStorage.removeItem('shu_admin_utm_ok'); } catch(e){}
+      const err = new Error('El servidor no aceptó la contraseña de Admin. Salí y volvé a entrar a Admin.'); err.auth = true; throw err;
+    }
+    if(!res.ok || !data.ok) throw new Error('No se pudo generar (' + (data.error || res.status) + ').');
+    return data.texto;
   }
-  function estrGuardarBorrador(a){
-    try {
-      const g = JSON.parse(localStorage.getItem(ESTR_LS_BORRADORES) || '{}');
-      g[a.id] = { borrador: a.borrador, estado: a.estado };
-      localStorage.setItem(ESTR_LS_BORRADORES, JSON.stringify(g));
-    } catch(e){}
+  function estrRefrescar(a){
+    renderListaEstr();
+    if(estrSeleccion !== a.id) return;
+    renderBarraEstr(a);
+    renderDocumento(a);
   }
-  estrCargarBorradores();
-  let estrTab = 'estrategia';
-  let estrBusqueda = '';
+  function estrProgreso(a){
+    const est = estrEstadoSec[a.id] || {};
+    const pendientes = Object.keys(est).filter(k => est[k] === 'espera' || est[k] === 'cargando').length;
+    return 'Escribiendo… ' + (ESTR_SECCIONES.length - pendientes) + ' de ' + ESTR_SECCIONES.length + ' listas';
+  }
+  async function estrGenerarUna(a, secId, extra){
+    const est = estrEstadoSec[a.id] = estrEstadoSec[a.id] || {};
+    est[secId] = 'cargando'; delete estrErrores[a.id + ':' + secId];
+    estrRefrescar(a);
+    try {
+      a.secciones[secId] = await estrPedirSeccion(a, secId, extra);
+      if(a.estado === 'recibido') a.estado = 'borrador';
+      estrGuardar(a);
+      delete est[secId];
+    } catch(e){
+      est[secId] = 'error'; estrErrores[a.id + ':' + secId] = e.message;
+      if(e.auth) estrMsgTexto = e.message;
+      return e;
+    } finally {
+      estrRefrescar(a);
+    }
+  }
+  async function estrGenerarTodo(a){
+    if(estrOcupada(a)) return;
+    a.secciones = {};
+    estrGuardar(a);
+    const est = estrEstadoSec[a.id] = {};
+    ESTR_SECCIONES.forEach(s => { est[s.id] = 'espera'; });
+    estrMsgTexto = '';
+    let authError = false;
+    const hacer = async (s) => {
+      const e = await estrGenerarUna(a, s.id);
+      if(e && e.auth) authError = true;
+    };
+    estrRefrescar(a);
+    // Primero punto de partida y marca (el resto se apoya en ellas); después las demás, de a 3.
+    await Promise.all(ESTR_SECCIONES.slice(0, 2).map(hacer));
+    const cola = ESTR_SECCIONES.slice(2);
+    const obrero = async () => { while(cola.length && !authError) await hacer(cola.shift()); };
+    await Promise.all([obrero(), obrero(), obrero()]);
+    cola.forEach(s => { delete est[s.id]; });
+    const fallaron = Object.keys(est).filter(k => est[k] === 'error').length;
+    Object.keys(est).forEach(k => { if(est[k] !== 'error') delete est[k]; });
+    if(!authError) estrMsgTexto = fallaron ? fallaron + ' sección(es) fallaron: reintentalas una por una.' : 'Lista. Revisá cada sección, editá o regenerá lo que haga falta y descargala.';
+    estrRefrescar(a);
+  }
+
+  // ----- Pantalla -----
   function renderListaEstr(){
     const lista = document.getElementById('estrList');
     const q = estrBusqueda.trim().toLowerCase();
@@ -2256,9 +2420,98 @@
       <button type="button" class="es-item${a.id === estrSeleccion ? ' active' : ''}" data-id="${a.id}">
         <div class="es-item-name">${escapeHtml(a.nombre)}</div>
         <div class="es-item-sub">${escapeHtml(a.negocio)}</div>
-        <div class="es-estado"><span class="es-dot ${a.estado}"></span>${ESTR_ESTADOS[a.estado]}</div>
+        <div class="es-estado"><span class="es-dot ${a.estado}"></span>${estrOcupada(a) ? 'Escribiendo…' : ESTR_ESTADOS[a.estado]}</div>
       </button>`).join('') : '<div class="es-vacio">No hay alumnas con ese nombre.</div>';
-    lista.querySelectorAll('.es-item').forEach(b => b.addEventListener('click', () => { estrSeleccion = b.dataset.id; renderEstrategias(); }));
+    lista.querySelectorAll('.es-item').forEach(b => b.addEventListener('click', () => {
+      estrSeleccion = b.dataset.id; estrEditando = null; estrRegenAbierto = null; estrMsgTexto = ''; estrConfirmarNueva = false;
+      renderEstrategias();
+    }));
+  }
+  function renderBarraEstr(a){
+    const barra = document.getElementById('estrBar');
+    if(!barra) return;
+    const ocupada = estrOcupada(a);
+    barra.innerHTML = (estrTieneTexto(a) ? `
+        <button type="button" class="es-btn" id="estrDescargar">Descargar (.docx)</button>
+        <button type="button" class="es-btn es-btn-ghost" id="estrCopiar">Copiar todo</button>
+        <button type="button" class="es-btn es-btn-ghost" id="estrGenerar"${ocupada ? ' disabled' : ''}>${estrConfirmarNueva ? '¿Seguro? Se pierden las ediciones' : 'Generar todo de nuevo'}</button>`
+      : `<button type="button" class="es-btn" id="estrGenerar"${ocupada ? ' disabled' : ''}>${ocupada ? 'Generando…' : 'Generar estrategia'}</button>`)
+      + `<span class="es-msg" id="estrMsg">${escapeHtml(ocupada ? estrProgreso(a) : estrMsgTexto)}</span>`;
+    const msg = document.getElementById('estrMsg');
+    document.getElementById('estrGenerar').addEventListener('click', () => {
+      if(estrTieneTexto(a) && !estrConfirmarNueva){
+        estrConfirmarNueva = true; renderBarraEstr(a);
+        setTimeout(() => { if(estrConfirmarNueva){ estrConfirmarNueva = false; if(estrSeleccion === a.id) renderBarraEstr(a); } }, 4000);
+        return;
+      }
+      estrConfirmarNueva = false; estrEditando = null; estrRegenAbierto = null;
+      estrGenerarTodo(a);
+    });
+    const botonCopiar = document.getElementById('estrCopiar');
+    if(botonCopiar) botonCopiar.addEventListener('click', async () => {
+      const md = estrMarkdownCompleto(a);
+      try {
+        // Con formato (tablas, títulos): se pega bien en Google Docs.
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([estrMarkdown(md)], { type: 'text/html' }),
+          'text/plain': new Blob([estrTextoPlano(md)], { type: 'text/plain' })
+        })]);
+        msg.textContent = 'Copiado con formato';
+      } catch(e){
+        try { await navigator.clipboard.writeText(estrTextoPlano(md)); msg.textContent = 'Copiado'; }
+        catch(e2){ msg.textContent = 'No se pudo copiar.'; }
+      }
+    });
+    const botonDescargar = document.getElementById('estrDescargar');
+    if(botonDescargar) botonDescargar.addEventListener('click', () => {
+      estrDescargarDocx(a);
+      msg.textContent = 'Descargado. Abrilo en Google Docs desde Drive.';
+    });
+  }
+  function renderDocumento(a){
+    const cont = document.getElementById('estrDoc');
+    if(!cont) return;
+    const est = estrEstadoSec[a.id] || {};
+    cont.innerHTML = ESTR_SECCIONES.map(s => {
+      const clave = a.id + ':' + s.id;
+      const texto = a.secciones[s.id];
+      const st = est[s.id];
+      const editando = estrEditando === clave;
+      let cuerpo;
+      if(st === 'cargando') cuerpo = '<div class="es-cargando"><span class="es-spinner"></span><div><strong>Escribiendo esta sección…</strong>Tarda unos 20 a 40 segundos.</div></div>';
+      else if(st === 'espera') cuerpo = '<p class="es-draft-vacio">En cola…</p>';
+      else if(st === 'error') cuerpo = `<p class="es-sec-error">${escapeHtml(estrErrores[clave] || 'No se pudo generar.')} <button type="button" class="es-mini" data-act="reintentar" data-sec="${s.id}">Reintentar</button></p>`;
+      else if(editando) cuerpo = `<textarea class="es-input es-edit" data-sec="${s.id}">${escapeHtml(estrTextoEdicion)}</textarea>
+          <div class="es-bar" style="margin:10px 0 0; padding:0; border:0;">
+            <button type="button" class="es-btn" data-act="guardar" data-sec="${s.id}">Guardar</button>
+            <button type="button" class="es-btn es-btn-ghost" data-act="cancelar" data-sec="${s.id}">Cancelar</button>
+          </div>`;
+      else if(texto) cuerpo = '<div class="es-draft">' + estrMarkdown(texto) + '</div>';
+      else cuerpo = `<p class="es-draft-vacio">Sin generar. <button type="button" class="es-mini" data-act="reintentar" data-sec="${s.id}">Generar esta sección</button></p>`;
+      const acciones = (texto && !st && !editando)
+        ? `<span class="es-sec-acciones"><button type="button" class="es-mini" data-act="editar" data-sec="${s.id}">Editar</button><button type="button" class="es-mini" data-act="regenerar" data-sec="${s.id}">Regenerar</button></span>` : '';
+      const regen = estrRegenAbierto === clave
+        ? `<div class="es-regen"><input type="text" class="es-input" data-sec="${s.id}" placeholder="Qué querés cambiar (opcional). Ej: más corto, agregá ejemplos de reels" maxlength="500"><button type="button" class="es-btn" data-act="regen-ok" data-sec="${s.id}">Regenerar</button><button type="button" class="es-btn es-btn-ghost" data-act="cancelar" data-sec="${s.id}">Cancelar</button></div>` : '';
+      return `<article class="es-sec"><div class="es-sec-bar"><span class="es-sec-nombre">${texto && !st ? '' : escapeHtml(s.titulo)}</span>${acciones}</div>${regen}${cuerpo}</article>`;
+    }).join('');
+
+    cont.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => {
+      const secId = btn.dataset.sec, clave = a.id + ':' + secId, act = btn.dataset.act;
+      if(act === 'editar'){ estrEditando = clave; estrTextoEdicion = a.secciones[secId]; estrRegenAbierto = null; renderDocumento(a); }
+      else if(act === 'cancelar'){ estrEditando = null; estrRegenAbierto = null; renderDocumento(a); }
+      else if(act === 'guardar'){
+        a.secciones[secId] = estrTextoEdicion; estrEditando = null; estrGuardar(a); estrRefrescar(a);
+      }
+      else if(act === 'regenerar'){ estrRegenAbierto = clave; estrEditando = null; renderDocumento(a); const i = cont.querySelector('.es-regen input'); if(i) i.focus(); }
+      else if(act === 'regen-ok'){
+        const instr = (cont.querySelector('.es-regen input').value || '').trim();
+        estrRegenAbierto = null;
+        estrGenerarUna(a, secId, { instruccion: instr || 'Escríbela de nuevo con otro enfoque, igual de concreta.', textoActual: a.secciones[secId] });
+      }
+      else if(act === 'reintentar') estrGenerarUna(a, secId, {});
+    }));
+    cont.querySelectorAll('textarea.es-edit').forEach(t => t.addEventListener('input', () => { estrTextoEdicion = t.value; }));
+    cont.querySelectorAll('.es-regen input').forEach(i => i.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ cont.querySelector('[data-act="regen-ok"]').click(); } }));
   }
   function renderEstrategias(){
     renderListaEstr();
@@ -2279,15 +2532,8 @@
         ${tabs.map(([k, t]) => `<button type="button" class="es-tab${estrTab === k ? ' active' : ''}" data-tab="${k}">${t}</button>`).join('')}
       </div>
       <div class="es-body" data-panel="estrategia"${estrTab === 'estrategia' ? '' : ' hidden'}>
-        <div class="es-bar">
-          ${a.borrador ? `
-            <button type="button" class="es-btn" id="estrDescargar">Descargar (.docx)</button>
-            <button type="button" class="es-btn es-btn-ghost" id="estrCopiar">Copiar texto</button>
-            <button type="button" class="es-btn es-btn-ghost" id="estrGenerar">Generar de nuevo</button>`
-          : `<button type="button" class="es-btn" id="estrGenerar">Generar estrategia</button>`}
-          <span class="es-msg" id="estrMsg"></span>
-        </div>
-        <div class="es-draft" id="estrDraft">${a.borrador ? estrMarkdown(a.borrador) : '<p class="es-draft-vacio">Todavía no hay estrategia. Se genera con las respuestas del formulario y el prompt de esta alumna.</p>'}</div>
+        <div class="es-bar" id="estrBar"></div>
+        <div id="estrDoc"></div>
       </div>
       <div class="es-body" data-panel="respuestas"${estrTab === 'respuestas' ? '' : ' hidden'}>
         ${a.respuestas.map(sec => `
@@ -2297,10 +2543,11 @@
           </div>`).join('')}
       </div>
       <div class="es-body" data-panel="prompt"${estrTab === 'prompt' ? '' : ' hidden'}>
-        <p class="es-note">Son las instrucciones que sigue la IA al escribir. Gianie puede reemplazarlas por las suyas y guardarlas acá.</p>
+        <p class="es-note">Son las instrucciones de voz y estilo que sigue la IA. La estructura de cada sección (la de la plantilla de Gianie) y los ejemplos reales ya los pone el sistema. Gianie puede reemplazar este texto por el suyo y guardarlo acá.</p>
         <textarea id="estrPrompt" class="es-input"></textarea>
-        <div class="es-bar" style="margin:12px 0 0;">
+        <div class="es-bar" style="margin:12px 0 0; padding:0; border:0;">
           <button type="button" class="es-btn es-btn-ghost" id="estrPromptGuardar">Guardar prompt</button>
+          <button type="button" class="es-btn es-btn-ghost" id="estrPromptRestaurar">Volver al original</button>
           <span class="es-msg" id="estrPromptMsg"></span>
         </div>
       </div>`;
@@ -2311,61 +2558,19 @@
       det.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== estrTab; });
     }));
     document.getElementById('estrPrompt').value = estrPromptGuardado();
-    document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; estrGuardarBorrador(a); renderEstrategias(); });
+    document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; estrGuardar(a); renderListaEstr(); });
     document.getElementById('estrPromptGuardar').addEventListener('click', () => {
       const msg = document.getElementById('estrPromptMsg');
-      try { localStorage.setItem('shu_estr_prompt_v2', document.getElementById('estrPrompt').value); msg.textContent = 'Guardado en este navegador.'; }
+      try { localStorage.setItem('shu_estr_prompt_v4', document.getElementById('estrPrompt').value); msg.textContent = 'Guardado en este navegador.'; }
       catch(e){ msg.textContent = 'No se pudo guardar.'; }
     });
-    document.getElementById('estrGenerar').addEventListener('click', async () => {
-      const msg = document.getElementById('estrMsg');
-      const btn = document.getElementById('estrGenerar');
-      let clave = '';
-      try { clave = sessionStorage.getItem('shu_estr_key') || ''; } catch(e){}
-      const respuestas = a.respuestas.map(sec => sec.seccion + '\n' + sec.qa.map(([q, r]) => '- ' + q + ': ' + r).join('\n')).join('\n\n');
-      const draftEl = document.getElementById('estrDraft');
-      const draftPrevio = draftEl.innerHTML;
-      btn.disabled = true; btn.textContent = 'Generando…';
-      draftEl.innerHTML = '<div class="es-cargando"><span class="es-spinner"></span><div><strong>Escribiendo la estrategia</strong>Tarda entre 20 y 60 segundos. Podés cambiar de pestaña, no se pierde.</div></div>';
-      try {
-        const res = await fetch(`${WORKER_URL}/estrategia/generar`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': clave },
-          body: JSON.stringify({ prompt: document.getElementById('estrPrompt').value, respuestas })
-        });
-        const data = await res.json().catch(() => ({}));
-        if(res.status === 401){
-          try { sessionStorage.removeItem('shu_estr_key'); sessionStorage.removeItem('shu_admin_utm_ok'); } catch(e){}
-          draftEl.innerHTML = draftPrevio;
-          msg.textContent = 'El servidor no aceptó la contraseña de Admin. Salí y volvé a entrar a Admin.';
-          return;
-        }
-        if(!res.ok || !data.ok){ draftEl.innerHTML = draftPrevio; msg.textContent = 'No se pudo generar (' + (data.error || res.status) + ').'; return; }
-        a.borrador = data.borrador;
-        if(a.estado === 'recibido') a.estado = 'borrador';
-        estrGuardarBorrador(a);
-        if(estrSeleccion === a.id){
-          renderEstrategias();
-          document.getElementById('estrMsg').textContent = 'Lista. Descargala o copiala.';
-        } else renderListaEstr();
-      } catch(e){
-        draftEl.innerHTML = draftPrevio;
-        msg.textContent = 'No se pudo conectar. Probá de nuevo.';
-      } finally {
-        const b = document.getElementById('estrGenerar'); if(b){ b.disabled = false; b.textContent = a.borrador ? 'Generar de nuevo' : 'Generar estrategia'; }
-      }
+    document.getElementById('estrPromptRestaurar').addEventListener('click', () => {
+      document.getElementById('estrPrompt').value = ESTR_PROMPT_DEFAULT;
+      try { localStorage.removeItem('shu_estr_prompt_v4'); } catch(e){}
+      document.getElementById('estrPromptMsg').textContent = 'Restaurado.';
     });
-    const botonCopiar = document.getElementById('estrCopiar');
-    if(botonCopiar) botonCopiar.addEventListener('click', async () => {
-      const msg = document.getElementById('estrMsg');
-      try { await navigator.clipboard.writeText(estrTextoPlano(a.borrador)); msg.textContent = 'Copiado'; }
-      catch(e){ msg.textContent = 'No se pudo copiar.'; }
-    });
-    const botonDescargar = document.getElementById('estrDescargar');
-    if(botonDescargar) botonDescargar.addEventListener('click', () => {
-      estrDescargarDocx(a);
-      document.getElementById('estrMsg').textContent = 'Descargado. Abrilo en Google Docs desde Drive.';
-    });
+    renderBarraEstr(a);
+    renderDocumento(a);
   }
   document.getElementById('estrBuscar').addEventListener('input', (e) => { estrBusqueda = e.target.value; renderListaEstr(); });
   function entrarAEstrategias(){
