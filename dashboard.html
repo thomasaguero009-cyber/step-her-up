@@ -497,53 +497,85 @@
   .utm-copied-msg{ font-size:12px; color:#5fd39a; display:none; }
   .utm-copied-msg.show{ display:block; }
 
-  /* Pantalla Estrategias (Admin) */
-  #estrategiasScreen .wrap{ padding-top:26px; padding-bottom:60px; }
-  .estr-layout{ display:grid; grid-template-columns:minmax(0,300px) minmax(0,1fr); gap:16px; align-items:start; }
-  @media(max-width:760px){ .estr-layout{ grid-template-columns:1fr; } }
-  .estr-list{ display:flex; flex-direction:column; gap:8px; }
-  .estr-item{
-    text-align:left; background:var(--card); border:1px solid var(--border); border-radius:14px;
-    padding:14px 16px; cursor:pointer; font-family:inherit; color:var(--cream);
-    transition:background .15s ease, border-color .15s ease;
+  /* Pantalla Estrategias (Admin) — espacio de trabajo claro y plano, aparte
+     del look oscuro del resto: es una herramienta de lectura/edición larga. */
+  #estrategiasScreen{
+    --es-bg:#f6f3f2; --es-surface:#ffffff; --es-ink:#211718; --es-mute:#7b6e71;
+    --es-line:#e7e0de; --es-accent:#5a1626; --es-accent-hover:#451120;
+    background:var(--es-bg); color:var(--es-ink);
   }
-  .estr-item:hover{ background:rgba(255,255,255,0.08); }
-  .estr-item.active{ border-color:var(--blush-2); background:rgba(240,168,190,0.12); }
-  .estr-item-name{ font-weight:700; font-size:15px; }
-  .estr-item-sub{ font-size:12.5px; color:var(--text-dim); margin:2px 0 8px; }
-  .estr-badge{
-    display:inline-block; font-size:11.5px; font-weight:700; border-radius:999px; padding:4px 10px;
-    border:1px solid var(--border); color:var(--text-dim); background:rgba(255,255,255,0.06);
+  #estrategiasScreen h1, #estrategiasScreen h2, #estrategiasScreen h3, #estrategiasScreen h4{ font-family:inherit; }
+  #estrategiasScreen .wrap{ max-width:1180px; padding-top:28px; padding-bottom:64px; }
+  .es-top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:22px; }
+  .es-title{ margin:0; font-size:22px; font-weight:700; letter-spacing:-0.01em; }
+  .es-count{ margin-left:12px; font-size:14px; font-weight:500; color:var(--es-mute); }
+  .es-link{ background:none; border:0; padding:6px 0; font:600 14px Inter,sans-serif; color:var(--es-mute); cursor:pointer; }
+  .es-link:hover{ color:var(--es-ink); }
+  .es-layout{ display:grid; grid-template-columns:280px minmax(0,1fr); gap:28px; align-items:start; }
+  @media(max-width:820px){ .es-layout{ grid-template-columns:1fr; gap:18px; } }
+  .es-input{
+    width:100%; padding:10px 12px; border:1px solid var(--es-line); border-radius:8px; background:var(--es-surface);
+    font:400 14px/1.5 Inter,sans-serif; color:var(--es-ink);
   }
-  .estr-badge-ejemplo{ color:var(--blush); border-color:var(--blush-2); background:rgba(240,168,190,0.12); }
-  .estr-badge.recibido{ color:#9ec5ff; border-color:rgba(158,197,255,0.5); }
-  .estr-badge.borrador{ color:#ffd166; border-color:rgba(255,209,102,0.5); }
-  .estr-badge.revision{ color:#d9b4ff; border-color:rgba(217,180,255,0.5); }
-  .estr-badge.entregada{ color:#5fd39a; border-color:rgba(95,211,154,0.5); }
-  .estr-detail{ background:var(--card); border:1px solid var(--border); border-radius:18px; padding:22px 22px 26px; display:flex; flex-direction:column; gap:16px; }
-  .estr-detail h2{ margin:0; font-family:"Playfair Display",Georgia,serif; font-size:22px; font-weight:600; }
-  .estr-detail-sub{ margin:2px 0 0; font-size:13.5px; color:var(--text-dim); }
-  .estr-block{ border:1px solid var(--border); border-radius:12px; background:rgba(0,0,0,0.18); }
-  .estr-block > summary{ cursor:pointer; padding:12px 14px; font-weight:700; font-size:14px; }
-  .estr-block-body{ padding:0 14px 14px; display:flex; flex-direction:column; gap:10px; }
-  .estr-qa-q{ font-size:12.5px; color:var(--text-dim); }
-  .estr-qa-a{ font-size:14px; line-height:1.55; white-space:pre-wrap; }
-  .estr-detail textarea.modal-input{ width:100%; min-height:150px; resize:vertical; line-height:1.5; }
-  .estr-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  .estr-note{ font-size:12.5px; color:var(--text-dim); margin:0; }
-  .estr-draft{
-    background:rgba(0,0,0,0.28); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
-    font-size:15px; line-height:1.75; padding:22px 26px;
+  .es-input:focus{ outline:2px solid var(--es-accent); outline-offset:-1px; border-color:transparent; }
+  select.es-input{ width:auto; padding-right:28px; }
+  textarea.es-input{ min-height:280px; resize:vertical; line-height:1.6; font-size:13.5px; }
+  #estrBuscar{ margin-bottom:10px; }
+  .es-list{ display:flex; flex-direction:column; gap:2px; }
+  .es-item{
+    width:100%; text-align:left; background:transparent; border:0; border-left:3px solid transparent;
+    border-radius:6px; padding:10px 12px; color:inherit; font-family:inherit; cursor:pointer;
   }
-  .estr-draft h3, .estr-draft h4{ font-family:inherit; letter-spacing:0; }
-  .estr-draft h3{ margin:26px 0 8px; font-size:17px; font-weight:700; color:var(--blush); line-height:1.3; }
-  .estr-draft h3:first-child{ margin-top:0; }
-  .estr-draft h4{ margin:18px 0 6px; font-size:15px; font-weight:700; }
-  .estr-draft p{ margin:0 0 12px; max-width:68ch; }
-  .estr-draft ul{ margin:0 0 14px; padding-left:20px; max-width:68ch; }
-  .estr-draft li{ margin-bottom:6px; }
-  .estr-draft .estr-draft-vacio{ color:var(--text-dim); margin:0; }
-  .estr-warn{ font-size:12.5px; color:#ffd166; margin:0; }
+  .es-item:hover{ background:rgba(33,23,24,0.05); }
+  .es-item.active{ background:var(--es-surface); border-left-color:var(--es-accent); }
+  .es-item-name{ font-size:15px; font-weight:600; }
+  .es-item-sub{ font-size:13px; color:var(--es-mute); margin-top:1px; }
+  .es-estado{ display:flex; align-items:center; gap:7px; margin-top:6px; font-size:12.5px; color:var(--es-mute); }
+  .es-dot{ width:8px; height:8px; border-radius:50%; background:#9a8f92; flex:none; }
+  .es-dot.borrador{ background:#c9892b; }
+  .es-dot.revision{ background:#2f6fb8; }
+  .es-dot.entregada{ background:#2e8b57; }
+  .es-vacio{ padding:12px; font-size:14px; color:var(--es-mute); }
+  .es-main{ background:var(--es-surface); border:1px solid var(--es-line); border-radius:12px; }
+  .es-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:24px 28px 18px; }
+  .es-head h2{ margin:0; font-size:26px; font-weight:700; letter-spacing:-0.015em; line-height:1.2; }
+  .es-head p{ margin:4px 0 0; font-size:14px; color:var(--es-mute); }
+  .es-tabs{ display:flex; gap:26px; padding:0 28px; border-bottom:1px solid var(--es-line); overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  .es-tabs::-webkit-scrollbar{ display:none; }
+  .es-tab{
+    background:none; border:0; border-bottom:2px solid transparent; margin-bottom:-1px; padding:12px 0;
+    font:600 14px Inter,sans-serif; color:var(--es-mute); cursor:pointer; white-space:nowrap;
+  }
+  .es-tab:hover{ color:var(--es-ink); }
+  .es-tab.active{ color:var(--es-ink); border-bottom-color:var(--es-accent); }
+  .es-body{ padding:26px 28px 30px; }
+  .es-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:22px; }
+  .es-btn{
+    background:var(--es-accent); color:#fff; border:0; border-radius:8px; padding:10px 16px;
+    font:600 14px Inter,sans-serif; cursor:pointer;
+  }
+  .es-btn:hover{ background:var(--es-accent-hover); }
+  .es-btn:disabled{ opacity:0.55; cursor:default; }
+  .es-btn-ghost{ background:transparent; color:var(--es-ink); border:1px solid var(--es-line); }
+  .es-btn-ghost:hover{ background:rgba(33,23,24,0.05); }
+  .es-msg{ font-size:13.5px; color:var(--es-mute); }
+  .es-draft{ font-size:16px; line-height:1.75; }
+  .es-draft h3{ margin:32px 0 8px; font-size:18px; font-weight:700; line-height:1.3; }
+  .es-draft h3:first-child{ margin-top:0; }
+  .es-draft h4{ margin:20px 0 6px; font-size:15px; font-weight:700; }
+  .es-draft p{ margin:0 0 12px; max-width:68ch; }
+  .es-draft ul{ margin:0 0 14px; padding-left:20px; max-width:68ch; }
+  .es-draft li{ margin-bottom:6px; }
+  .es-draft strong{ font-weight:600; }
+  .es-draft-vacio{ margin:0; padding:36px 0; color:var(--es-mute); font-size:15px; max-width:52ch; }
+  .es-qa-sec{ margin-bottom:26px; }
+  .es-qa-sec h3{ margin:0 0 4px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--es-accent); }
+  .es-qa{ display:grid; grid-template-columns:minmax(0,230px) minmax(0,1fr); gap:6px 24px; padding:11px 0; border-top:1px solid var(--es-line); font-size:14.5px; }
+  .es-qa-q{ color:var(--es-mute); }
+  .es-qa-a{ white-space:pre-wrap; }
+  @media(max-width:640px){ .es-top{ align-items:flex-start; } .es-count{ display:block; margin:4px 0 0; } .es-qa{ grid-template-columns:1fr; } .es-head, .es-body{ padding-left:18px; padding-right:18px; } .es-tabs{ padding:0 18px; } }
+  .es-note{ margin:0 0 12px; font-size:13.5px; color:var(--es-mute); max-width:62ch; }
+  .es-foot{ margin:22px 0 0; font-size:12.5px; color:var(--es-mute); }
   @media(max-width:760px){
     .onboarding-body{ flex-direction:column; }
     .onboarding-lesson-col{ width:100%; }
@@ -1516,19 +1548,16 @@
        reales del formulario ni a la IA. ===================== -->
   <section class="screen" id="estrategiasScreen">
     <div class="wrap">
-      <header class="dash-header">
-        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div class="section-label" style="margin:0;">Estrategias</div>
-          <span class="estr-badge estr-badge-ejemplo">Datos de ejemplo</span>
-        </div>
-        <div class="dash-header-right">
-          <button type="button" class="ghost-link-btn" id="estrVolverBtn">← Volver</button>
-        </div>
+      <header class="es-top">
+        <h1 class="es-title">Estrategias<span class="es-count" id="estrCount"></span></h1>
+        <button type="button" class="es-link" id="estrVolverBtn">← Volver</button>
       </header>
-
-      <div class="estr-layout">
-        <div class="estr-list" id="estrList"></div>
-        <div class="estr-detail" id="estrDetail"></div>
+      <div class="es-layout">
+        <aside>
+          <input type="search" id="estrBuscar" class="es-input" placeholder="Buscar alumna" autocomplete="off">
+          <div class="es-list" id="estrList"></div>
+        </aside>
+        <section class="es-main" id="estrDetail"></section>
       </div>
     </div>
   </section>
@@ -2117,58 +2146,69 @@
   function estrPromptGuardado(){
     try { return localStorage.getItem('shu_estr_prompt_v2') || ESTR_PROMPT_DEFAULT; } catch(e){ return ESTR_PROMPT_DEFAULT; }
   }
-  function renderEstrategias(){
+  let estrTab = 'estrategia';
+  let estrBusqueda = '';
+  function renderListaEstr(){
     const lista = document.getElementById('estrList');
-    lista.innerHTML = ESTR_EJEMPLOS.map(a => `
-      <button type="button" class="estr-item${a.id === estrSeleccion ? ' active' : ''}" data-id="${a.id}">
-        <div class="estr-item-name">${escapeHtml(a.nombre)}</div>
-        <div class="estr-item-sub">${escapeHtml(a.negocio)}</div>
-        <span class="estr-badge ${a.estado}">${ESTR_ESTADOS[a.estado]}</span>
-      </button>`).join('');
-    lista.querySelectorAll('.estr-item').forEach(b => b.addEventListener('click', () => { estrSeleccion = b.dataset.id; renderEstrategias(); }));
-
+    const q = estrBusqueda.trim().toLowerCase();
+    const visibles = ESTR_EJEMPLOS.filter(a => !q || (a.nombre + ' ' + a.negocio).toLowerCase().includes(q));
+    document.getElementById('estrCount').textContent = ESTR_EJEMPLOS.length + ' alumnas · datos de ejemplo';
+    lista.innerHTML = visibles.length ? visibles.map(a => `
+      <button type="button" class="es-item${a.id === estrSeleccion ? ' active' : ''}" data-id="${a.id}">
+        <div class="es-item-name">${escapeHtml(a.nombre)}</div>
+        <div class="es-item-sub">${escapeHtml(a.negocio)}</div>
+        <div class="es-estado"><span class="es-dot ${a.estado}"></span>${ESTR_ESTADOS[a.estado]}</div>
+      </button>`).join('') : '<div class="es-vacio">No hay alumnas con ese nombre.</div>';
+    lista.querySelectorAll('.es-item').forEach(b => b.addEventListener('click', () => { estrSeleccion = b.dataset.id; renderEstrategias(); }));
+  }
+  function renderEstrategias(){
+    renderListaEstr();
     const a = ESTR_EJEMPLOS.find(x => x.id === estrSeleccion);
     const det = document.getElementById('estrDetail');
+    const tabs = [['estrategia', 'Estrategia'], ['respuestas', 'Respuestas'], ['prompt', 'Prompt']];
     det.innerHTML = `
-      <div>
-        <h2>${escapeHtml(a.nombre)}</h2>
-        <p class="estr-detail-sub">${escapeHtml(a.negocio)}</p>
-      </div>
-      <div class="estr-actions">
-        <label class="estr-note" for="estrEstado">Estado</label>
-        <select id="estrEstado" class="modal-input" style="width:auto;">
+      <div class="es-head">
+        <div>
+          <h2>${escapeHtml(a.nombre)}</h2>
+          <p>${escapeHtml(a.negocio)}</p>
+        </div>
+        <select id="estrEstado" class="es-input" aria-label="Estado">
           ${Object.keys(ESTR_ESTADOS).map(k => `<option value="${k}"${a.estado === k ? ' selected' : ''}>${ESTR_ESTADOS[k]}</option>`).join('')}
         </select>
       </div>
-      <details class="estr-block" open>
-        <summary>Respuestas del formulario</summary>
-        <div class="estr-block-body">
-          ${a.respuestas.map(sec => `
-            <div>
-              <div class="estr-qa-q" style="font-weight:700; color:var(--blush);">${escapeHtml(sec.seccion)}</div>
-              ${sec.qa.map(([q, r]) => `<div style="margin-top:8px;"><div class="estr-qa-q">${escapeHtml(q)}</div><div class="estr-qa-a">${escapeHtml(r)}</div></div>`).join('')}
-            </div>`).join('')}
-        </div>
-      </details>
-      <details class="estr-block">
-        <summary>Prompt maestro</summary>
-        <div class="estr-block-body">
-          <p class="estr-note">Provisorio. Gianie puede reemplazarlo por el suyo y guardarlo acá.</p>
-          <textarea id="estrPrompt" class="modal-input"></textarea>
-          <div class="estr-actions">
-            <button type="button" class="btn-small" id="estrPromptGuardar">Guardar prompt</button>
-            <span class="estr-note" id="estrPromptMsg"></span>
-          </div>
-        </div>
-      </details>
-      <div class="estr-actions">
-        <button type="button" class="btn-small" id="estrGenerar">Generar borrador</button>
-        <button type="button" class="ghost-link-btn" id="estrCopiar">Copiar borrador</button>
-        <span class="estr-note" id="estrMsg"></span>
+      <div class="es-tabs">
+        ${tabs.map(([k, t]) => `<button type="button" class="es-tab${estrTab === k ? ' active' : ''}" data-tab="${k}">${t}</button>`).join('')}
       </div>
-      <div class="estr-draft" id="estrDraft">${a.borrador ? estrMarkdown(a.borrador) : '<p class="estr-draft-vacio">Todavía no hay borrador para esta alumna.</p>'}</div>
-      <p class="estr-warn">Modo ejemplo: las respuestas son de ejemplo (todavía no está conectado el formulario real). El borrador sí lo genera la IA.</p>`;
+      <div class="es-body" data-panel="estrategia"${estrTab === 'estrategia' ? '' : ' hidden'}>
+        <div class="es-bar">
+          <button type="button" class="es-btn" id="estrGenerar">${a.borrador ? 'Generar de nuevo' : 'Generar estrategia'}</button>
+          <button type="button" class="es-btn es-btn-ghost" id="estrCopiar">Copiar texto</button>
+          <span class="es-msg" id="estrMsg"></span>
+        </div>
+        <div class="es-draft" id="estrDraft">${a.borrador ? estrMarkdown(a.borrador) : '<p class="es-draft-vacio">Todavía no hay estrategia para ' + escapeHtml(a.nombre) + '. Se genera a partir de sus respuestas del formulario y del prompt de la pestaña Prompt.</p>'}</div>
+        <p class="es-foot">Las respuestas son de ejemplo: todavía no está conectado el formulario real. La estrategia sí la genera la IA.</p>
+      </div>
+      <div class="es-body" data-panel="respuestas"${estrTab === 'respuestas' ? '' : ' hidden'}>
+        ${a.respuestas.map(sec => `
+          <div class="es-qa-sec">
+            <h3>${escapeHtml(sec.seccion)}</h3>
+            ${sec.qa.map(([q, r]) => `<div class="es-qa"><div class="es-qa-q">${escapeHtml(q)}</div><div class="es-qa-a">${escapeHtml(r)}</div></div>`).join('')}
+          </div>`).join('')}
+      </div>
+      <div class="es-body" data-panel="prompt"${estrTab === 'prompt' ? '' : ' hidden'}>
+        <p class="es-note">Son las instrucciones que sigue la IA al escribir. Gianie puede reemplazarlas por las suyas y guardarlas acá.</p>
+        <textarea id="estrPrompt" class="es-input"></textarea>
+        <div class="es-bar" style="margin:12px 0 0;">
+          <button type="button" class="es-btn es-btn-ghost" id="estrPromptGuardar">Guardar prompt</button>
+          <span class="es-msg" id="estrPromptMsg"></span>
+        </div>
+      </div>`;
 
+    det.querySelectorAll('.es-tab').forEach(t => t.addEventListener('click', () => {
+      estrTab = t.dataset.tab;
+      det.querySelectorAll('.es-tab').forEach(x => x.classList.toggle('active', x === t));
+      det.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== estrTab; });
+    }));
     document.getElementById('estrPrompt').value = estrPromptGuardado();
     document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; renderEstrategias(); });
     document.getElementById('estrPromptGuardar').addEventListener('click', () => {
@@ -2199,7 +2239,7 @@
         a.borrador = data.borrador;
         if(a.estado === 'recibido') a.estado = 'borrador';
         renderEstrategias();
-        document.getElementById('estrMsg').textContent = 'Borrador generado.';
+        document.getElementById('estrMsg').textContent = 'Estrategia generada.';
       } catch(e){
         msg.textContent = 'No se pudo conectar. Probá de nuevo.';
       } finally {
@@ -2208,11 +2248,12 @@
     });
     document.getElementById('estrCopiar').addEventListener('click', async () => {
       const msg = document.getElementById('estrMsg');
-      if(!a.borrador){ msg.textContent = 'Primero generá un borrador.'; return; }
+      if(!a.borrador){ msg.textContent = 'Primero generá la estrategia.'; return; }
       try { await navigator.clipboard.writeText(estrTextoPlano(a.borrador)); msg.textContent = 'Copiado'; }
       catch(e){ msg.textContent = 'No se pudo copiar.'; }
     });
   }
+  document.getElementById('estrBuscar').addEventListener('input', (e) => { estrBusqueda = e.target.value; renderListaEstr(); });
   function entrarAEstrategias(){
     cambiarDeSeccion(estrategiasScreen, 'Estrategias', () => { renderEstrategias(); });
   }
