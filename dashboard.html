@@ -4018,7 +4018,7 @@
     const nombres = nombresSetters();
     if(setterFiltro !== 'Comparar' && setterFiltro !== 'Todos' && !nombres.includes(setterFiltro)) setterFiltro = 'Comparar';
     pintarChips('settersMetrica', METRICAS_SETTER.map(x => ({ valor: x.valor, texto: x.texto })), setterMetrica, v => { setterMetrica = v; renderGraficoSetters(); });
-    pintarChips('settersFiltro', [{ valor: 'Comparar', texto: 'Comparar setters' }, { valor: 'Todos', texto: 'Todos juntos' }, ...nombres.map(n => ({ valor: n, texto: n }))], setterFiltro, v => { setterFiltro = v; renderGraficoSetters(); });
+    pintarChips('settersFiltro', [{ valor: 'Comparar', texto: 'Comparar setters' }, { valor: 'Todos', texto: 'Equipo' }, ...nombres.map(n => ({ valor: n, texto: n }))], setterFiltro, v => { setterFiltro = v; renderGraficoSetters(); });
     const leyenda = document.getElementById('settersLeyenda');
     const vacio = 'Sin datos de setters este mes';
     if(setterFiltro === 'Comparar'){
