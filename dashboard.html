@@ -1565,7 +1565,7 @@
         </div>
 
         <div class="metricas-field" id="metricasPasoRol" hidden>
-          <label>¿Cargás como…?</label>
+          <label>Rol</label>
           <div class="metricas-roles">
             <button type="button" class="metricas-rol" data-rol="setter">Setter</button>
             <button type="button" class="metricas-rol" data-rol="closer">Closer</button>
@@ -1580,6 +1580,14 @@
           <div class="metricas-field">
             <label for="metricasAgendadas">Agendadas</label>
             <input type="number" min="0" inputmode="numeric" id="metricasAgendadas" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasNoCalifica">No califica</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasNoCalifica" placeholder="0">
+          </div>
+          <div class="metricas-field">
+            <label for="metricasNoRespondio">No respondió</label>
+            <input type="number" min="0" inputmode="numeric" id="metricasNoRespondio" placeholder="0">
           </div>
           <div class="metricas-field">
             <label for="metricasShows">Shows</label>
@@ -3333,7 +3341,7 @@
   // dashboard igual que si lo hubiera cargado alguien a mano ahí. =====
   const METRICAS_NOMBRE_KEY = 'shu_metricas_nombre';
   const METRICAS_ROL_KEY = 'shu_metricas_rol';
-  const METRICAS_CAMPOS_SETTER = ['metricasLlamadas', 'metricasAgendadas', 'metricasShows', 'metricasCierres', 'metricasVentas'];
+  const METRICAS_CAMPOS_SETTER = ['metricasLlamadas', 'metricasAgendadas', 'metricasNoCalifica', 'metricasNoRespondio', 'metricasShows', 'metricasCierres', 'metricasVentas'];
   const METRICAS_CAMPOS_CLOSER = ['metricasCAgendas', 'metricasCShows', 'metricasCNoShows', 'metricasCCash', 'metricasCCierres'];
   let metricasRol = '';
 
@@ -3400,6 +3408,8 @@
           action: 'addMetricas', rol: 'setter', setter: nombre, fecha: formatearFechaHoy(),
           llamadas: numeroDe('metricasLlamadas'),
           agendadas: numeroDe('metricasAgendadas'),
+          noCalifica: numeroDe('metricasNoCalifica'),
+          noRespondio: numeroDe('metricasNoRespondio'),
           shows: numeroDe('metricasShows'),
           cierres: numeroDe('metricasCierres'),
           ventas: numeroDe('metricasVentas'),
@@ -3575,6 +3585,8 @@
         llamadas: idxDe('llamadas', 'leads'),
         agendadas: idxDe('agendadas', 'agendas', 'llamadas agendadas'),
         shows: idxDe('shows'),
+        noCalifica: idxDe('no califica', 'nocalifica'),
+        noRespondio: idxDe('no respondió', 'no respondio', 'norespondio'),
         cierres: idxDe('cierres'),
         ventas: idxDe('ventas'),
       };
@@ -3590,6 +3602,8 @@
           llamadas: parseNumSheet(r[idx.llamadas]),
           agendadas: parseNumSheet(r[idx.agendadas]),
           shows: parseNumSheet(r[idx.shows]),
+          noCalifica: idx.noCalifica > -1 ? parseNumSheet(r[idx.noCalifica]) : 0,
+          noRespondio: idx.noRespondio > -1 ? parseNumSheet(r[idx.noRespondio]) : 0,
           cierres: parseNumSheet(r[idx.cierres]),
           ventas: parseNumSheet(r[idx.ventas]),
         });
@@ -3745,9 +3759,9 @@
       if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
       huboDatos = true;
       const dia = f.fecha.getDate() - 1;
-      if(!seriesSetters.has(f.setter)) seriesSetters.set(f.setter, { llamadas: new Array(dias).fill(0), agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0), ventas: new Array(dias).fill(0) });
+      if(!seriesSetters.has(f.setter)) seriesSetters.set(f.setter, { llamadas: new Array(dias).fill(0), noCalifica: new Array(dias).fill(0), noRespondio: new Array(dias).fill(0), agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0), ventas: new Array(dias).fill(0) });
       const ss = seriesSetters.get(f.setter);
-      ss.llamadas[dia] += f.llamadas; ss.agendadas[dia] += f.agendadas; ss.shows[dia] += f.shows; ss.cierres[dia] += f.cierres; ss.ventas[dia] += f.ventas;
+      ss.llamadas[dia] += f.llamadas; ss.noCalifica[dia] += f.noCalifica; ss.noRespondio[dia] += f.noRespondio; ss.agendadas[dia] += f.agendadas; ss.shows[dia] += f.shows; ss.cierres[dia] += f.cierres; ss.ventas[dia] += f.ventas;
       llamadas[dia] += f.llamadas;
       ventas[dia] += f.ventas;
       totLlamadas += f.llamadas; totAgendadas += f.agendadas; totShows += f.shows;
@@ -3756,9 +3770,9 @@
       // Google Ads, Meta Ads, etc.) — así no hace falta un nombre exacto.
       if(/ads/i.test(f.fuente)) { totVentasAds += f.ventas; totCierresAds += f.cierres; }
 
-      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { llamadas:0, agendadas:0, shows:0, cierres:0, ventas:0 });
+      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { llamadas:0, noCalifica:0, noRespondio:0, agendadas:0, shows:0, cierres:0, ventas:0 });
       const s = porSetter.get(f.setter);
-      s.llamadas += f.llamadas; s.agendadas += f.agendadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
+      s.llamadas += f.llamadas; s.noCalifica += f.noCalifica; s.noRespondio += f.noRespondio; s.agendadas += f.agendadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
 
     });
 
@@ -3933,6 +3947,8 @@
     { valor: 'ventas', texto: 'Cash collected $', color: '#f0a8be', prefijo: '$' },
     { valor: 'llamadas', texto: 'Llamadas', color: '#d9b4ff' },
     { valor: 'agendadas', texto: 'Agendadas', color: '#8fb8f0' },
+    { valor: 'noCalifica', texto: 'No califica', color: '#ff9b9b' },
+    { valor: 'noRespondio', texto: 'No respondió', color: '#b8a1a6' },
     { valor: 'shows', texto: 'Shows', color: '#5fd39a' },
     { valor: 'cierres', texto: 'Cierres', color: '#f0c674' },
   ];
@@ -4361,7 +4377,7 @@
 
   function renderBreakdownSetters(mapa){
     const grid = document.getElementById('settersGrid');
-    const vacio = () => ({ llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
+    const vacio = () => ({ llamadas: 0, noCalifica: 0, noRespondio: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
     const todos = new Map(mapa);
     SETTERS_FIJOS.forEach(n => { if(!todos.has(n)) todos.set(n, vacio()); });
     const nombres = [...todos.keys()].sort((a,b) => todos.get(b).ventas - todos.get(a).ventas);
@@ -4372,6 +4388,8 @@
         <h4><span style="display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; background:${colorDeSetter(nombre, i)};"></span>${escapeHtml(nombre)}</h4>
         <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${s.llamadas.toLocaleString('es-AR')}</span></div>
         <div class="breakdown-stat-row"><span class="label">Agendadas</span><span class="val">${s.agendadas.toLocaleString('es-AR')} (${pct(s.agendadas, s.llamadas)})</span></div>
+        <div class="breakdown-stat-row"><span class="label">No califica</span><span class="val">${s.noCalifica.toLocaleString('es-AR')}</span></div>
+        <div class="breakdown-stat-row"><span class="label">No respondió</span><span class="val">${s.noRespondio.toLocaleString('es-AR')}</span></div>
         <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${s.shows.toLocaleString('es-AR')} (${pct(s.shows, s.agendadas)})</span></div>
         <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${s.cierres.toLocaleString('es-AR')} (${pct(s.cierres, s.shows)})</span></div>
         <div class="breakdown-stat-row"><span class="label">Cash collected</span><span class="val">$${Math.round(s.ventas).toLocaleString('es-AR')}</span></div>

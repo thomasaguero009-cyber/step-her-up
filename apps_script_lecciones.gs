@@ -169,7 +169,8 @@ function renumerar(sheet) {
 
 // ===== Métricas del día (formulario "Métricas" del dashboard) ===========
 // El formulario manda un rol: "setter" o "closer".
-//  - Setter -> UNA fila en el tracker (pestaña con las columnas Fecha y Setter).
+//  - Setter -> UNA fila en el tracker (pestaña con las columnas Fecha y Setter);
+//    si le faltan las columnas "No califica" y "No respondió", se agregan solas.
 //  - Closer -> UNA fila en la pestaña de closers (la que tiene Fecha y Closer,
 //    "Ranking"): Closer, Monto (= cash collected), Agendas, Shows, No shows y
 //    Cierres. Si a esa pestaña le faltan las columnas Agendas / Shows /
@@ -230,12 +231,14 @@ function addMetricas(body) {
     }));
   } else {
     var sheet = encontrarPestana('tracker');
-    var h = encabezados(sheet);
+    var h = asegurarColumnas(sheet, ['No califica', 'No respondió']);
     sheet.appendRow(filaPorEncabezado(h, {
       'fecha': fecha,
       'setter': nombre,
       'llamadas|leads': Number(body.llamadas) || 0,
       'agendadas|agendas|llamadas agendadas': Number(body.agendadas) || 0,
+      'no califica|nocalifica': Number(body.noCalifica) || 0,
+      'no respondió|no respondio|norespondio': Number(body.noRespondio) || 0,
       'shows': Number(body.shows) || 0,
       'cierres': Number(body.cierres) || 0,
       'ventas': cash,
@@ -398,7 +401,7 @@ function ejecutarOrden() {
           hechas.push('lista desplegable de closers');
         }
         // Los números no pueden ser negativos (solo avisa).
-        ['llamadas', 'leads', 'agendadas', 'agendas', 'shows', 'no shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
+        ['llamadas', 'leads', 'agendadas', 'agendas', 'no califica', 'no respondió', 'shows', 'no shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
           var c = h.indexOf(n);
           if (c > -1) {
             sheet.getRange(2, c + 1, filasValidar, 1).setDataValidation(
