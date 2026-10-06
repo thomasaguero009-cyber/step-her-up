@@ -2071,6 +2071,9 @@
   ];
   let estrSeleccion = ESTR_EJEMPLOS[0].id;
 
+  function estrTieneClave(){
+    try { return !!sessionStorage.getItem('shu_estr_key'); } catch(e){ return false; }
+  }
   function estrPromptGuardado(){
     try { return localStorage.getItem('shu_estr_prompt') || ESTR_PROMPT_DEFAULT; } catch(e){ return ESTR_PROMPT_DEFAULT; }
   }
@@ -2118,13 +2121,16 @@
           </div>
         </div>
       </details>
+      <div class="estr-actions" id="estrClaveWrap" ${estrTieneClave() ? 'hidden' : ''}>
+        <input type="password" id="estrClave" class="modal-input" placeholder="Clave de admin de Estrategias" autocomplete="off" style="width:260px;">
+      </div>
       <div class="estr-actions">
         <button type="button" class="btn-small" id="estrGenerar">Generar borrador</button>
         <button type="button" class="ghost-link-btn" id="estrCopiar">Copiar borrador</button>
         <span class="estr-note" id="estrMsg"></span>
       </div>
       <div class="estr-draft" id="estrDraft">${a.borrador ? escapeHtml(a.borrador) : 'Todavía no hay borrador para esta alumna.'}</div>
-      <p class="estr-warn">Modo ejemplo: todavía no está conectada a las respuestas reales del formulario ni a la IA.</p>`;
+      <p class="estr-warn">Modo ejemplo: las respuestas son de ejemplo (todavía no está conectado el formulario real). El borrador sí lo genera la IA.</p>`;
 
     document.getElementById('estrPrompt').value = estrPromptGuardado();
     document.getElementById('estrEstado').addEventListener('change', (e) => { a.estado = e.target.value; renderEstrategias(); });
@@ -2133,10 +2139,41 @@
       try { localStorage.setItem('shu_estr_prompt', document.getElementById('estrPrompt').value); msg.textContent = 'Guardado en este navegador.'; }
       catch(e){ msg.textContent = 'No se pudo guardar.'; }
     });
-    document.getElementById('estrGenerar').addEventListener('click', () => {
-      a.borrador = '(Texto de ejemplo — no lo generó la IA.)\n\nCuando se conecte la API de Claude, acá aparece el borrador redactado con el prompt maestro y las respuestas de esta alumna.';
-      if(a.estado === 'recibido') a.estado = 'borrador';
-      renderEstrategias();
+    document.getElementById('estrGenerar').addEventListener('click', async () => {
+      const msg = document.getElementById('estrMsg');
+      const btn = document.getElementById('estrGenerar');
+      let clave = '';
+      try { clave = sessionStorage.getItem('shu_estr_key') || ''; } catch(e){}
+      if(!clave){
+        clave = (document.getElementById('estrClave').value || '').trim();
+        if(!clave){ msg.textContent = 'Escribí la clave de admin de Estrategias.'; document.getElementById('estrClave').focus(); return; }
+      }
+      const respuestas = a.respuestas.map(sec => sec.seccion + '\n' + sec.qa.map(([q, r]) => '- ' + q + ': ' + r).join('\n')).join('\n\n');
+      btn.disabled = true; msg.textContent = 'Generando… puede tardar hasta un minuto.';
+      try {
+        const res = await fetch(`${WORKER_URL}/estrategia/generar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': clave },
+          body: JSON.stringify({ prompt: document.getElementById('estrPrompt').value, respuestas })
+        });
+        const data = await res.json().catch(() => ({}));
+        if(res.status === 401){
+          try { sessionStorage.removeItem('shu_estr_key'); } catch(e){}
+          document.getElementById('estrClaveWrap').hidden = false;
+          msg.textContent = 'Clave incorrecta.';
+          return;
+        }
+        if(!res.ok || !data.ok){ msg.textContent = 'No se pudo generar (' + (data.error || res.status) + ').'; return; }
+        try { sessionStorage.setItem('shu_estr_key', clave); } catch(e){}
+        a.borrador = data.borrador;
+        if(a.estado === 'recibido') a.estado = 'borrador';
+        renderEstrategias();
+        document.getElementById('estrMsg').textContent = 'Borrador generado.';
+      } catch(e){
+        msg.textContent = 'No se pudo conectar. Probá de nuevo.';
+      } finally {
+        const b = document.getElementById('estrGenerar'); if(b) b.disabled = false;
+      }
     });
     document.getElementById('estrCopiar').addEventListener('click', async () => {
       const msg = document.getElementById('estrMsg');

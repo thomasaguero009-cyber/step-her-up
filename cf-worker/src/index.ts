@@ -8,6 +8,10 @@ export interface Env {
   GHL_CALENDAR_ID: string;
   ALLOWED_ORIGINS: string;
   VIDEOS: R2Bucket;
+  // Secrets (se cargan con `npx wrangler secret put ...`, nunca van en el repo)
+  OPENAI_API_KEY: string;
+  ADMIN_KEY: string;
+  OPENAI_MODEL: string;
 }
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
@@ -19,7 +23,7 @@ function corsHeaders(origin: string | null, env: Env): HeadersInit {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key",
   };
 }
 
@@ -537,6 +541,54 @@ async function handleVideoGet(request: Request, env: Env, key: string, cors: Hea
 }
 
 
+// --- Estrategias: genera el borrador con OpenAI ---------------------------
+// La clave de OpenAI vive solo acá (secret del Worker). Solo puede llamar
+// quien manda la clave de admin correcta en el header X-Admin-Key.
+function igualesSeguro(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+async function handleEstrategiaGenerar(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.ADMIN_KEY || !env.OPENAI_API_KEY) {
+    return json({ ok: false, error: "not_configured" }, 503, cors);
+  }
+  const clave = request.headers.get("X-Admin-Key") || "";
+  if (!igualesSeguro(clave, env.ADMIN_KEY)) {
+    return json({ ok: false, error: "unauthorized" }, 401, cors);
+  }
+  let body: { prompt?: string; respuestas?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, error: "bad_json" }, 400, cors);
+  }
+  const prompt = (body.prompt || "").trim();
+  const respuestas = (body.respuestas || "").trim();
+  if (!prompt || !respuestas) return json({ ok: false, error: "missing_fields" }, 400, cors);
+  if (prompt.length > 20000 || respuestas.length > 30000) return json({ ok: false, error: "too_long" }, 413, cors);
+
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENAI_API_KEY },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL || "gpt-4.1",
+      messages: [
+        { role: "system", content: prompt },
+        { role: "user", content: "Respuestas del formulario de la alumna:\n\n" + respuestas },
+      ],
+    }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    return json({ ok: false, error: "openai_error", status: r.status, detail: data?.error?.message || "" }, 502, cors);
+  }
+  const borrador = data?.choices?.[0]?.message?.content || "";
+  return json({ ok: true, borrador }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -564,6 +616,9 @@ export default {
       }
       if (url.pathname === "/funnel-por-dia" && request.method === "GET") {
         return await handleFunnelPorDia(url, env, cors);
+      }
+      if (url.pathname === "/estrategia/generar" && request.method === "POST") {
+        return await handleEstrategiaGenerar(request, env, cors);
       }
       if (url.pathname.startsWith("/videos/") && (request.method === "GET" || request.method === "HEAD")) {
         return await handleVideoGet(request, env, decodeURIComponent(url.pathname.slice("/videos/".length)), cors);
