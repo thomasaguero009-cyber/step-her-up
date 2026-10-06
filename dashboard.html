@@ -733,6 +733,10 @@
 
   /* Chips para filtrar un gráfico (setter / closer / origen, métrica). */
   .chart-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .chart-legend{ display:flex; gap:18px; flex-wrap:wrap; margin:0 0 10px; font-size:13px; color:var(--text-dim); }
+  .chart-legend:empty{ display:none; }
+  .chart-legend span{ display:inline-flex; align-items:center; gap:7px; }
+  .chart-legend i{ width:10px; height:10px; border-radius:50%; display:inline-block; }
   .chart-chip{
     background:transparent; border:1px solid var(--border); color:var(--text-dim); border-radius:999px;
     padding:6px 14px; font-size:12.5px; font-weight:600; cursor:pointer; font-family:inherit;
@@ -1393,6 +1397,7 @@
         <div class="chart-panel">
           <div class="chart-chips" id="settersMetrica"></div>
           <div class="chart-chips" id="settersFiltro"></div>
+          <div class="chart-legend" id="settersLeyenda"></div>
           <div class="chart-wrap">
             <svg class="chart" viewBox="0 0 1000 280" preserveAspectRatio="none" id="chartSetters"></svg>
             <div class="chart-tooltip" id="tooltipSetters"></div>
@@ -3324,7 +3329,8 @@
     statusEl.textContent = 'Guardando…';
     try {
       await escribirLecciones(body);
-      statusEl.textContent = '✓ Guardado — gracias ' + nombre + '.';
+      statusEl.textContent = '✓ Guardado — gracias ' + nombre + '. Se ve en el Dashboard en unos minutos.';
+      filasTrackerCache = null; // para que el Dashboard vuelva a leer el Sheet
       METRICAS_CAMPOS.forEach(id => { document.getElementById(id).value = ''; });
     } catch(e) {
       statusEl.textContent = 'No se pudo guardar: ' + e.message;
@@ -3653,9 +3659,9 @@
       if(f.fecha.getFullYear() !== anio || f.fecha.getMonth() !== mes) return;
       huboDatos = true;
       const dia = f.fecha.getDate() - 1;
-      if(!seriesSetters.has(f.setter)) seriesSetters.set(f.setter, { agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0), ventas: new Array(dias).fill(0) });
+      if(!seriesSetters.has(f.setter)) seriesSetters.set(f.setter, { llamadas: new Array(dias).fill(0), agendadas: new Array(dias).fill(0), shows: new Array(dias).fill(0), cierres: new Array(dias).fill(0), ventas: new Array(dias).fill(0) });
       const ss = seriesSetters.get(f.setter);
-      ss.agendadas[dia] += f.agendadas; ss.shows[dia] += f.shows; ss.cierres[dia] += f.cierres; ss.ventas[dia] += f.ventas;
+      ss.llamadas[dia] += f.llamadas; ss.agendadas[dia] += f.agendadas; ss.shows[dia] += f.shows; ss.cierres[dia] += f.cierres; ss.ventas[dia] += f.ventas;
       llamadas[dia] += f.llamadas;
       ventas[dia] += f.ventas;
       totLlamadas += f.llamadas; totAgendadas += f.agendadas; totShows += f.shows;
@@ -3664,9 +3670,9 @@
       // Google Ads, Meta Ads, etc.) — así no hace falta un nombre exacto.
       if(/ads/i.test(f.fuente)) { totVentasAds += f.ventas; totCierresAds += f.cierres; }
 
-      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { agendadas:0, shows:0, cierres:0, ventas:0 });
+      if(!porSetter.has(f.setter)) porSetter.set(f.setter, { llamadas:0, agendadas:0, shows:0, cierres:0, ventas:0 });
       const s = porSetter.get(f.setter);
-      s.agendadas += f.agendadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
+      s.llamadas += f.llamadas; s.agendadas += f.agendadas; s.shows += f.shows; s.cierres += f.cierres; s.ventas += f.ventas;
 
       if(!porFuente.has(f.fuente)) porFuente.set(f.fuente, { llamadas:0, ventas:0 });
       const fu = porFuente.get(f.fuente);
@@ -3842,19 +3848,39 @@
   }
 
   const METRICAS_SETTER = [
-    { valor: 'ventas', texto: 'Ventas $', color: '#f0a8be', prefijo: '$' },
+    { valor: 'ventas', texto: 'Cash collected $', color: '#f0a8be', prefijo: '$' },
+    { valor: 'llamadas', texto: 'Llamadas', color: '#d9b4ff' },
     { valor: 'agendadas', texto: 'Agendadas', color: '#8fb8f0' },
     { valor: 'shows', texto: 'Shows', color: '#5fd39a' },
     { valor: 'cierres', texto: 'Cierres', color: '#f0c674' },
   ];
-  let datosSetters = new Map(), setterMetrica = 'ventas', setterFiltro = 'Todos';
+  // Los setters del equipo aparecen siempre (aunque todavía no hayan cargado nada).
+  const SETTERS_FIJOS = ['Paula', 'Paola', 'Mia'];
+  const COLORES_SETTER = { Paula: '#f0a8be', Paola: '#8fb8f0', Mia: '#f0c674' };
+  const COLORES_EXTRA = ['#5fd39a', '#d9b4ff', '#ffb08a'];
+  const colorDeSetter = (nombre, i) => COLORES_SETTER[nombre] || COLORES_EXTRA[i % COLORES_EXTRA.length];
+  const nombresSetters = () => [...new Set([...SETTERS_FIJOS, ...datosSetters.keys()])];
+  let datosSetters = new Map(), setterMetrica = 'ventas', setterFiltro = 'Comparar';
   function renderGraficoSetters(){
     const m = METRICAS_SETTER.find(x => x.valor === setterMetrica);
-    if(setterFiltro !== 'Todos' && !datosSetters.has(setterFiltro)) setterFiltro = 'Todos';
+    const nombres = nombresSetters();
+    if(setterFiltro !== 'Comparar' && setterFiltro !== 'Todos' && !nombres.includes(setterFiltro)) setterFiltro = 'Comparar';
     pintarChips('settersMetrica', METRICAS_SETTER.map(x => ({ valor: x.valor, texto: x.texto })), setterMetrica, v => { setterMetrica = v; renderGraficoSetters(); });
-    pintarChips('settersFiltro', ['Todos', ...datosSetters.keys()].map(n => ({ valor: n, texto: n === 'Todos' ? 'Todos los setters' : n })), setterFiltro, v => { setterFiltro = v; renderGraficoSetters(); });
-    const serie = sumarSeries(datosSetters, setterFiltro, setterMetrica, ctxMes.dias).slice(0, ctxMes.diasAMostrar);
-    drawChart('chartSetters', 'tooltipSetters', serie, m.color, ctxMes.anio, ctxMes.mes, { prefijo: m.prefijo, conteo: !m.prefijo, vacio: 'Sin datos de setters este mes' });
+    pintarChips('settersFiltro', [{ valor: 'Comparar', texto: 'Comparar setters' }, { valor: 'Todos', texto: 'Todos juntos' }, ...nombres.map(n => ({ valor: n, texto: n }))], setterFiltro, v => { setterFiltro = v; renderGraficoSetters(); });
+    const leyenda = document.getElementById('settersLeyenda');
+    const vacio = 'Sin datos de setters este mes';
+    if(setterFiltro === 'Comparar'){
+      const series = nombres.map((n, i) => ({
+        nombre: n, color: colorDeSetter(n, i),
+        valores: (datosSetters.has(n) ? datosSetters.get(n)[setterMetrica] : new Array(ctxMes.dias).fill(0)).slice(0, ctxMes.diasAMostrar)
+      }));
+      leyenda.innerHTML = series.map(x => `<span><i style="background:${x.color}"></i>${escapeHtml(x.nombre)}</span>`).join('');
+      drawMultiChart('chartSetters', 'tooltipSetters', series, ctxMes.anio, ctxMes.mes, { prefijo: m.prefijo, conteo: !m.prefijo, vacio });
+    } else {
+      leyenda.innerHTML = '';
+      const serie = sumarSeries(datosSetters, setterFiltro, setterMetrica, ctxMes.dias).slice(0, ctxMes.diasAMostrar);
+      drawChart('chartSetters', 'tooltipSetters', serie, m.color, ctxMes.anio, ctxMes.mes, { prefijo: m.prefijo, conteo: !m.prefijo, vacio });
+    }
   }
 
   const METRICAS_CLOSER = [
@@ -4245,17 +4271,20 @@
 
   function renderBreakdownSetters(mapa){
     const grid = document.getElementById('settersGrid');
-    const nombres = [...mapa.keys()].sort((a,b) => mapa.get(b).ventas - mapa.get(a).ventas);
-    grid.innerHTML = nombres.map(nombre => {
-      const s = mapa.get(nombre);
-      const showRate = s.agendadas > 0 ? Math.round(s.shows / s.agendadas * 100) + '%' : '–';
-      const cierreRate = s.shows > 0 ? Math.round(s.cierres / s.shows * 100) + '%' : '–';
+    const vacio = () => ({ llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
+    const todos = new Map(mapa);
+    SETTERS_FIJOS.forEach(n => { if(!todos.has(n)) todos.set(n, vacio()); });
+    const nombres = [...todos.keys()].sort((a,b) => todos.get(b).ventas - todos.get(a).ventas);
+    const pct = (a, b) => b > 0 ? Math.round(a / b * 100) + '%' : '–';
+    grid.innerHTML = nombres.map((nombre, i) => {
+      const s = todos.get(nombre);
       return `<div class="breakdown-card">
-        <h4>${escapeHtml(nombre)}</h4>
-        <div class="breakdown-stat-row"><span class="label">Agendadas</span><span class="val">${s.agendadas.toLocaleString('es-AR')}</span></div>
-        <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${s.shows.toLocaleString('es-AR')} (${showRate})</span></div>
-        <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${s.cierres.toLocaleString('es-AR')} (${cierreRate})</span></div>
-        <div class="breakdown-stat-row"><span class="label">Ventas</span><span class="val">$${Math.round(s.ventas).toLocaleString('es-AR')}</span></div>
+        <h4><span style="display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; background:${colorDeSetter(nombre, i)};"></span>${escapeHtml(nombre)}</h4>
+        <div class="breakdown-stat-row"><span class="label">Llamadas</span><span class="val">${s.llamadas.toLocaleString('es-AR')}</span></div>
+        <div class="breakdown-stat-row"><span class="label">Agendadas</span><span class="val">${s.agendadas.toLocaleString('es-AR')} (${pct(s.agendadas, s.llamadas)})</span></div>
+        <div class="breakdown-stat-row"><span class="label">Shows</span><span class="val">${s.shows.toLocaleString('es-AR')} (${pct(s.shows, s.agendadas)})</span></div>
+        <div class="breakdown-stat-row"><span class="label">Cierres</span><span class="val">${s.cierres.toLocaleString('es-AR')} (${pct(s.cierres, s.shows)})</span></div>
+        <div class="breakdown-stat-row"><span class="label">Cash collected</span><span class="val">$${Math.round(s.ventas).toLocaleString('es-AR')}</span></div>
       </div>`;
     }).join('');
   }
@@ -4394,6 +4423,62 @@
       d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
     }
     return d;
+  }
+
+  // Varias líneas en el mismo gráfico (una por setter), con tooltip que
+  // muestra el valor de cada una ese día. Misma escala y mismo estilo que drawChart.
+  function drawMultiChart(svgId, tooltipId, series, anio, mes, opts = {}){
+    const svg = document.getElementById(svgId);
+    const tooltip = document.getElementById(tooltipId);
+    svg.innerHTML = '';
+    const n = series.length ? series[0].valores.length : 0;
+    const W = 1000, H = 280, padL = 40, padB = 24, padT = 10;
+    const todos = series.flatMap(x => x.valores);
+    const nsvg = (tag, attrs) => { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
+    if(!n || todos.every(v => v === 0)){
+      svg.appendChild(nsvg('line', { x1: padL, x2: W-10, y1: H-padB, y2: H-padB, stroke: 'rgba(255,255,255,0.14)', 'stroke-width': 1.5, 'stroke-dasharray': '5,5' }));
+      const msg = nsvg('text', { x: W/2, y: (H-padB)/2, fill: 'rgba(247,236,233,0.55)', 'font-size': 15, 'text-anchor': 'middle' });
+      msg.textContent = opts.vacio || 'Esperando datos del Google Sheet…';
+      svg.appendChild(msg);
+      return;
+    }
+    let maxVal = Math.max(1, ...todos);
+    if(opts.conteo) maxVal = Math.max(5, Math.ceil(maxVal / 5) * 5);
+    for(let g = 0; g <= 5; g++){
+      const y = padT + (H-padT-padB) * (1 - g/5);
+      svg.appendChild(nsvg('line', { x1: padL, x2: W-10, y1: y, y2: y, stroke: 'rgba(255,255,255,0.1)', 'stroke-width': 1 }));
+      const label = nsvg('text', { x: 4, y: y+4, fill: 'rgba(247,236,233,0.45)', 'font-size': 11 });
+      label.textContent = Math.round(maxVal * g/5).toLocaleString('es-AR');
+      svg.appendChild(label);
+    }
+    const xAt = i => padL + (W-padL-20) * (n <= 1 ? 0 : i/(n-1));
+    const yAt = v => padT + (H-padT-padB) * (1 - v/maxVal);
+    series.forEach(sr => {
+      const pts = sr.valores.map((v, i) => [xAt(i), yAt(v)]);
+      svg.appendChild(nsvg('path', { d: smoothPath(pts), fill: 'none', stroke: sr.color, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      pts.forEach(([x, y], i) => { if(sr.valores[i] > 0) svg.appendChild(nsvg('circle', { cx: x, cy: y, r: 3, fill: '#170609', stroke: sr.color, 'stroke-width': 1.5 })); });
+    });
+    const colW = n > 1 ? (W-padL-20)/(n-1) : W;
+    for(let i = 0; i < n; i++){
+      const x = xAt(i);
+      const hit = nsvg('rect', { x: x - colW/2, y: 0, width: colW, height: H, fill: 'transparent' });
+      hit.style.cursor = 'pointer';
+      const mostrar = () => {
+        const diaSemana = DIAS_SEMANA[new Date(anio, mes, i+1).getDay()];
+        tooltip.innerHTML = `<div class="tt-day">Día ${i+1} · ${diaSemana}</div>` + series.map(sr =>
+          `<div class="tt-val" style="display:flex; align-items:center; gap:7px; font-size:13px;"><i style="width:8px; height:8px; border-radius:50%; background:${sr.color}; display:inline-block;"></i>${escapeHtml(sr.nombre)}: ${(opts.prefijo || '') + sr.valores[i].toLocaleString('es-AR')}</div>`).join('');
+        const wrapWidth = svg.parentElement.clientWidth;
+        const pxRatio = wrapWidth / W;
+        let left = x * pxRatio + 14;
+        if(left + 200 > wrapWidth) left = x * pxRatio - 214;
+        tooltip.style.left = Math.max(0, left) + 'px';
+        tooltip.classList.add('show');
+      };
+      hit.addEventListener('mouseenter', mostrar);
+      hit.addEventListener('mousemove', mostrar);
+      hit.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+      svg.appendChild(hit);
+    }
   }
 
   function drawChart(svgId, tooltipId, valores, color, anio, mes, opts = {}){
