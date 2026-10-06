@@ -1740,10 +1740,20 @@
   function entrarAlRanking(){
     cambiarDeSeccion(rankingScreen, 'Ranking', () => {
       document.getElementById('rankingMonthLabel').textContent = mesElegido;
+      // Siempre vuelve a leer los Sheets al entrar: así lo que cargaron
+      // recién en Métricas (cash collected) aparece sin tener que recargar.
+      filasRankingCache = null; filasTrackerCache = null;
       cargarYPintarRanking();
     });
   }
   document.getElementById('goRankingBtn').addEventListener('click', entrarAlRanking);
+  // Y mientras se queda abierto el Ranking, se actualiza solo cada 5 minutos.
+  setInterval(() => {
+    if(rankingScreen.classList.contains('active') && !document.hidden){
+      filasRankingCache = null; filasTrackerCache = null;
+      cargarYPintarRanking();
+    }
+  }, 5 * 60 * 1000);
 
   function entrarAHerramientas(){
     cambiarDeSeccion(toolsScreen, 'Herramientas', () => {
