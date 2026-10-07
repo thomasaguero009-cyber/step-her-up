@@ -90,6 +90,13 @@
   .field input::placeholder{ color:rgba(247,236,233,0.38); }
   .field select option{ background:#2a0c14; color:var(--cream); }
   .tel-row{ display:grid; grid-template-columns:minmax(0,0.9fr) minmax(0,1.3fr); gap:8px; }
+  .reveal{ display:grid; grid-template-rows:0fr; transition:grid-template-rows .4s ease; }
+  .reveal.open{ grid-template-rows:1fr; }
+  .reveal-inner{ overflow:hidden; min-height:0; }
+  .reveal.open .reveal-inner{ padding-top:2px; }
+  #webinarForm{ padding-top:2px; opacity:0; transform:translateY(-6px); transition:opacity .35s .1s, transform .35s .1s; }
+  .reveal.open #webinarForm{ opacity:1; transform:none; }
+  @media(prefers-reduced-motion:reduce){ .reveal, #webinarForm{ transition:none; } }
   .hp{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
   .btn-main{
     width:100%; padding:17px 20px; border:0; border-radius:999px; cursor:pointer; font:800 17px "Inter",sans-serif;
@@ -198,6 +205,8 @@
       <div id="formView">
         <h2>Reserva tu lugar gratis</h2>
         <p class="fc-sub">Déjanos tus datos y te llevamos directo al grupo de WhatsApp de la clase.</p>
+        <button class="btn-main" id="openForm" type="button" aria-expanded="false" aria-controls="reveal">Quiero mi lugar</button>
+        <div class="reveal" id="reveal" inert><div class="reveal-inner">
         <form id="webinarForm" novalidate>
           <div class="field">
             <label for="wNombre">Nombre completo</label>
@@ -298,10 +307,11 @@
             </div>
           </div>
           <input class="hp" type="text" id="wWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-          <button class="btn-main" id="wBtn" type="submit">Quiero mi lugar gratis</button>
+          <button class="btn-main" id="wBtn" type="submit">Confirmar mi lugar</button>
           <p class="form-msg" id="wMsg" role="alert"></p>
-          <p class="form-note">100% gratis · Sin tarjeta</p>
         </form>
+        </div></div>
+        <p class="form-note">100% gratis · Sin tarjeta</p>
       </div>
       <div class="done" id="doneView" hidden>
         <div class="check">✓</div>
@@ -369,7 +379,7 @@
   <div class="wrap">
     <h2>Tu lugar es gratis. Resérvalo ahora.</h2>
     <p>Miércoles 21 de octubre · 7:00 PM (hora de Puerto Rico).</p>
-    <a class="btn-main" href="#registro" id="finalCta">Quiero mi lugar gratis</a>
+    <a class="btn-main" href="#registro" id="finalCta">Quiero mi lugar</a>
   </div>
 </section>
 </main>
@@ -499,7 +509,7 @@
       const r = await enviar(payload, 4500);
       if (r.status >= 400 && r.status < 500 && MENSAJES[r.data.error]) {
         msg.textContent = MENSAJES[r.data.error];
-        btn.disabled = false; btn.textContent = "Quiero mi lugar gratis";
+        btn.disabled = false; btn.textContent = "Confirmar mi lugar";
         try { localStorage.removeItem(LEAD_KEY); } catch (e) {}
         return;
       }
@@ -526,7 +536,19 @@
     }
   } catch (e) {}
 
-  $("finalCta").addEventListener("click", () => setTimeout(() => { const i = $("wNombre"); if (i && !$("formView").hidden) i.focus({ preventScroll: true }); }, 500));
+  // El botón "Quiero mi lugar" despliega el mini formulario en el mismo lugar.
+  function abrirFormulario(enfocar) {
+    const reveal = $("reveal");
+    if (reveal.classList.contains("open")) return;
+    reveal.classList.add("open");
+    reveal.removeAttribute("inert");
+    $("openForm").hidden = true;
+    $("openForm").setAttribute("aria-expanded", "true");
+    if (enfocar) setTimeout(() => $("wNombre").focus({ preventScroll: true }), 420);
+  }
+  $("openForm").addEventListener("click", () => abrirFormulario(true));
+  // El botón de abajo sube al formulario y también lo despliega.
+  $("finalCta").addEventListener("click", () => { abrirFormulario(false); setTimeout(() => $("wNombre").focus({ preventScroll: true }), 650); });
 })();
 </script>
 </body>
