@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clase gratis en vivo con Gianie Milet — Step Her Up</title>
+<meta name="description" content="Clase gratuita en vivo el miércoles 21 de octubre, 7:00 PM (Puerto Rico). Reserva tu lugar y entra al grupo de WhatsApp.">
+<meta property="og:title" content="Clase gratis en vivo con Gianie Milet">
+<meta property="og:description" content="Miércoles 21 de octubre · 7:00 PM (Puerto Rico). Reserva tu lugar gratis.">
+<meta property="og:image" content="https://thomasaguero009-cyber.github.io/step-her-up/images/gianie/gianie-foto.jpg">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --wine-1:#1a0509; --wine-2:#3d0f1f; --wine-3:#5a1626;
+    --blush:#f0a8be; --blush-2:#e88aa8;
+    --cream:#f7ece9; --text-dim:rgba(247,236,233,0.74);
+    --card:rgba(255,255,255,0.06); --border:rgba(255,255,255,0.14);
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0; color:var(--cream); font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif; line-height:1.5;
+    background:
+      radial-gradient(ellipse 1100px 700px at 82% 0%, rgba(90,22,38,0.5), transparent 55%),
+      radial-gradient(ellipse 900px 600px at 15% 60%, rgba(90,22,38,0.35), transparent 55%),
+      linear-gradient(180deg, var(--wine-2) 0%, var(--wine-1) 40%);
+    background-attachment:fixed; min-height:100vh;
+  }
+  h1,h2,h3{ font-family:"Playfair Display",Georgia,serif; margin:0; font-weight:600; }
+  .wrap{ max-width:1120px; margin:0 auto; padding:0 20px; }
+  [hidden]{ display:none !important; }
+
+  /* ===== Cuenta regresiva (arriba de todo, siempre visible) ===== */
+  .countdown-bar{
+    position:sticky; top:0; z-index:50; background:rgba(20,4,8,0.9); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+  .cb-inner{ max-width:1120px; margin:0 auto; padding:10px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .cb-text{ font-size:13px; line-height:1.3; color:var(--text-dim); }
+  .cb-text strong{ display:block; color:var(--cream); font-size:12px; letter-spacing:0.14em; text-transform:uppercase; }
+  .cb-timer{ display:flex; gap:8px; }
+  .cb-unit{ min-width:56px; text-align:center; padding:6px 8px 5px; border-radius:10px; background:rgba(255,255,255,0.07); border:1px solid var(--border); }
+  .cb-num{ display:block; font-size:24px; font-weight:800; color:var(--blush); font-variant-numeric:tabular-nums; line-height:1.1; }
+  .cb-lab{ display:block; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); }
+  .cb-live{ font-weight:700; color:var(--blush); }
+  .cb-join{ display:inline-block; padding:10px 18px; border-radius:999px; background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; font-weight:800; font-size:14px; text-decoration:none; }
+  @media(max-width:640px){
+    .cb-inner{ flex-direction:column; gap:6px; padding:8px 12px; }
+    .cb-text{ text-align:center; }
+    .cb-text strong{ font-size:11px; }
+    .cb-text .cb-fecha{ display:none; }
+    .cb-unit{ min-width:62px; }
+    .cb-num{ font-size:22px; }
+  }
+
+  /* ===== Hero ===== */
+  .hero{ padding:44px 0 56px; }
+  .hero-grid{ display:grid; grid-template-columns:minmax(0,1.08fr) minmax(0,0.92fr); gap:44px; align-items:center; }
+  @media(max-width:900px){ .hero-grid{ grid-template-columns:1fr; gap:30px; } .hero{ padding-top:28px; } }
+  .eyebrow{
+    display:inline-block; font-size:12px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--blush); border:1px solid var(--blush-2); border-radius:999px; padding:6px 14px; margin-bottom:18px;
+  }
+  .hero h1{ font-size:clamp(34px,6vw,60px); line-height:1.08; }
+  .hero h1 em{ font-style:italic; color:var(--blush); }
+  .hero-sub{ margin:18px 0 22px; font-size:clamp(16px,2.2vw,19px); color:var(--text-dim); max-width:34em; }
+  .when{ display:flex; flex-direction:column; gap:10px; margin:0 0 4px; padding:0; list-style:none; }
+  .when li{ display:flex; gap:12px; align-items:flex-start; font-size:16px; }
+  .when .ic{ flex:none; width:34px; height:34px; border-radius:10px; background:rgba(240,168,190,0.14); border:1px solid rgba(240,168,190,0.35); display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .when b{ display:block; font-size:16px; }
+  .when span.sm{ display:block; font-size:13px; color:var(--text-dim); }
+
+  /* ===== Formulario ===== */
+  .form-card{
+    background:linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04)); border:1px solid rgba(240,168,190,0.35);
+    border-radius:22px; padding:28px 26px 24px; box-shadow:0 24px 60px rgba(0,0,0,0.35);
+  }
+  .form-card h2{ font-size:26px; text-align:center; }
+  .form-card .fc-sub{ text-align:center; font-size:14px; color:var(--text-dim); margin:6px 0 20px; }
+  .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .field label{ font-size:13px; font-weight:600; }
+  .field input, .field select{
+    width:100%; padding:14px 14px; border-radius:12px; border:1px solid var(--border); background:rgba(0,0,0,0.3);
+    color:var(--cream); font-size:16px; font-family:inherit;
+  }
+  .field input:focus, .field select:focus{ outline:none; border-color:var(--blush-2); }
+  .field input::placeholder{ color:rgba(247,236,233,0.38); }
+  .field select option{ background:#2a0c14; color:var(--cream); }
+  .tel-row{ display:grid; grid-template-columns:minmax(0,0.9fr) minmax(0,1.3fr); gap:8px; }
+  .hp{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
+  .btn-main{
+    width:100%; padding:17px 20px; border:0; border-radius:999px; cursor:pointer; font:800 17px "Inter",sans-serif;
+    color:#2a0a13; background:linear-gradient(90deg,var(--blush-2),var(--blush)); box-shadow:0 10px 30px rgba(232,138,168,0.35);
+    transition:transform .15s, box-shadow .15s;
+  }
+  .btn-main:hover{ transform:translateY(-1px); box-shadow:0 14px 34px rgba(232,138,168,0.45); }
+  .btn-main:disabled{ opacity:0.65; cursor:default; transform:none; }
+  .form-msg{ min-height:20px; margin:10px 0 0; text-align:center; font-size:13.5px; color:#ffb3b3; }
+  .form-note{ margin:12px 0 0; text-align:center; font-size:12.5px; color:var(--text-dim); }
+  .done{ text-align:center; padding:6px 0 2px; }
+  .done .check{ width:62px; height:62px; margin:0 auto 14px; border-radius:50%; background:rgba(95,211,154,0.16); border:1px solid rgba(95,211,154,0.6); display:flex; align-items:center; justify-content:center; font-size:30px; color:#5fd39a; }
+  .done h2{ font-size:26px; }
+  .done p{ color:var(--text-dim); margin:8px 0 20px; font-size:15px; }
+  a.btn-main{ display:block; text-align:center; text-decoration:none; }
+
+  /* ===== Flyer de beneficios ===== */
+  section{ scroll-margin-top:90px; }
+  .sec-title{ text-align:center; font-size:clamp(28px,4.4vw,42px); margin-bottom:10px; }
+  .sec-sub{ text-align:center; color:var(--text-dim); margin:0 auto 34px; max-width:36em; }
+  .flyer-sec{ padding:36px 0 64px; }
+  .flyer{
+    max-width:920px; margin:0 auto; border-radius:28px; overflow:hidden; position:relative;
+    background:linear-gradient(155deg,#6a1a2d 0%,#3d0f1f 48%,#1a0509 100%);
+    border:1px solid rgba(240,168,190,0.45); box-shadow:0 30px 80px rgba(0,0,0,0.5);
+    display:grid; grid-template-columns:minmax(0,0.78fr) minmax(0,1.22fr);
+  }
+  @media(max-width:760px){ .flyer{ grid-template-columns:1fr; } }
+  .flyer-photo{ position:relative; min-height:340px; background:#bcbcc0 url("images/gianie/gianie-foto.jpg") center 18%/cover no-repeat; }
+  .flyer-photo::after{ content:""; position:absolute; inset:0; background:linear-gradient(0deg,rgba(26,5,9,0.92) 0%,rgba(26,5,9,0) 46%); }
+  @media(min-width:761px){ .flyer-photo::after{ background:linear-gradient(90deg,rgba(26,5,9,0) 62%,rgba(61,15,31,0.95) 100%), linear-gradient(0deg,rgba(26,5,9,0.85) 0%,rgba(26,5,9,0) 38%); } }
+  .flyer-name{ position:absolute; z-index:2; left:20px; right:20px; bottom:18px; }
+  .flyer-name b{ display:block; font-family:"Playfair Display",serif; font-size:24px; }
+  .flyer-name span{ font-size:12.5px; color:var(--text-dim); }
+  .flyer-body{ padding:34px 34px 30px; display:flex; flex-direction:column; gap:16px; }
+  .flyer-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .flyer-top img{ height:38px; width:auto; display:block; }
+  .flyer-badge{ font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#2a0a13; background:linear-gradient(90deg,var(--blush-2),var(--blush)); border-radius:999px; padding:6px 12px; }
+  .flyer h3{ font-size:clamp(26px,3.6vw,36px); line-height:1.12; }
+  .flyer h3 em{ font-style:italic; color:var(--blush); }
+  .flyer-date{ display:flex; gap:10px; flex-wrap:wrap; }
+  .flyer-date span{ font-size:13.5px; font-weight:700; padding:7px 13px; border-radius:10px; background:rgba(255,255,255,0.08); border:1px solid var(--border); }
+  .flyer h4{ margin:4px 0 0; font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:var(--blush); }
+  .benefits{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:13px; }
+  .benefits li{ display:flex; gap:12px; align-items:flex-start; font-size:15.5px; line-height:1.4; }
+  .benefits .tick{ flex:none; width:24px; height:24px; margin-top:1px; border-radius:50%; background:linear-gradient(135deg,var(--blush-2),var(--blush)); color:#2a0a13; font-weight:900; font-size:13px; display:flex; align-items:center; justify-content:center; }
+  .flyer-foot{ margin-top:4px; padding-top:14px; border-top:1px solid var(--border); font-size:13px; color:var(--text-dim); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .flyer-foot b{ color:var(--cream); }
+  @media(max-width:520px){ .flyer-body{ padding:26px 20px 24px; } }
+
+  /* ===== Sobre Gianie + testimonios ===== */
+  .about{ padding:8px 0 60px; }
+  .about-card{ max-width:820px; margin:0 auto; text-align:center; }
+  .about-card p{ color:var(--text-dim); font-size:17px; margin:14px 0 0; }
+  .about-card p b{ color:var(--cream); }
+  .stats{ display:flex; justify-content:center; gap:34px; flex-wrap:wrap; margin-top:26px; }
+  .stat b{ display:block; font-family:"Playfair Display",serif; font-size:38px; color:var(--blush); line-height:1.1; }
+  .stat span{ font-size:13px; color:var(--text-dim); }
+  .proof{ padding:0 0 70px; }
+  .proof-row{ display:flex; gap:16px; overflow-x:auto; padding:6px 20px 16px; scroll-snap-type:x mandatory; justify-content:flex-start; max-width:1120px; margin:0 auto; }
+  @media(min-width:1000px){ .proof-row{ justify-content:center; } }
+  .proof-row img{ flex:none; height:360px; width:auto; border-radius:16px; border:1px solid var(--border); scroll-snap-align:center; background:#fff; }
+
+  .final{ padding:10px 0 80px; text-align:center; }
+  .final h2{ font-size:clamp(28px,4.4vw,42px); margin-bottom:12px; }
+  .final p{ color:var(--text-dim); margin:0 auto 24px; max-width:32em; }
+  .final .btn-main{ max-width:420px; margin:0 auto; }
+  footer{ border-top:1px solid var(--border); padding:22px 20px; text-align:center; font-size:12.5px; color:var(--text-dim); }
+</style>
+</head>
+<body>
+
+<!-- ===== Cuenta regresiva ===== -->
+<header class="countdown-bar" id="countdownBar">
+  <div class="cb-inner">
+    <div class="cb-text" id="cbText">
+      <strong id="cbTitulo">La clase gratis empieza en</strong>
+      <span class="cb-fecha">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
+    </div>
+    <div class="cb-timer" id="cbTimer" aria-live="off">
+      <div class="cb-unit"><span class="cb-num" id="cbD">00</span><span class="cb-lab">Días</span></div>
+      <div class="cb-unit"><span class="cb-num" id="cbH">00</span><span class="cb-lab">Horas</span></div>
+      <div class="cb-unit"><span class="cb-num" id="cbM">00</span><span class="cb-lab">Min</span></div>
+      <div class="cb-unit"><span class="cb-num" id="cbS">00</span><span class="cb-lab">Seg</span></div>
+    </div>
+    <a class="cb-join" id="cbJoin" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t" hidden>Entrar a la clase en vivo</a>
+  </div>
+</header>
+
+<main>
+<!-- ===== Hero + formulario ===== -->
+<section class="hero" id="registro">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Clase gratis en vivo</span>
+      <h1>De experta invisible a <em>autoridad pagada</em></h1>
+      <p class="hero-sub">En esta clase en vivo con Gianie Milet vas a ver cómo posicionar tu servicio, atraer a tus clientas ideales y cobrar lo que vales, sin trabajar más horas.</p>
+      <ul class="when">
+        <li><span class="ic">📅</span><div><b>Miércoles 21 de octubre</b><span class="sm">Clase en vivo y gratuita</span></div></li>
+        <li><span class="ic">🕖</span><div><b>7:00 PM, hora de Puerto Rico</b><span class="sm" id="horaLocal" hidden></span></div></li>
+        <li><span class="ic">💬</span><div><b>Entra al grupo de WhatsApp</b><span class="sm">Ahí recibes el aviso y el acceso a la clase</span></div></li>
+      </ul>
+    </div>
+
+    <div class="form-card" id="formCard">
+      <div id="formView">
+        <h2>Reserva tu lugar gratis</h2>
+        <p class="fc-sub">Déjanos tus datos y te llevamos directo al grupo de WhatsApp de la clase.</p>
+        <form id="webinarForm" novalidate>
+          <div class="field">
+            <label for="wNombre">Nombre completo</label>
+            <input id="wNombre" name="nombre" type="text" autocomplete="name" placeholder="Tu nombre y apellido" required>
+          </div>
+          <div class="field">
+            <label for="wEmail">Correo electrónico</label>
+            <input id="wEmail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="tucorreo@email.com" required>
+          </div>
+          <div class="field">
+            <label for="wTel">Número de WhatsApp</label>
+            <div class="tel-row">
+              <select id="wPais" aria-label="Código de país">
+                <option value="+54" data-cc="AR">🇦🇷 +54 Argentina</option>
+                <option value="+34" data-cc="ES">🇪🇸 +34 España</option>
+                <option value="+52" data-cc="MX">🇲🇽 +52 México</option>
+                <option value="+56" data-cc="CL">🇨🇱 +56 Chile</option>
+                <option value="+57" data-cc="CO">🇨🇴 +57 Colombia</option>
+                <option value="+598" data-cc="UY">🇺🇾 +598 Uruguay</option>
+                <option value="+51" data-cc="PE">🇵🇪 +51 Perú</option>
+                <option value="+593" data-cc="EC">🇪🇨 +593 Ecuador</option>
+                <option value="+58" data-cc="VE">🇻🇪 +58 Venezuela</option>
+                <option value="+591" data-cc="BO">🇧🇴 +591 Bolivia</option>
+                <option value="+595" data-cc="PY">🇵🇾 +595 Paraguay</option>
+                <option value="+507" data-cc="PA">🇵🇦 +507 Panamá</option>
+                <option value="+506" data-cc="CR">🇨🇷 +506 Costa Rica</option>
+                <option value="+502" data-cc="GT">🇬🇹 +502 Guatemala</option>
+                <option value="+504" data-cc="HN">🇭🇳 +504 Honduras</option>
+                <option value="+503" data-cc="SV">🇸🇻 +503 El Salvador</option>
+                <option value="+505" data-cc="NI">🇳🇮 +505 Nicaragua</option>
+                <option value="+1" data-cc="DO">🇩🇴 +1 República Dominicana</option>
+                <option value="+1" data-cc="PR" selected>🇵🇷 +1 Puerto Rico</option>
+                <option value="+53" data-cc="CU">🇨🇺 +53 Cuba</option>
+                <option value="+351" data-cc="PT">🇵🇹 +351 Portugal</option>
+                <option value="+55" data-cc="BR">🇧🇷 +55 Brasil</option>
+                <option value="+1" data-cc="US">🇺🇸 +1 Estados Unidos</option>
+                <option value="+1" data-cc="CA">🇨🇦 +1 Canadá</option>
+                <option value="+44" data-cc="GB">🇬🇧 +44 Reino Unido</option>
+                <option value="+49" data-cc="DE">🇩🇪 +49 Alemania</option>
+                <option value="+33" data-cc="FR">🇫🇷 +33 Francia</option>
+                <option value="+39" data-cc="IT">🇮🇹 +39 Italia</option>
+                <option value="+31" data-cc="NL">🇳🇱 +31 Países Bajos</option>
+                <option value="+41" data-cc="CH">🇨🇭 +41 Suiza</option>
+                <option value="+61" data-cc="AU">🇦🇺 +61 Australia</option>
+                <option value="+64" data-cc="NZ">🇳🇿 +64 Nueva Zelanda</option>
+                <option value="+81" data-cc="JP">🇯🇵 +81 Japón</option>
+                <option value="+86" data-cc="CN">🇨🇳 +86 China</option>
+                <option value="+91" data-cc="IN">🇮🇳 +91 India</option>
+                <option value="+971" data-cc="AE">🇦🇪 +971 Emiratos Árabes Unidos</option>
+                <option value="+1" data-cc="JM">🇯🇲 +1 Jamaica</option>
+                <option value="+1" data-cc="TT">🇹🇹 +1 Trinidad y Tobago</option>
+                <option value="+1" data-cc="BS">🇧🇸 +1 Bahamas</option>
+                <option value="+501" data-cc="BZ">🇧🇿 +501 Belice</option>
+                <option value="+509" data-cc="HT">🇭🇹 +509 Haití</option>
+                <option value="+592" data-cc="GY">🇬🇾 +592 Guyana</option>
+                <option value="+597" data-cc="SR">🇸🇷 +597 Surinam</option>
+                <option value="+240" data-cc="GQ">🇬🇶 +240 Guinea Ecuatorial</option>
+                <option value="+353" data-cc="IE">🇮🇪 +353 Irlanda</option>
+                <option value="+32" data-cc="BE">🇧🇪 +32 Bélgica</option>
+                <option value="+43" data-cc="AT">🇦🇹 +43 Austria</option>
+                <option value="+46" data-cc="SE">🇸🇪 +46 Suecia</option>
+                <option value="+47" data-cc="NO">🇳🇴 +47 Noruega</option>
+                <option value="+45" data-cc="DK">🇩🇰 +45 Dinamarca</option>
+                <option value="+358" data-cc="FI">🇫🇮 +358 Finlandia</option>
+                <option value="+48" data-cc="PL">🇵🇱 +48 Polonia</option>
+                <option value="+420" data-cc="CZ">🇨🇿 +420 Chequia</option>
+                <option value="+36" data-cc="HU">🇭🇺 +36 Hungría</option>
+                <option value="+40" data-cc="RO">🇷🇴 +40 Rumania</option>
+                <option value="+359" data-cc="BG">🇧🇬 +359 Bulgaria</option>
+                <option value="+385" data-cc="HR">🇭🇷 +385 Croacia</option>
+                <option value="+30" data-cc="GR">🇬🇷 +30 Grecia</option>
+                <option value="+352" data-cc="LU">🇱🇺 +352 Luxemburgo</option>
+                <option value="+354" data-cc="IS">🇮🇸 +354 Islandia</option>
+                <option value="+380" data-cc="UA">🇺🇦 +380 Ucrania</option>
+                <option value="+7" data-cc="RU">🇷🇺 +7 Rusia</option>
+                <option value="+90" data-cc="TR">🇹🇷 +90 Turquía</option>
+                <option value="+972" data-cc="IL">🇮🇱 +972 Israel</option>
+                <option value="+966" data-cc="SA">🇸🇦 +966 Arabia Saudita</option>
+                <option value="+974" data-cc="QA">🇶🇦 +974 Catar</option>
+                <option value="+965" data-cc="KW">🇰🇼 +965 Kuwait</option>
+                <option value="+20" data-cc="EG">🇪🇬 +20 Egipto</option>
+                <option value="+212" data-cc="MA">🇲🇦 +212 Marruecos</option>
+                <option value="+27" data-cc="ZA">🇿🇦 +27 Sudáfrica</option>
+                <option value="+234" data-cc="NG">🇳🇬 +234 Nigeria</option>
+                <option value="+254" data-cc="KE">🇰🇪 +254 Kenia</option>
+                <option value="+65" data-cc="SG">🇸🇬 +65 Singapur</option>
+                <option value="+60" data-cc="MY">🇲🇾 +60 Malasia</option>
+                <option value="+63" data-cc="PH">🇵🇭 +63 Filipinas</option>
+                <option value="+66" data-cc="TH">🇹🇭 +66 Tailandia</option>
+                <option value="+62" data-cc="ID">🇮🇩 +62 Indonesia</option>
+                <option value="+84" data-cc="VN">🇻🇳 +84 Vietnam</option>
+                <option value="+82" data-cc="KR">🇰🇷 +82 Corea del Sur</option>
+                <option value="+852" data-cc="HK">🇭🇰 +852 Hong Kong</option>
+                <option value="+886" data-cc="TW">🇹🇼 +886 Taiwán</option>
+                <option value="+92" data-cc="PK">🇵🇰 +92 Pakistán</option>
+              </select>
+              <input id="wTel" name="telefono" type="tel" autocomplete="tel-national" inputmode="tel" placeholder="Tu número" required>
+            </div>
+          </div>
+          <input class="hp" type="text" id="wWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button class="btn-main" id="wBtn" type="submit">Quiero mi lugar gratis</button>
+          <p class="form-msg" id="wMsg" role="alert"></p>
+          <p class="form-note">100% gratis · Sin tarjeta</p>
+        </form>
+      </div>
+      <div class="done" id="doneView" hidden>
+        <div class="check">✓</div>
+        <h2>¡Listo, ya tienes tu lugar!</h2>
+        <p id="doneTxt">Último paso: entra al grupo de WhatsApp para recibir el aviso y el acceso a la clase.</p>
+        <a class="btn-main" id="doneBtn" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t">Entrar al grupo de WhatsApp</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Flyer: lo que te llevas ===== -->
+<section class="flyer-sec" id="beneficios">
+  <div class="wrap">
+    <h2 class="sec-title">Lo que te llevas de la clase</h2>
+    <p class="sec-sub">Una hora para ordenar tu mensaje, tu oferta y la forma en que vendes.</p>
+    <article class="flyer">
+      <div class="flyer-photo" role="img" aria-label="Gianie Milet">
+        <div class="flyer-name"><b>Gianie Milet</b><span>Estratega en posicionamiento y crecimiento de negocios para mujeres profesionales</span></div>
+      </div>
+      <div class="flyer-body">
+        <div class="flyer-top">
+          <img src="assets/logo.png" alt="Step Her Up">
+          <span class="flyer-badge">Clase gratis en vivo</span>
+        </div>
+        <h3>De experta invisible a <em>autoridad pagada</em></h3>
+        <div class="flyer-date"><span>📅 Mié 21 de octubre</span><span>🕖 7:00 PM (Puerto Rico)</span></div>
+        <h4>En esta clase vas a</h4>
+        <ul class="benefits">
+          <li><span class="tick">✓</span><span>Entender <b>por qué tu negocio no está creciendo</b> aunque trabajas más que nunca.</span></li>
+          <li><span class="tick">✓</span><span>Descubrir los <b>3 ajustes de posicionamiento</b> que convierten tu servicio en una oferta irresistible.</span></li>
+          <li><span class="tick">✓</span><span>Aprender a <b>vender con autoridad y estrategia</b>, sin bajar precios ni aceptar clientas tóxicas.</span></li>
+          <li><span class="tick">✓</span><span>Ver cómo <b>atraer a tus clientas ideales</b> y cobrar lo que vales.</span></li>
+          <li><span class="tick">✓</span><span>Recibir el aviso y el acceso a la clase en el <b>grupo de WhatsApp</b>.</span></li>
+        </ul>
+        <div class="flyer-foot"><span><b>100% gratis</b> · En vivo</span><span>Reserva tu lugar abajo o arriba ↑</span></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===== Sobre Gianie ===== -->
+<section class="about">
+  <div class="wrap about-card">
+    <h2 class="sec-title">Quién te va a guiar</h2>
+    <p><b>Gianie Milet</b> es estratega en posicionamiento y crecimiento de negocios para mujeres profesionales. Con Step Her Up acompañó a más de 70 mujeres a estructurar su marca, redefinir su oferta y escalar su facturación, con un sistema y no con promesas genéricas.</p>
+    <div class="stats">
+      <div class="stat"><b>70+</b><span>mujeres acompañadas</span></div>
+      <div class="stat"><b>En vivo</b><span>con tiempo para tus dudas</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="proof">
+  <div class="wrap"><h2 class="sec-title">Lo que dicen de nosotras</h2></div>
+  <div class="proof-row">
+    <img src="images/testimonios/testimonio-1.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
+    <img src="images/testimonios/testimonio-2.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
+    <img src="images/testimonios/testimonio-3.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
+    <img src="images/testimonios/testimonio-4.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <h2>Tu lugar es gratis. Resérvalo ahora.</h2>
+    <p>Miércoles 21 de octubre · 7:00 PM (hora de Puerto Rico).</p>
+    <a class="btn-main" href="#registro" id="finalCta">Quiero mi lugar gratis</a>
+  </div>
+</section>
+</main>
+
+<footer>© Step Her Up · Todos los derechos reservados</footer>
+
+<script>
+(function () {
+  // ===== Datos del evento =====
+  // 21/10/2026, 7:00 PM hora de Puerto Rico (AST, UTC-4 todo el año).
+  const EVENTO = new Date("2026-10-21T19:00:00-04:00");
+  const WHATSAPP_URL = "https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t";
+  const WORKER_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev";
+  const LEAD_KEY = "shu_webinar_lead";
+  const PENDIENTE_KEY = "shu_webinar_pendiente";
+
+  // ===== Cuenta regresiva =====
+  const $ = (id) => document.getElementById(id);
+  const dos = (n) => String(n).padStart(2, "0");
+  function tick() {
+    let ms = EVENTO - Date.now();
+    if (ms <= 0) {
+      $("cbTimer").hidden = true;
+      $("cbTitulo").textContent = "¡La clase está en vivo!";
+      $("cbJoin").hidden = false;
+      return false;
+    }
+    const s = Math.floor(ms / 1000);
+    $("cbD").textContent = dos(Math.floor(s / 86400));
+    $("cbH").textContent = dos(Math.floor((s % 86400) / 3600));
+    $("cbM").textContent = dos(Math.floor((s % 3600) / 60));
+    $("cbS").textContent = dos(s % 60);
+    return true;
+  }
+  if (tick()) {
+    const t = setInterval(() => { if (!tick()) clearInterval(t); }, 1000);
+  }
+
+  // Hora local de quien mira la página (si es distinta a la de Puerto Rico).
+  try {
+    const zona = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const fmt = (tz) => new Intl.DateTimeFormat("es", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(EVENTO);
+    if (zona && fmt(zona) !== fmt("America/Puerto_Rico")) {
+      const local = new Intl.DateTimeFormat("es", { weekday: "long", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(EVENTO);
+      $("horaLocal").textContent = "En tu zona horaria: " + local;
+      $("horaLocal").hidden = false;
+    }
+  } catch (e) {}
+
+  // ===== Código de país según la IP (igual que el resto del funnel) =====
+  async function detectarPais() {
+    const sel = $("wPais");
+    try {
+      const ctrl = new AbortController();
+      const to = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(WORKER_URL + "/geo", { signal: ctrl.signal });
+      clearTimeout(to);
+      const geo = await res.json();
+      const opt = geo.ok && geo.country ? [...sel.options].find((o) => o.dataset.cc === geo.country) : null;
+      if (opt) opt.selected = true;
+    } catch (e) {}
+  }
+  detectarPais();
+
+  // ===== Registro =====
+  const params = new URLSearchParams(location.search);
+  const utms = {
+    utm_source: params.get("utm_source") || "",
+    utm_medium: params.get("utm_medium") || "",
+    utm_campaign: params.get("utm_campaign") || "",
+    utm_content: params.get("utm_content") || "",
+  };
+  function enviar(payload, esperarMs) {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), esperarMs);
+    return fetch(WORKER_URL + "/webinar-registro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+      keepalive: true,
+    }).then(async (r) => {
+      clearTimeout(to);
+      let data = {};
+      try { data = await r.json(); } catch (e) {}
+      return { status: r.status, data };
+    });
+  }
+
+  function mostrarListo(redirigir) {
+    $("formView").hidden = true;
+    $("doneView").hidden = false;
+    $("doneBtn").href = WHATSAPP_URL;
+    if (redirigir) setTimeout(() => { location.href = WHATSAPP_URL; }, 1300);
+  }
+
+  const MENSAJES = {
+    nombre_invalido: "Escribe tu nombre y apellido.",
+    email_invalido: "Revisa tu correo: parece que le falta algo.",
+    telefono_invalido: "Revisa tu número de WhatsApp.",
+  };
+
+  $("webinarForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const msg = $("wMsg");
+    msg.textContent = "";
+    const nombre = $("wNombre").value.trim();
+    const email = $("wEmail").value.trim();
+    const numero = $("wTel").value.replace(/\D/g, "").replace(/^0+/, "");
+    if (nombre.split(/\s+/).filter(Boolean).length < 1 || nombre.length < 2) { msg.textContent = MENSAJES.nombre_invalido; $("wNombre").focus(); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { msg.textContent = MENSAJES.email_invalido; $("wEmail").focus(); return; }
+    if (numero.length < 6) { msg.textContent = MENSAJES.telefono_invalido; $("wTel").focus(); return; }
+
+    const payload = {
+      nombre, email,
+      telefono: $("wPais").value + numero,
+      website: $("wWebsite").value,
+      timezone: (Intl.DateTimeFormat().resolvedOptions().timeZone) || "",
+      pagina: location.href,
+      ...utms,
+    };
+    const btn = $("wBtn");
+    btn.disabled = true; btn.textContent = "Reservando tu lugar…";
+    try { localStorage.setItem(LEAD_KEY, JSON.stringify({ nombre, email, fecha: new Date().toISOString() })); } catch (e) {}
+
+    try {
+      const r = await enviar(payload, 4500);
+      if (r.status >= 400 && r.status < 500 && MENSAJES[r.data.error]) {
+        msg.textContent = MENSAJES[r.data.error];
+        btn.disabled = false; btn.textContent = "Quiero mi lugar gratis";
+        try { localStorage.removeItem(LEAD_KEY); } catch (e) {}
+        return;
+      }
+      if (!r.data.ok) throw new Error("no_guardado");
+    } catch (e) {
+      // Sin conexión o falla del servidor: la dejamos pasar igual al grupo
+      // y reintentamos guardar sus datos la próxima vez que abra la página.
+      try { localStorage.setItem(PENDIENTE_KEY, JSON.stringify(payload)); } catch (e2) {}
+    }
+    mostrarListo(true);
+  });
+
+  // Reintento de un registro que no se pudo guardar.
+  try {
+    const pend = JSON.parse(localStorage.getItem(PENDIENTE_KEY) || "null");
+    if (pend) enviar(pend, 8000).then((r) => { if (r.data && r.data.ok) localStorage.removeItem(PENDIENTE_KEY); }).catch(() => {});
+  } catch (e) {}
+
+  // Si ya se había registrado en este dispositivo, le mostramos el acceso al grupo.
+  try {
+    if (localStorage.getItem(LEAD_KEY)) {
+      mostrarListo(false);
+      $("doneTxt").textContent = "Ya estás registrada. Entra al grupo de WhatsApp para recibir el aviso y el acceso a la clase.";
+    }
+  } catch (e) {}
+
+  $("finalCta").addEventListener("click", () => setTimeout(() => { const i = $("wNombre"); if (i && !$("formView").hidden) i.focus({ preventScroll: true }); }, 500));
+})();
+</script>
+</body>
+</html>

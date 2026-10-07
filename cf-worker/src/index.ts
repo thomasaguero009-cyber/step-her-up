@@ -679,6 +679,62 @@ async function handleEstrategiaGenerar(request: Request, env: Env, cors: Headers
   return json({ ok: true, seccion: body.seccion, texto }, 200, cors);
 }
 
+// --- Registro al webinar (landing webinar.html) -----------------------------
+// Guarda a cada inscripta como contacto de GHL con la etiqueta del webinar y
+// la fuente, sin crear oportunidades (no ensucia las métricas del funnel).
+// Después la landing la manda al grupo de WhatsApp: si este endpoint falla,
+// igual la dejan pasar y se reintenta después desde el navegador.
+const EVENTO_WEBINAR = { tag: "webinar-21-oct", fuente: "Webinar 21 oct" };
+
+function slugTag(prefijo: string, valor: unknown): string | null {
+  const v = String(valor || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return v ? `${prefijo}-${v}` : null;
+}
+
+async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  let p: Record<string, unknown>;
+  try {
+    p = await request.json();
+  } catch {
+    return json({ ok: false, error: "invalid_json" }, 400, cors);
+  }
+  // Campo trampa para bots: las personas no lo ven ni lo completan.
+  if (p.website) return json({ ok: true }, 200, cors);
+
+  const nombre = String(p.nombre || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const email = String(p.email || "").trim().toLowerCase().slice(0, 120);
+  const telefono = String(p.telefono || "").replace(/[^\d+]/g, "").slice(0, 20);
+  if (nombre.length < 2) return json({ ok: false, error: "nombre_invalido" }, 400, cors);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ ok: false, error: "email_invalido" }, 400, cors);
+  if (telefono.replace(/\D/g, "").length < 7) return json({ ok: false, error: "telefono_invalido" }, 400, cors);
+
+  const partes = nombre.split(" ");
+  const tags = [EVENTO_WEBINAR.tag, slugTag("src", p.utm_source), slugTag("camp", p.utm_campaign)].filter(Boolean) as string[];
+  const pedir = (timezone?: string) =>
+    fetch(`${GHL_BASE}/contacts/upsert`, {
+      method: "POST",
+      headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        locationId: env.GHL_LOCATION_ID,
+        firstName: partes[0],
+        lastName: partes.slice(1).join(" "),
+        email,
+        phone: telefono,
+        tags,
+        source: EVENTO_WEBINAR.fuente,
+        timezone,
+      }),
+    });
+  const tz = zonaValida(typeof p.timezone === "string" ? p.timezone : undefined);
+  let res = await pedir(tz);
+  if (!res.ok && tz) res = await pedir(undefined);
+  if (!res.ok) {
+    return json({ ok: false, error: "ghl_failed", detail: (await res.text()).slice(0, 300) }, 502, cors);
+  }
+  const body = (await res.json()) as { contact?: { id?: string } };
+  return json({ ok: true, id: body.contact?.id || null }, 200, cors);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -706,6 +762,9 @@ export default {
       }
       if (url.pathname === "/funnel-por-dia" && request.method === "GET") {
         return await handleFunnelPorDia(url, env, cors);
+      }
+      if (url.pathname === "/webinar-registro" && request.method === "POST") {
+        return await handleWebinarRegistro(request, env, cors);
       }
       if (url.pathname === "/estrategia/generar" && request.method === "POST") {
         return await handleEstrategiaGenerar(request, env, cors);

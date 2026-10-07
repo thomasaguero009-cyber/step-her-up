@@ -38,7 +38,7 @@
     var path = location.pathname;
     var rest = path.indexOf(base) === 0 ? path.slice(base.length) : path.replace(/^\//, '');
     var slug = rest.replace(/\/+$/, '').replace(/\.html?$/i, '').toLowerCase();
-    var paginas = ['dashboard', 'formulario', 'gracias', 'testimonios', 'calendario', 'propuesta'];
+    var paginas = ['dashboard', 'formulario', 'gracias', 'testimonios', 'calendario', 'propuesta', 'webinar'];
     var destino = null;
     if(paginas.indexOf(slug) > -1) destino = slug;
     else if(slug === 'index' || slug === '') destino = '';
