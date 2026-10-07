@@ -97,6 +97,7 @@
   #webinarForm{ padding-top:2px; opacity:0; transform:translateY(-6px); transition:opacity .35s .1s, transform .35s .1s; }
   .reveal.open #webinarForm{ opacity:1; transform:none; }
   @media(prefers-reduced-motion:reduce){ .reveal, #webinarForm{ transition:none; } }
+  .cupos-mini{ display:flex; align-items:center; justify-content:center; gap:9px; margin:0 0 12px; font-size:12.5px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#ffb3c0; }
   .hp{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
   .btn-main{
     width:100%; padding:17px 20px; border:0; border-radius:999px; cursor:pointer; font:800 17px "Inter",sans-serif;
@@ -112,6 +113,32 @@
   .done h2{ font-size:26px; }
   .done p{ color:var(--text-dim); margin:8px 0 20px; font-size:15px; }
   a.btn-main{ display:block; text-align:center; text-decoration:none; }
+
+  /* ===== Urgencia ===== */
+  .urgencia{ padding:6px 0 52px; }
+  .urg-card{
+    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:34px; align-items:center;
+    border:1px solid rgba(240,168,190,0.5); border-radius:26px; padding:34px 36px;
+    background:linear-gradient(135deg,rgba(232,138,168,0.18),rgba(90,22,38,0.35) 55%,rgba(26,5,9,0.5));
+    box-shadow:0 0 0 1px rgba(240,168,190,0.08), 0 24px 70px rgba(0,0,0,0.4);
+  }
+  @media(max-width:820px){ .urg-card{ grid-template-columns:1fr; padding:28px 22px; gap:24px; text-align:center; } }
+  .cupos-pill{
+    display:inline-flex; align-items:center; gap:9px; font-size:12px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase;
+    color:#fff; background:rgba(214,48,80,0.22); border:1px solid rgba(255,107,129,0.7); border-radius:999px; padding:7px 15px; margin-bottom:16px;
+  }
+  .pulse{ width:9px; height:9px; border-radius:50%; background:#ff5c7a; box-shadow:0 0 0 0 rgba(255,92,122,0.7); animation:pulsar 1.6s infinite; display:inline-block; }
+  @keyframes pulsar{ 0%{ box-shadow:0 0 0 0 rgba(255,92,122,0.65); } 70%{ box-shadow:0 0 0 11px rgba(255,92,122,0); } 100%{ box-shadow:0 0 0 0 rgba(255,92,122,0); } }
+  @media(prefers-reduced-motion:reduce){ .pulse{ animation:none; } }
+  .urg-left h2{ font-size:clamp(26px,3.6vw,36px); line-height:1.15; }
+  .urg-left p{ color:var(--text-dim); margin:12px 0 0; font-size:16px; }
+  .urg-label{ font-size:12.5px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--blush); margin-bottom:12px; text-align:center; }
+  .urg-timer{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
+  .urg-unit{ text-align:center; padding:14px 6px 11px; border-radius:16px; background:rgba(0,0,0,0.32); border:1px solid rgba(240,168,190,0.35); }
+  .urg-num{ display:block; font-size:clamp(30px,5vw,44px); font-weight:800; color:#fff; font-variant-numeric:tabular-nums; line-height:1.05; }
+  .urg-lab{ display:block; margin-top:4px; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); }
+  .urg-card .btn-main{ display:block; text-align:center; text-decoration:none; }
+  .eyebrow-cupos{ display:inline-flex; align-items:center; gap:9px; margin:0 0 14px 10px; font-size:12px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#ffb3c0; }
 
   /* ===== Flyer de beneficios ===== */
   section{ scroll-margin-top:90px; }
@@ -155,10 +182,43 @@
   .stats{ display:flex; justify-content:center; gap:34px; flex-wrap:wrap; margin-top:26px; }
   .stat b{ display:block; font-family:"Playfair Display",serif; font-size:38px; color:var(--blush); line-height:1.1; }
   .stat span{ font-size:13px; color:var(--text-dim); }
-  .proof{ padding:0 0 70px; }
-  .proof-row{ display:flex; gap:16px; overflow-x:auto; padding:6px 20px 16px; scroll-snap-type:x mandatory; justify-content:flex-start; max-width:1120px; margin:0 auto; }
-  @media(min-width:1000px){ .proof-row{ justify-content:center; } }
-  .proof-row img{ flex:none; height:360px; width:auto; border-radius:16px; border:1px solid var(--border); scroll-snap-align:center; background:#fff; }
+  .section{ padding:70px 0; }
+  .section-head{ text-align:center; max-width:620px; margin:0 auto 44px; }
+  .section-head h2{ font-size:32px; font-weight:600; }
+  .section-head h2 .hl{ color:var(--blush); font-style:italic; }
+  /* ===== Carrusel de capturas (igual que la landing del VSL) ===== */
+  .carousel{ max-width:900px; margin:0 auto; overflow:hidden; }
+  .carousel-track{
+    display:flex; gap:18px; transition:transform .6s cubic-bezier(.65,0,.35,1); will-change:transform;
+    cursor:grab; touch-action:pan-y; user-select:none;
+  }
+  .carousel-track:active{ cursor:grabbing; }
+  .carousel-slide{
+    flex:0 0 calc((100% - 36px)/3); aspect-ratio:369/705; border-radius:14px;
+    background:linear-gradient(160deg, var(--wine-3), var(--wine-1)); border:1px solid var(--border);
+    overflow:hidden; touch-action:pan-y;
+  }
+  .carousel-slide img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+  @media (max-width:900px){ .carousel-slide{ flex-basis:calc((100% - 18px)/2); } }
+  @media (max-width:600px){ .carousel-slide{ flex-basis:100%; } }
+  /* ===== Reseñas estilo Google (igual que la landing del VSL) ===== */
+  .reviews-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; max-width:1240px; margin:0 auto; }
+  .review-card{
+    background:#fff; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:12px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.25);
+  }
+  .review-stars{ color:#fbbc04; font-size:16px; letter-spacing:2px; }
+  .review-text{ color:#3c3c3c; font-size:14.5px; line-height:1.55; margin:0; flex:1; }
+  .review-author{ display:flex; align-items:center; gap:10px; }
+  .review-avatar{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    background:linear-gradient(135deg, var(--blush-2), var(--blush)); color:#2a0a13;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
+  }
+  .review-name{ font-size:13.5px; font-weight:700; color:#1a1a1a; }
+  .review-source{ font-size:11.5px; color:#767676; }
+  @media (max-width:900px){ .reviews-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:600px){ .reviews-grid{ grid-template-columns:1fr; } }
 
   .final{ padding:10px 0 80px; text-align:center; }
   .final h2{ font-size:clamp(28px,4.4vw,42px); margin-bottom:12px; }
@@ -205,6 +265,7 @@
       <div id="formView">
         <h2>Reserva tu lugar gratis</h2>
         <p class="fc-sub">Déjanos tus datos y te llevamos directo al grupo de WhatsApp de la clase.</p>
+        <p class="cupos-mini"><i class="pulse"></i>Cupos limitados</p>
         <button class="btn-main" id="openForm" type="button" aria-expanded="false" aria-controls="reveal">Quiero mi lugar</button>
         <div class="reveal" id="reveal" inert><div class="reveal-inner">
         <form id="webinarForm" novalidate>
@@ -311,13 +372,36 @@
           <p class="form-msg" id="wMsg" role="alert"></p>
         </form>
         </div></div>
-        <p class="form-note">100% gratis · Sin tarjeta</p>
+        <p class="form-note">100% gratis</p>
       </div>
       <div class="done" id="doneView" hidden>
         <div class="check">✓</div>
         <h2>¡Listo, ya tienes tu lugar!</h2>
         <p id="doneTxt">Último paso: entra al grupo de WhatsApp para recibir el aviso y el acceso a la clase.</p>
         <a class="btn-main" id="doneBtn" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t">Entrar al grupo de WhatsApp</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Urgencia: cupos limitados + segunda cuenta regresiva ===== -->
+<section class="urgencia" id="urgencia">
+  <div class="wrap">
+    <div class="urg-card">
+      <div class="urg-left">
+        <span class="cupos-pill"><i class="pulse"></i>Cupos limitados</span>
+        <h2>Los lugares son limitados</h2>
+        <p>El acceso a la clase se da por el grupo de WhatsApp, que tiene un cupo máximo de personas. Reserva el tuyo antes de que se llene.</p>
+      </div>
+      <div class="urg-right">
+        <div class="urg-label" id="ubTitulo">La clase empieza en</div>
+        <div class="urg-timer" id="ubTimer">
+          <div class="urg-unit"><span class="urg-num" id="ubD">00</span><span class="urg-lab">Días</span></div>
+          <div class="urg-unit"><span class="urg-num" id="ubH">00</span><span class="urg-lab">Horas</span></div>
+          <div class="urg-unit"><span class="urg-num" id="ubM">00</span><span class="urg-lab">Min</span></div>
+          <div class="urg-unit"><span class="urg-num" id="ubS">00</span><span class="urg-lab">Seg</span></div>
+        </div>
+        <a class="btn-main" href="#registro" id="urgCta">Quiero mi lugar</a>
       </div>
     </div>
   </div>
@@ -347,7 +431,7 @@
           <li><span class="tick">✓</span><span>Ver cómo <b>atraer a tus clientas ideales</b> y cobrar lo que vales.</span></li>
           <li><span class="tick">✓</span><span>Recibir el aviso y el acceso a la clase en el <b>grupo de WhatsApp</b>.</span></li>
         </ul>
-        <div class="flyer-foot"><span><b>100% gratis</b> · En vivo</span><span>Reserva tu lugar abajo o arriba ↑</span></div>
+        <div class="flyer-foot"><span><b>100% gratis</b> · En vivo</span><span><b>Cupos limitados</b></span></div>
       </div>
     </article>
   </div>
@@ -365,20 +449,214 @@
   </div>
 </section>
 
-<section class="proof">
-  <div class="wrap"><h2 class="sec-title">Lo que dicen de nosotras</h2></div>
-  <div class="proof-row">
-    <img src="images/testimonios/testimonio-1.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
-    <img src="images/testimonios/testimonio-2.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
-    <img src="images/testimonios/testimonio-3.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
-    <img src="images/testimonios/testimonio-4.jpeg" alt="Testimonio de una alumna de Step Her Up" loading="lazy">
-  </div>
-</section>
+<section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Fotos de <span class="hl">testimonios</span></h2>
+      </div>
+
+      <div class="carousel">
+        <div class="carousel-track" id="carouselTrack">
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-1.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-2.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-3.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-4.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-5.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-6.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-7.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-8.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-9.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide"><img src="images/testimonios/testimonio-10.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-1.jpeg" alt="" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-2.jpeg" alt="" loading="lazy"></div>
+          <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-3.jpeg" alt="" loading="lazy"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+<section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Lo que <span class="hl">dicen</span> de nosotras</h2>
+      </div>
+
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Muchas gracias por todo!! 🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">V</div>
+            <div>
+              <div class="review-name">Virnalis</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"He tenido un crecimiento gigante en clientas desde mayo... Estoy muy agradecida y emocionada por esta etapa."</p>
+          <div class="review-author">
+            <div class="review-avatar">F</div>
+            <div>
+              <div class="review-name">Fabi</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"De febrero a acá, tengo 51 clientas recurrentes y 16 nuevas 🤩 — solo con contenido orgánico."</p>
+          <div class="review-author">
+            <div class="review-avatar">F</div>
+            <div>
+              <div class="review-name">Fabi</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Amoresss puse una candelita en ig y me salieron 5 ventas."</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">Lizbeth</div>
+              <div class="review-source">Alumna Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"En menos de un mes adquirimos más de 2000 nuevos followers y más de 30 llamadas de clientes interesados en nuestro servicio... 1000% recomendada."</p>
+          <div class="review-author">
+            <div class="review-avatar">P</div>
+            <div>
+              <div class="review-name">Piazza</div>
+              <div class="review-source">Cliente Step Her Up</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La gloria es para Dios! Gracias Gianie por darnos todo para crecer 🙌🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">K</div>
+            <div>
+              <div class="review-name">@kelymarmelendez</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Gracias por lo que haces 💗"</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">@lyasesthetic</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"La mejor ✨"</p>
+          <div class="review-author">
+            <div class="review-avatar">D</div>
+            <div>
+              <div class="review-name">@dravirnalis</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Bendecida de formar parte de este grupo de mujeres exitosas. 🔥🔥🔥🔥"</p>
+          <div class="review-author">
+            <div class="review-avatar">J</div>
+            <div>
+              <div class="review-name">@jennyfernandezthebroker</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Agradecida con Dios por poner a grandes mujeres que inspiran a seguir creciendo."</p>
+          <div class="review-author">
+            <div class="review-avatar">V</div>
+            <div>
+              <div class="review-name">@valle_y</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Que bendición ser parte de esta gran comunidad 🙏💗"</p>
+          <div class="review-author">
+            <div class="review-avatar">L</div>
+            <div>
+              <div class="review-name">@__lenyram__</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Gracias por tu empatía y siempre dar lo mejor de ti a todas. Bendiciones."</p>
+          <div class="review-author">
+            <div class="review-avatar">T</div>
+            <div>
+              <div class="review-name">@tugestoraenpr</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Que bendición formar parte de este grupo de mujeres que lo están dando todo. Sales motivada si o si ✨🤍"</p>
+          <div class="review-author">
+            <div class="review-avatar">Y</div>
+            <div>
+              <div class="review-name">@yadimarsalasphotography</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">"Me encanta 💖 hermosa, editoriales, minimalista y elegantes, como me encantan las fotos de boda. 200% recomendada."</p>
+          <div class="review-author">
+            <div class="review-avatar">Y</div>
+            <div>
+              <div class="review-name">@yadimarsalasphotography</div>
+              <div class="review-source">Comentario en Instagram</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
 <section class="final">
   <div class="wrap">
     <h2>Tu lugar es gratis. Resérvalo ahora.</h2>
-    <p>Miércoles 21 de octubre · 7:00 PM (hora de Puerto Rico).</p>
+    <p><span class="cupos-pill" style="margin:0 8px 6px 0;"><i class="pulse"></i>Cupos limitados</span><br>Miércoles 21 de octubre · 7:00 PM (hora de Puerto Rico).</p>
     <a class="btn-main" href="#registro" id="finalCta">Quiero mi lugar</a>
   </div>
 </section>
@@ -402,16 +680,19 @@
   function tick() {
     let ms = EVENTO - Date.now();
     if (ms <= 0) {
+      // En vivo: los dos relojes se reemplazan por el acceso al grupo.
       $("cbTimer").hidden = true;
       $("cbTitulo").textContent = "¡La clase está en vivo!";
       $("cbJoin").hidden = false;
+      $("ubTimer").hidden = true;
+      $("ubTitulo").textContent = "¡La clase está en vivo!";
+      $("urgCta").textContent = "Entrar al grupo de WhatsApp";
+      $("urgCta").href = WHATSAPP_URL;
       return false;
     }
     const s = Math.floor(ms / 1000);
-    $("cbD").textContent = dos(Math.floor(s / 86400));
-    $("cbH").textContent = dos(Math.floor((s % 86400) / 3600));
-    $("cbM").textContent = dos(Math.floor((s % 3600) / 60));
-    $("cbS").textContent = dos(s % 60);
+    const v = [dos(Math.floor(s / 86400)), dos(Math.floor((s % 86400) / 3600)), dos(Math.floor((s % 3600) / 60)), dos(s % 60)];
+    ["D", "H", "M", "S"].forEach((k, i) => { $("cb" + k).textContent = v[i]; $("ub" + k).textContent = v[i]; });
     return true;
   }
   if (tick()) {
@@ -548,8 +829,172 @@
   }
   $("openForm").addEventListener("click", () => abrirFormulario(true));
   // El botón de abajo sube al formulario y también lo despliega.
-  $("finalCta").addEventListener("click", () => { abrirFormulario(false); setTimeout(() => $("wNombre").focus({ preventScroll: true }), 650); });
+  const alFormulario = () => { abrirFormulario(false); setTimeout(() => $("wNombre").focus({ preventScroll: true }), 650); };
+  $("finalCta").addEventListener("click", alFormulario);
+  $("urgCta").addEventListener("click", (ev) => { if (EVENTO - Date.now() > 0) alFormulario(); });
 })();
+</script>
+<script>
+
+(function(){
+  const track = document.getElementById("carouselTrack");
+  // Al final del track hay clones de las primeras CLONE_COUNT slides
+  // (ver HTML) — sirven para que el carrusel pueda seguir avanzando,
+  // a mano o solo, más allá de la última foto real sin que se note el
+  // salto al volver al principio.
+  const CLONE_COUNT = 3;
+  const totalSlides = track.children.length;
+  const realSlides = totalSlides - CLONE_COUNT;
+
+  let index = 0;
+
+  // Todo en píxeles, siempre con la MISMA cuenta (track.scrollWidth /
+  // totalSlides) — antes update() posicionaba en porcentaje mientras el
+  // arrastre calculaba en píxeles, y esos dos sistemas no coincidían
+  // exactamente; el desfasaje se iba acumulando de a poco con cada slide
+  // hasta notarse como un "tirón" después de unas cuantas fotos.
+  function stepPx(){
+    return track.scrollWidth / totalSlides;
+  }
+
+  function update(){
+    track.style.transform = `translateX(-${stepPx() * index}px)`;
+  }
+
+  update();
+
+  // ===== Autoplay: se pausa apenas se arrastra el carrusel a mano y
+  // recién retoma solo después de un rato sin que se lo toque. Cuando
+  // el índice llega a las slides clonadas (idéntico visualmente a las
+  // reales del principio), apenas termina esa transición se reposiciona
+  // sin animación al índice 0 real — el loop queda infinito sin salto. =====
+  const AUTOPLAY_MS = 3200;
+  const RESUME_AFTER_IDLE_MS = 3500;
+  let autoplayTimer = null;
+  let resumeTimer = null;
+  let bridgeResetHandler = null;
+
+  function cancelBridgeReset(){
+    if (bridgeResetHandler) {
+      track.removeEventListener("transitionend", bridgeResetHandler);
+      bridgeResetHandler = null;
+    }
+  }
+
+  function armBridgeReset(){
+    cancelBridgeReset();
+    bridgeResetHandler = () => {
+      bridgeResetHandler = null;
+      track.style.transition = "none";
+      index = 0;
+      update();
+      void track.offsetWidth;
+      track.style.transition = "";
+    };
+    track.addEventListener("transitionend", bridgeResetHandler, { once: true });
+  }
+
+  function startAutoplay(){
+    stopAutoplay();
+    autoplayTimer = setInterval(() => {
+      index += 1;
+      update();
+      if (index >= realSlides) armBridgeReset();
+    }, AUTOPLAY_MS);
+  }
+  function stopAutoplay(){
+    if (autoplayTimer) clearInterval(autoplayTimer);
+    autoplayTimer = null;
+  }
+  function pauseAndScheduleResume(){
+    stopAutoplay();
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(startAutoplay, RESUME_AFTER_IDLE_MS);
+  }
+
+  startAutoplay();
+
+  // ===== Arrastre manual (mouse y touch, vía Pointer Events unificados).
+  // El contenido sigue el dedo/mouse: arrastrar hacia la izquierda
+  // retrocede, hacia la derecha avanza. Si el arrastre pasa la última
+  // foto real, entra en la misma zona de clones que usa el autoplay y
+  // hace el mismo salto invisible de vuelta al principio. =====
+  let dragging = false;
+  let dragMoved = false;
+  let dragStartX = 0;
+  let dragStartOffsetPx = 0;
+
+  function currentOffsetPx(){
+    // Usa la posición visual REAL (vía computed style), no la posición
+    // "destino" de index — si el autoplay está a mitad de una animación
+    // cuando arrancás a arrastrar, ambas no coinciden, y usar el destino
+    // en vez de dónde está de verdad provoca un salto brusco al agarrarlo.
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(track).transform);
+    return -matrix.m41;
+  }
+
+  track.addEventListener("pointerdown", (ev) => {
+    cancelBridgeReset();
+    if (index >= realSlides) {
+      track.style.transition = "none";
+      index = 0;
+      update();
+      void track.offsetWidth;
+      track.style.transition = "";
+    }
+    dragging = true;
+    dragMoved = false;
+    dragStartX = ev.clientX;
+    dragStartOffsetPx = currentOffsetPx();
+    // Clava el transform exactamente en la posición visual que ya tenía
+    // (aunque el autoplay estuviera a mitad de una animación) ANTES de
+    // apagar la transición — si no, apagarla solita ya provoca un salto
+    // al valor "destino" de esa animación en curso.
+    track.style.transition = "none";
+    track.style.transform = `translateX(-${dragStartOffsetPx}px)`;
+    try { track.setPointerCapture(ev.pointerId); } catch (e) {}
+    // Solo pausa acá — la cuenta regresiva para retomar el autoplay
+    // arranca recién cuando se suelta (endDrag), no desde que se toca.
+    // Si arrancaba desde acá, un arrastre largo (más de RESUME_AFTER_IDLE_MS
+    // sin soltar) hacía que el autoplay se reactivara solo A MITAD del
+    // arrastre y peleara por el transform contra el dedo/mouse.
+    stopAutoplay();
+    if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
+  });
+
+  track.addEventListener("pointermove", (ev) => {
+    if (!dragging) return;
+    // En mobile, si no se cancela el evento acá, el navegador puede
+    // interpretar el arrastre como scroll vertical de la página a mitad
+    // de camino y quedarse con el gesto — eso es lo que impedía deslizar
+    // el carrusel con el dedo.
+    ev.preventDefault();
+    const deltaX = ev.clientX - dragStartX;
+    if (Math.abs(deltaX) > 4) dragMoved = true;
+    track.style.transform = `translateX(-${dragStartOffsetPx - deltaX}px)`;
+  });
+
+  function endDrag(ev){
+    if (!dragging) return;
+    dragging = false;
+    track.style.transition = "";
+    const deltaX = ev.clientX - dragStartX;
+    const newIndex = Math.round((dragStartOffsetPx - deltaX) / stepPx());
+    index = Math.max(0, Math.min(realSlides, newIndex));
+    update();
+    if (index >= realSlides) armBridgeReset();
+    pauseAndScheduleResume();
+  }
+  track.addEventListener("pointerup", endDrag);
+  track.addEventListener("pointercancel", endDrag);
+  track.addEventListener("pointerleave", (ev) => { if (dragging) endDrag(ev); });
+
+  // Si hubo arrastre real, que no dispare un click en el slide soltado.
+  track.addEventListener("click", (ev) => {
+    if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); }
+  }, true);
+})();
+
 </script>
 </body>
 </html>
