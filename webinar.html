@@ -11,277 +11,255 @@
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --wine-1:#1a0509; --wine-2:#3d0f1f; --wine-3:#5a1626;
     --blush:#f0a8be; --blush-2:#e88aa8;
-    --cream:#f7ece9; --text-dim:rgba(247,236,233,0.74);
-    --card:rgba(255,255,255,0.06); --border:rgba(255,255,255,0.14);
+    --cream:#f7ece9; --text-dim:rgba(247,236,233,0.72);
+    --line:rgba(247,236,233,0.14); --border:rgba(255,255,255,0.14);
+    --ink:#2a0f17; --ink-dim:#6d4b55; --paper:#f6ede9;
+    --rad:16px;
   }
   *{ box-sizing:border-box; }
   html{ scroll-behavior:smooth; }
   body{
-    margin:0; color:var(--cream); font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif; line-height:1.5;
+    margin:0; color:var(--cream); font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif; font-size:17px; line-height:1.65;
+    -webkit-font-smoothing:antialiased;
     background:
       radial-gradient(ellipse 1100px 700px at 82% 0%, rgba(90,22,38,0.5), transparent 55%),
       radial-gradient(ellipse 900px 600px at 15% 60%, rgba(90,22,38,0.35), transparent 55%),
       linear-gradient(180deg, var(--wine-2) 0%, var(--wine-1) 40%);
     background-attachment:fixed; min-height:100vh;
   }
-  h1,h2,h3{ font-family:"Playfair Display",Georgia,serif; margin:0; font-weight:600; }
-  .wrap{ max-width:1120px; margin:0 auto; padding:0 20px; }
+  h1,h2,h3{ font-family:"Playfair Display",Georgia,serif; font-weight:500; margin:0; letter-spacing:-0.01em; }
+  p{ margin:0; }
+  .wrap{ max-width:1120px; margin:0 auto; padding:0 24px; }
   [hidden]{ display:none !important; }
+  section{ scroll-margin-top:84px; }
 
-  /* ===== Cuenta regresiva (arriba de todo, siempre visible) ===== */
-  .countdown-bar{
-    position:sticky; top:0; z-index:50; background:rgba(20,4,8,0.9); backdrop-filter:blur(10px);
-    border-bottom:1px solid var(--border);
+  /* ----- Piezas reutilizables ----- */
+  .kicker{ display:block; font-size:12px; font-weight:600; letter-spacing:0.22em; text-transform:uppercase; color:var(--blush); }
+  .title{ font-size:clamp(30px,4vw,46px); line-height:1.12; }
+  .title em, h1 em{ font-style:italic; color:var(--blush); }
+  .lede{ color:var(--text-dim); font-size:clamp(17px,1.9vw,19px); max-width:34em; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; padding:16px 34px; border:0; border-radius:999px; cursor:pointer;
+    font:600 16px "Inter",sans-serif; letter-spacing:0.01em; text-decoration:none; transition:transform .15s, box-shadow .15s, opacity .15s;
   }
-  .cb-inner{ max-width:1120px; margin:0 auto; padding:10px 20px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
-  .cb-text{ font-size:13px; line-height:1.3; color:var(--text-dim); }
-  .cb-text strong{ display:block; color:var(--cream); font-size:12px; letter-spacing:0.14em; text-transform:uppercase; }
-  .cb-timer{ display:flex; gap:8px; }
-  .cb-unit{ min-width:56px; text-align:center; padding:6px 8px 5px; border-radius:10px; background:rgba(255,255,255,0.07); border:1px solid var(--border); }
-  .cb-num{ display:block; font-size:24px; font-weight:800; color:var(--blush); font-variant-numeric:tabular-nums; line-height:1.1; }
-  .cb-lab{ display:block; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); }
-  .cb-live{ font-weight:700; color:var(--blush); }
-  .cb-join{ display:inline-block; padding:10px 18px; border-radius:999px; background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; font-weight:800; font-size:14px; text-decoration:none; }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn:disabled{ opacity:0.6; cursor:default; transform:none; }
+  .btn-solid{ background:linear-gradient(90deg,var(--blush-2),var(--blush)); color:#2a0a13; box-shadow:0 10px 28px rgba(232,138,168,0.28); }
+  .btn-wine{ background:var(--wine-3); color:var(--cream); box-shadow:0 10px 26px rgba(90,22,38,0.28); }
+  .btn-block{ display:flex; width:100%; }
+  .pill{ display:inline-flex; align-items:center; gap:10px; font-size:12px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:#ffc2cd; }
+  .pulse{ width:8px; height:8px; border-radius:50%; background:#ff5c7a; display:inline-block; animation:pulsar 1.8s infinite; }
+  @keyframes pulsar{ 0%{ box-shadow:0 0 0 0 rgba(255,92,122,0.6); } 70%{ box-shadow:0 0 0 10px rgba(255,92,122,0); } 100%{ box-shadow:0 0 0 0 rgba(255,92,122,0); } }
+  @media(prefers-reduced-motion:reduce){ .pulse{ animation:none; } html{ scroll-behavior:auto; } }
+
+  /* ===== Barra superior con cuenta regresiva (siempre visible) ===== */
+  .topbar{ position:sticky; top:0; z-index:50; background:rgba(22,5,9,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
+  .tb-in{ max-width:1120px; margin:0 auto; padding:10px 24px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+  .tb-info{ display:flex; flex-direction:column; line-height:1.3; }
+  .tb-kicker{ font-size:11px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:var(--blush); }
+  .tb-date{ font-size:13px; color:var(--text-dim); }
+  .tb-timer{ display:flex; align-items:flex-start; gap:2px; }
+  .tb-u{ position:relative; min-width:50px; padding:0 10px; text-align:center; }
+  .tb-u + .tb-u::before{ content:""; position:absolute; left:0; top:6px; bottom:6px; width:1px; background:var(--line); }
+  .tb-u b{ display:block; font:600 24px/1.1 "Inter",sans-serif; font-variant-numeric:tabular-nums; color:var(--cream); }
+  .tb-u i{ display:block; font-style:normal; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); }
+  .tb-join{ padding:10px 20px; font-size:14px; }
   @media(max-width:640px){
-    .cb-inner{ flex-direction:column; gap:6px; padding:8px 12px; }
-    .cb-text{ text-align:center; }
-    .cb-text strong{ font-size:11px; }
-    .cb-text .cb-fecha{ display:none; }
-    .cb-unit{ min-width:62px; }
-    .cb-num{ font-size:22px; }
+    .tb-in{ flex-direction:column; gap:6px; padding:9px 12px 10px; }
+    .tb-info{ align-items:center; text-align:center; }
+    .tb-date{ display:none; }
+    .tb-u{ min-width:60px; }
+    .tb-u b{ font-size:22px; }
   }
 
   /* ===== Hero ===== */
-  .hero{ padding:44px 0 56px; }
-  .hero-grid{ display:grid; grid-template-columns:minmax(0,1.08fr) minmax(0,0.92fr); gap:44px; align-items:center; }
-  @media(max-width:900px){ .hero-grid{ grid-template-columns:1fr; gap:30px; } .hero{ padding-top:28px; } }
-  .eyebrow{
-    display:inline-block; font-size:12px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase;
-    color:var(--blush); border:1px solid var(--blush-2); border-radius:999px; padding:6px 14px; margin-bottom:18px;
+  .hero{ padding:88px 0 96px; }
+  .hero-grid{ display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr); grid-template-areas:"copy card" "facts card"; column-gap:72px; align-items:center; }
+  .hero-copy{ grid-area:copy; align-self:end; }
+  .facts{ grid-area:facts; align-self:start; margin-top:34px !important; }
+  .form-card{ grid-area:card; }
+  .hero h1{ font-size:clamp(38px,5.6vw,66px); line-height:1.06; margin:18px 0 22px; }
+  .facts{ margin:0; padding:0; list-style:none; border-top:1px solid var(--line); max-width:30em; }
+  .facts li{ display:grid; grid-template-columns:104px 1fr; gap:16px; padding:14px 0; border-bottom:1px solid var(--line); align-items:baseline; }
+  .facts .k{ font-size:11.5px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--blush); }
+  .facts .v{ font-size:16.5px; color:var(--cream); }
+  .facts .v small{ display:block; margin-top:2px; font-size:13.5px; color:var(--text-dim); }
+  @media(max-width:900px){
+    .hero{ padding:44px 0 56px; }
+    .hero-grid{ grid-template-columns:1fr; grid-template-areas:"copy" "card" "facts"; row-gap:34px; }
+    .facts{ margin-top:0 !important; }
+    .facts li{ grid-template-columns:92px 1fr; }
   }
-  .hero h1{ font-size:clamp(34px,6vw,60px); line-height:1.08; }
-  .hero h1 em{ font-style:italic; color:var(--blush); }
-  .hero-sub{ margin:18px 0 22px; font-size:clamp(16px,2.2vw,19px); color:var(--text-dim); max-width:34em; }
-  .when{ display:flex; flex-direction:column; gap:10px; margin:0 0 4px; padding:0; list-style:none; }
-  .when li{ display:flex; gap:12px; align-items:flex-start; font-size:16px; }
-  .when .ic{ flex:none; width:34px; height:34px; border-radius:10px; background:rgba(240,168,190,0.14); border:1px solid rgba(240,168,190,0.35); display:flex; align-items:center; justify-content:center; font-size:16px; }
-  .when b{ display:block; font-size:16px; }
-  .when span.sm{ display:block; font-size:13px; color:var(--text-dim); }
 
-  /* ===== Formulario ===== */
-  .form-card{
-    background:linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04)); border:1px solid rgba(240,168,190,0.35);
-    border-radius:22px; padding:28px 26px 24px; box-shadow:0 24px 60px rgba(0,0,0,0.35);
-  }
-  .form-card h2{ font-size:26px; text-align:center; }
-  .form-card .fc-sub{ text-align:center; font-size:14px; color:var(--text-dim); margin:6px 0 20px; }
-  .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
-  .field label{ font-size:13px; font-weight:600; }
+  /* ----- Tarjeta de registro ----- */
+  .form-card{ background:rgba(255,255,255,0.055); border:1px solid rgba(240,168,190,0.32); border-radius:24px; padding:36px 34px 30px; box-shadow:0 28px 70px rgba(0,0,0,0.35); }
+  .form-card h2{ font-size:28px; text-align:center; }
+  .fc-sub{ text-align:center; font-size:15px; color:var(--text-dim); margin:10px 0 22px; line-height:1.55; }
+  .fc-cupos{ display:flex; justify-content:center; margin:0 0 16px; }
+  .form-note{ margin-top:14px; text-align:center; font-size:13px; color:var(--text-dim); }
+  .field{ display:flex; flex-direction:column; gap:7px; margin-bottom:16px; }
+  .field label{ font-size:13px; font-weight:500; color:var(--text-dim); }
   .field input, .field select{
-    width:100%; padding:14px 14px; border-radius:12px; border:1px solid var(--border); background:rgba(0,0,0,0.3);
+    width:100%; height:52px; padding:0 16px; border-radius:12px; border:1px solid var(--border); background:rgba(0,0,0,0.28);
     color:var(--cream); font-size:16px; font-family:inherit;
   }
   .field input:focus, .field select:focus{ outline:none; border-color:var(--blush-2); }
-  .field input::placeholder{ color:rgba(247,236,233,0.38); }
+  .field input::placeholder{ color:rgba(247,236,233,0.36); }
   .field select option{ background:#2a0c14; color:var(--cream); }
-  .tel-row{ display:grid; grid-template-columns:minmax(0,0.9fr) minmax(0,1.3fr); gap:8px; }
+  .tel-row{ display:grid; grid-template-columns:minmax(0,0.95fr) minmax(0,1.3fr); gap:10px; }
+  .hp{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
+  .form-msg{ min-height:20px; margin:12px 0 0; text-align:center; font-size:14px; color:#ffb3b3; }
   .reveal{ display:grid; grid-template-rows:0fr; transition:grid-template-rows .4s ease; }
   .reveal.open{ grid-template-rows:1fr; }
   .reveal-inner{ overflow:hidden; min-height:0; }
-  .reveal.open .reveal-inner{ padding-top:2px; }
   #webinarForm{ padding-top:2px; opacity:0; transform:translateY(-6px); transition:opacity .35s .1s, transform .35s .1s; }
   .reveal.open #webinarForm{ opacity:1; transform:none; }
   @media(prefers-reduced-motion:reduce){ .reveal, #webinarForm{ transition:none; } }
-  .cupos-mini{ display:flex; align-items:center; justify-content:center; gap:9px; margin:0 0 12px; font-size:12.5px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#ffb3c0; }
-  .hp{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
-  .btn-main{
-    width:100%; padding:17px 20px; border:0; border-radius:999px; cursor:pointer; font:800 17px "Inter",sans-serif;
-    color:#2a0a13; background:linear-gradient(90deg,var(--blush-2),var(--blush)); box-shadow:0 10px 30px rgba(232,138,168,0.35);
-    transition:transform .15s, box-shadow .15s;
-  }
-  .btn-main:hover{ transform:translateY(-1px); box-shadow:0 14px 34px rgba(232,138,168,0.45); }
-  .btn-main:disabled{ opacity:0.65; cursor:default; transform:none; }
-  .form-msg{ min-height:20px; margin:10px 0 0; text-align:center; font-size:13.5px; color:#ffb3b3; }
-  .form-note{ margin:12px 0 0; text-align:center; font-size:12.5px; color:var(--text-dim); }
-  .done{ text-align:center; padding:6px 0 2px; }
-  .done .check{ width:62px; height:62px; margin:0 auto 14px; border-radius:50%; background:rgba(95,211,154,0.16); border:1px solid rgba(95,211,154,0.6); display:flex; align-items:center; justify-content:center; font-size:30px; color:#5fd39a; }
-  .done h2{ font-size:26px; }
-  .done p{ color:var(--text-dim); margin:8px 0 20px; font-size:15px; }
-  a.btn-main{ display:block; text-align:center; text-decoration:none; }
+  .done{ text-align:center; padding:4px 0 2px; }
+  .done .check{ width:60px; height:60px; margin:0 auto 18px; border-radius:50%; border:1px solid rgba(95,211,154,0.6); background:rgba(95,211,154,0.12); display:flex; align-items:center; justify-content:center; font-size:26px; color:#5fd39a; }
+  .done h2{ font-size:28px; }
+  .done p{ color:var(--text-dim); margin:12px 0 24px; font-size:15.5px; }
+  @media(max-width:520px){ .form-card{ padding:28px 22px 24px; } .tel-row{ grid-template-columns:1fr; } }
 
-  /* ===== Urgencia ===== */
-  .urgencia{ padding:6px 0 52px; }
-  .urg-card{
-    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:34px; align-items:center;
-    border:1px solid rgba(240,168,190,0.5); border-radius:26px; padding:34px 36px;
-    background:linear-gradient(135deg,rgba(232,138,168,0.18),rgba(90,22,38,0.35) 55%,rgba(26,5,9,0.5));
-    box-shadow:0 0 0 1px rgba(240,168,190,0.08), 0 24px 70px rgba(0,0,0,0.4);
+  /* ===== Franja de urgencia ===== */
+  .strip{ border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:rgba(0,0,0,0.22); }
+  .strip-in{ display:grid; grid-template-columns:minmax(0,1.05fr) auto auto; gap:48px; align-items:center; padding-top:34px; padding-bottom:34px; }
+  .strip-left p{ margin-top:10px; font-size:15px; color:var(--text-dim); max-width:27em; line-height:1.55; }
+  .strip-mid{ text-align:center; }
+  .strip-label{ display:block; margin-bottom:8px; font-size:11px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:var(--blush); }
+  .strip-timer{ display:flex; justify-content:center; }
+  .st-u{ position:relative; min-width:76px; padding:0 14px; text-align:center; }
+  .st-u + .st-u::before{ content:""; position:absolute; left:0; top:8px; bottom:8px; width:1px; background:var(--line); }
+  .st-u b{ display:block; font:500 46px/1.05 "Playfair Display",serif; font-variant-numeric:tabular-nums; }
+  .st-u i{ display:block; margin-top:4px; font-style:normal; font-size:10.5px; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-dim); }
+  @media(max-width:900px){
+    .strip-in{ grid-template-columns:1fr; gap:26px; text-align:center; padding-top:40px; padding-bottom:40px; }
+    .strip-left p{ margin-left:auto; margin-right:auto; }
+    .strip .btn{ justify-self:center; width:100%; max-width:380px; }
   }
-  @media(max-width:820px){ .urg-card{ grid-template-columns:1fr; padding:28px 22px; gap:24px; text-align:center; } }
-  .cupos-pill{
-    display:inline-flex; align-items:center; gap:9px; font-size:12px; font-weight:800; letter-spacing:0.16em; text-transform:uppercase;
-    color:#fff; background:rgba(214,48,80,0.22); border:1px solid rgba(255,107,129,0.7); border-radius:999px; padding:7px 15px; margin-bottom:16px;
-  }
-  .pulse{ width:9px; height:9px; border-radius:50%; background:#ff5c7a; box-shadow:0 0 0 0 rgba(255,92,122,0.7); animation:pulsar 1.6s infinite; display:inline-block; }
-  @keyframes pulsar{ 0%{ box-shadow:0 0 0 0 rgba(255,92,122,0.65); } 70%{ box-shadow:0 0 0 11px rgba(255,92,122,0); } 100%{ box-shadow:0 0 0 0 rgba(255,92,122,0); } }
-  @media(prefers-reduced-motion:reduce){ .pulse{ animation:none; } }
-  .urg-left h2{ font-size:clamp(26px,3.6vw,36px); line-height:1.15; }
-  .urg-left p{ color:var(--text-dim); margin:12px 0 0; font-size:16px; }
-  .urg-label{ font-size:12.5px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color:var(--blush); margin-bottom:12px; text-align:center; }
-  .urg-timer{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:18px; }
-  .urg-unit{ text-align:center; padding:14px 6px 11px; border-radius:16px; background:rgba(0,0,0,0.32); border:1px solid rgba(240,168,190,0.35); }
-  .urg-num{ display:block; font-size:clamp(30px,5vw,44px); font-weight:800; color:#fff; font-variant-numeric:tabular-nums; line-height:1.05; }
-  .urg-lab{ display:block; margin-top:4px; font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); }
-  .urg-card .btn-main{ display:block; text-align:center; text-decoration:none; }
-  .eyebrow-cupos{ display:inline-flex; align-items:center; gap:9px; margin:0 0 14px 10px; font-size:12px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#ffb3c0; }
+  @media(max-width:420px){ .st-u{ min-width:64px; padding:0 8px; } .st-u b{ font-size:38px; } }
 
-  /* ===== Flyer de beneficios ===== */
-  section{ scroll-margin-top:90px; }
-  .sec-title{ text-align:center; font-size:clamp(28px,4.4vw,42px); margin-bottom:10px; }
-  .sec-sub{ text-align:center; color:var(--text-dim); margin:0 auto 34px; max-width:36em; }
-  .flyer-sec{ padding:36px 0 64px; }
-  .flyer{
-    max-width:920px; margin:0 auto; border-radius:28px; overflow:hidden; position:relative;
-    background:linear-gradient(155deg,#6a1a2d 0%,#3d0f1f 48%,#1a0509 100%);
-    border:1px solid rgba(240,168,190,0.45); box-shadow:0 30px 80px rgba(0,0,0,0.5);
-    display:grid; grid-template-columns:minmax(0,0.78fr) minmax(0,1.22fr);
+  /* ===== Beneficios (sección clara) ===== */
+  .light{ background:var(--paper); color:var(--ink); padding:104px 0; }
+  .light .kicker{ color:#a53a58; }
+  .light .title em{ color:#a53a58; }
+  .ben-grid{ display:grid; grid-template-columns:minmax(0,0.82fr) minmax(0,1.18fr); gap:72px; align-items:center; }
+  .ben-photo{ margin:0; position:relative; }
+  .ben-photo img{ display:block; width:100%; aspect-ratio:4/5; object-fit:cover; object-position:center 14%; border-radius:200px 200px 18px 18px; background:#cfcfd2; box-shadow:0 30px 60px rgba(61,15,31,0.22); }
+  .ben-photo figcaption{ margin-top:22px; text-align:center; }
+  .ben-photo figcaption b{ display:block; font:500 24px "Playfair Display",serif; color:var(--ink); }
+  .ben-photo figcaption span{ display:block; margin:4px auto 0; max-width:21em; font-size:14px; color:var(--ink-dim); line-height:1.5; }
+  .ben-photo figcaption em{ display:inline-block; margin-top:12px; padding-top:12px; border-top:1px solid rgba(42,15,23,0.16); font-style:normal; font-size:12px; font-weight:600; letter-spacing:0.16em; text-transform:uppercase; color:#a53a58; }
+  .ben-copy .title{ margin:14px 0 12px; }
+  .ben-copy .lede{ color:var(--ink-dim); margin-bottom:30px; }
+  .ben-list{ list-style:none; margin:0 0 36px; padding:0; border-top:1px solid rgba(42,15,23,0.16); }
+  .ben-list li{ display:grid; grid-template-columns:52px 1fr; gap:6px; padding:20px 0; border-bottom:1px solid rgba(42,15,23,0.16); align-items:baseline; }
+  .ben-list .num{ font:500 22px "Playfair Display",serif; color:#a53a58; }
+  .ben-list p{ font-size:16.5px; line-height:1.55; color:var(--ink); }
+  .ben-list p b{ font-weight:600; }
+  @media(max-width:900px){
+    .light{ padding:64px 0; }
+    .ben-grid{ grid-template-columns:1fr; gap:44px; }
+    .ben-photo{ max-width:340px; margin:0 auto; }
+    .ben-copy .btn{ width:100%; }
   }
-  @media(max-width:760px){ .flyer{ grid-template-columns:1fr; } }
-  .flyer-photo{ position:relative; min-height:340px; background:#bcbcc0 url("images/gianie/gianie-foto.jpg") center 18%/cover no-repeat; }
-  .flyer-photo::after{ content:""; position:absolute; inset:0; background:linear-gradient(0deg,rgba(26,5,9,0.92) 0%,rgba(26,5,9,0) 46%); }
-  @media(min-width:761px){ .flyer-photo::after{ background:linear-gradient(90deg,rgba(26,5,9,0) 62%,rgba(61,15,31,0.95) 100%), linear-gradient(0deg,rgba(26,5,9,0.85) 0%,rgba(26,5,9,0) 38%); } }
-  .flyer-name{ position:absolute; z-index:2; left:20px; right:20px; bottom:18px; }
-  .flyer-name b{ display:block; font-family:"Playfair Display",serif; font-size:24px; }
-  .flyer-name span{ font-size:12.5px; color:var(--text-dim); }
-  .flyer-body{ padding:34px 34px 30px; display:flex; flex-direction:column; gap:16px; }
-  .flyer-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .flyer-top img{ height:38px; width:auto; display:block; }
-  .flyer-badge{ font-size:11px; font-weight:800; letter-spacing:0.14em; text-transform:uppercase; color:#2a0a13; background:linear-gradient(90deg,var(--blush-2),var(--blush)); border-radius:999px; padding:6px 12px; }
-  .flyer h3{ font-size:clamp(26px,3.6vw,36px); line-height:1.12; }
-  .flyer h3 em{ font-style:italic; color:var(--blush); }
-  .flyer-date{ display:flex; gap:10px; flex-wrap:wrap; }
-  .flyer-date span{ font-size:13.5px; font-weight:700; padding:7px 13px; border-radius:10px; background:rgba(255,255,255,0.08); border:1px solid var(--border); }
-  .flyer h4{ margin:4px 0 0; font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:var(--blush); }
-  .benefits{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:13px; }
-  .benefits li{ display:flex; gap:12px; align-items:flex-start; font-size:15.5px; line-height:1.4; }
-  .benefits .tick{ flex:none; width:24px; height:24px; margin-top:1px; border-radius:50%; background:linear-gradient(135deg,var(--blush-2),var(--blush)); color:#2a0a13; font-weight:900; font-size:13px; display:flex; align-items:center; justify-content:center; }
-  .flyer-foot{ margin-top:4px; padding-top:14px; border-top:1px solid var(--border); font-size:13px; color:var(--text-dim); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-  .flyer-foot b{ color:var(--cream); }
-  @media(max-width:520px){ .flyer-body{ padding:26px 20px 24px; } }
 
-  /* ===== Sobre Gianie + testimonios ===== */
-  .about{ padding:8px 0 60px; }
-  .about-card{ max-width:820px; margin:0 auto; text-align:center; }
-  .about-card p{ color:var(--text-dim); font-size:17px; margin:14px 0 0; }
-  .about-card p b{ color:var(--cream); }
-  .stats{ display:flex; justify-content:center; gap:34px; flex-wrap:wrap; margin-top:26px; }
-  .stat b{ display:block; font-family:"Playfair Display",serif; font-size:38px; color:var(--blush); line-height:1.1; }
-  .stat span{ font-size:13px; color:var(--text-dim); }
-  .section{ padding:70px 0; }
+  /* ===== Testimonios (igual que la landing del VSL) ===== */
+  .section{ padding:96px 0 0; }
+  .section + .section{ padding-top:84px; }
   .section-head{ text-align:center; max-width:620px; margin:0 auto 44px; }
-  .section-head h2{ font-size:32px; font-weight:600; }
+  .section-head h2{ font-size:clamp(28px,3.6vw,40px); font-weight:500; }
   .section-head h2 .hl{ color:var(--blush); font-style:italic; }
-  /* ===== Carrusel de capturas (igual que la landing del VSL) ===== */
   .carousel{ max-width:900px; margin:0 auto; overflow:hidden; }
-  .carousel-track{
-    display:flex; gap:18px; transition:transform .6s cubic-bezier(.65,0,.35,1); will-change:transform;
-    cursor:grab; touch-action:pan-y; user-select:none;
-  }
+  .carousel-track{ display:flex; gap:18px; transition:transform .6s cubic-bezier(.65,0,.35,1); will-change:transform; cursor:grab; touch-action:pan-y; user-select:none; }
   .carousel-track:active{ cursor:grabbing; }
   .carousel-slide{
     flex:0 0 calc((100% - 36px)/3); aspect-ratio:369/705; border-radius:14px;
-    background:linear-gradient(160deg, var(--wine-3), var(--wine-1)); border:1px solid var(--border);
-    overflow:hidden; touch-action:pan-y;
+    background:linear-gradient(160deg, var(--wine-3), var(--wine-1)); border:1px solid var(--border); overflow:hidden; touch-action:pan-y;
   }
   .carousel-slide img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
   @media (max-width:900px){ .carousel-slide{ flex-basis:calc((100% - 18px)/2); } }
   @media (max-width:600px){ .carousel-slide{ flex-basis:100%; } }
-  /* ===== Reseñas estilo Google (igual que la landing del VSL) ===== */
   .reviews-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; max-width:1240px; margin:0 auto; }
-  .review-card{
-    background:#fff; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:12px;
-    box-shadow:0 12px 30px rgba(0,0,0,0.25);
-  }
+  .review-card{ background:#fff; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:12px; box-shadow:0 12px 30px rgba(0,0,0,0.25); }
   .review-stars{ color:#fbbc04; font-size:16px; letter-spacing:2px; }
   .review-text{ color:#3c3c3c; font-size:14.5px; line-height:1.55; margin:0; flex:1; }
   .review-author{ display:flex; align-items:center; gap:10px; }
-  .review-avatar{
-    width:38px; height:38px; border-radius:50%; flex-shrink:0;
-    background:linear-gradient(135deg, var(--blush-2), var(--blush)); color:#2a0a13;
-    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px;
-  }
+  .review-avatar{ width:38px; height:38px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg, var(--blush-2), var(--blush)); color:#2a0a13; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; }
   .review-name{ font-size:13.5px; font-weight:700; color:#1a1a1a; }
   .review-source{ font-size:11.5px; color:#767676; }
   @media (max-width:900px){ .reviews-grid{ grid-template-columns:repeat(2,1fr); } }
-  @media (max-width:600px){ .reviews-grid{ grid-template-columns:1fr; } }
+  @media (max-width:600px){ .reviews-grid{ grid-template-columns:1fr; } .section{ padding-top:64px; } }
 
-  .final{ padding:10px 0 80px; text-align:center; }
-  .final h2{ font-size:clamp(28px,4.4vw,42px); margin-bottom:12px; }
-  .final p{ color:var(--text-dim); margin:0 auto 24px; max-width:32em; }
-  .final .btn-main{ max-width:420px; margin:0 auto; }
-  footer{ border-top:1px solid var(--border); padding:22px 20px; text-align:center; font-size:12.5px; color:var(--text-dim); }
+  /* ===== Cierre ===== */
+  .final{ padding:104px 0 112px; text-align:center; }
+  .final .title{ margin:18px 0 14px; }
+  .final .lede{ margin:0 auto 32px; }
+  .final .btn{ min-width:300px; }
+  @media(max-width:600px){ .final{ padding:72px 0 80px; } .final .btn{ width:100%; min-width:0; } }
+  footer{ border-top:1px solid var(--line); padding:26px 24px; text-align:center; font-size:13px; color:var(--text-dim); }
 </style>
 </head>
 <body>
 
-<!-- ===== Cuenta regresiva ===== -->
-<header class="countdown-bar" id="countdownBar">
-  <div class="cb-inner">
-    <div class="cb-text" id="cbText">
-      <strong id="cbTitulo">La clase gratis empieza en</strong>
-      <span class="cb-fecha">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
+<!-- Cuenta regresiva (arriba de todo, siempre visible) -->
+<header class="topbar" id="countdownBar">
+  <div class="tb-in">
+    <div class="tb-info">
+      <span class="tb-kicker" id="cbTitulo">La clase gratis empieza en</span>
+      <span class="tb-date">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
     </div>
-    <div class="cb-timer" id="cbTimer" aria-live="off">
-      <div class="cb-unit"><span class="cb-num" id="cbD">00</span><span class="cb-lab">Días</span></div>
-      <div class="cb-unit"><span class="cb-num" id="cbH">00</span><span class="cb-lab">Horas</span></div>
-      <div class="cb-unit"><span class="cb-num" id="cbM">00</span><span class="cb-lab">Min</span></div>
-      <div class="cb-unit"><span class="cb-num" id="cbS">00</span><span class="cb-lab">Seg</span></div>
+    <div class="tb-timer" id="cbTimer">
+      <div class="tb-u"><b id="cbD">00</b><i>Días</i></div>
+      <div class="tb-u"><b id="cbH">00</b><i>Horas</i></div>
+      <div class="tb-u"><b id="cbM">00</b><i>Min</i></div>
+      <div class="tb-u"><b id="cbS">00</b><i>Seg</i></div>
     </div>
-    <a class="cb-join" id="cbJoin" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t" hidden>Entrar a la clase en vivo</a>
+    <a class="btn btn-solid tb-join" id="cbJoin" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t" hidden>Entrar a la clase en vivo</a>
   </div>
 </header>
 
 <main>
-<!-- ===== Hero + formulario ===== -->
+<!-- 1. Hero + registro -->
 <section class="hero" id="registro">
   <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow">Clase gratis en vivo</span>
+    <div class="hero-copy">
+      <span class="kicker">Clase gratuita en vivo con Gianie Milet</span>
       <h1>De experta invisible a <em>autoridad pagada</em></h1>
-      <p class="hero-sub">En esta clase en vivo con Gianie Milet vas a ver cómo posicionar tu servicio, atraer a tus clientas ideales y cobrar lo que vales, sin trabajar más horas.</p>
-      <ul class="when">
-        <li><span class="ic">📅</span><div><b>Miércoles 21 de octubre</b><span class="sm">Clase en vivo y gratuita</span></div></li>
-        <li><span class="ic">🕖</span><div><b>7:00 PM, hora de Puerto Rico</b><span class="sm" id="horaLocal" hidden></span></div></li>
-        <li><span class="ic">💬</span><div><b>Entra al grupo de WhatsApp</b><span class="sm">Ahí recibes el aviso y el acceso a la clase</span></div></li>
-      </ul>
+      <p class="lede">Aprende a posicionar tu servicio, atraer a tus clientas ideales y cobrar lo que vales, sin trabajar más horas.</p>
     </div>
+    <ul class="facts">
+      <li><span class="k">Fecha</span><span class="v">Miércoles 21 de octubre</span></li>
+      <li><span class="k">Hora</span><span class="v">7:00 PM, hora de Puerto Rico<small id="horaLocal" hidden></small></span></li>
+      <li><span class="k">Acceso</span><span class="v">Grupo de WhatsApp<small>Ahí recibes el aviso y el enlace a la clase</small></span></li>
+    </ul>
 
     <div class="form-card" id="formCard">
       <div id="formView">
         <h2>Reserva tu lugar gratis</h2>
         <p class="fc-sub">Déjanos tus datos y te llevamos directo al grupo de WhatsApp de la clase.</p>
-        <p class="cupos-mini"><i class="pulse"></i>Cupos limitados</p>
-        <button class="btn-main" id="openForm" type="button" aria-expanded="false" aria-controls="reveal">Quiero mi lugar</button>
+        <div class="fc-cupos"><span class="pill"><i class="pulse"></i>Cupos limitados</span></div>
+        <button class="btn btn-solid btn-block" id="openForm" type="button" aria-expanded="false" aria-controls="reveal">Quiero mi lugar</button>
         <div class="reveal" id="reveal" inert><div class="reveal-inner">
-        <form id="webinarForm" novalidate>
-          <div class="field">
-            <label for="wNombre">Nombre completo</label>
-            <input id="wNombre" name="nombre" type="text" autocomplete="name" placeholder="Tu nombre y apellido" required>
-          </div>
-          <div class="field">
-            <label for="wEmail">Correo electrónico</label>
-            <input id="wEmail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="tucorreo@email.com" required>
-          </div>
-          <div class="field">
-            <label for="wTel">Número de WhatsApp</label>
-            <div class="tel-row">
-              <select id="wPais" aria-label="Código de país">
-                <option value="+54" data-cc="AR">🇦🇷 +54 Argentina</option>
+          <form id="webinarForm" novalidate>
+            <div class="field">
+              <label for="wNombre">Nombre completo</label>
+              <input id="wNombre" name="nombre" type="text" autocomplete="name" placeholder="Tu nombre y apellido" required>
+            </div>
+            <div class="field">
+              <label for="wEmail">Correo electrónico</label>
+              <input id="wEmail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="tucorreo@email.com" required>
+            </div>
+            <div class="field">
+              <label for="wTel">Número de WhatsApp</label>
+              <div class="tel-row">
+                <select id="wPais" aria-label="Código de país">
+                  <option value="+54" data-cc="AR">🇦🇷 +54 Argentina</option>
                 <option value="+34" data-cc="ES">🇪🇸 +34 España</option>
                 <option value="+52" data-cc="MX">🇲🇽 +52 México</option>
                 <option value="+56" data-cc="CL">🇨🇱 +56 Chile</option>
@@ -363,14 +341,14 @@
                 <option value="+852" data-cc="HK">🇭🇰 +852 Hong Kong</option>
                 <option value="+886" data-cc="TW">🇹🇼 +886 Taiwán</option>
                 <option value="+92" data-cc="PK">🇵🇰 +92 Pakistán</option>
-              </select>
-              <input id="wTel" name="telefono" type="tel" autocomplete="tel-national" inputmode="tel" placeholder="Tu número" required>
+                </select>
+                <input id="wTel" name="telefono" type="tel" autocomplete="tel-national" inputmode="tel" placeholder="Tu número" required>
+              </div>
             </div>
-          </div>
-          <input class="hp" type="text" id="wWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-          <button class="btn-main" id="wBtn" type="submit">Confirmar mi lugar</button>
-          <p class="form-msg" id="wMsg" role="alert"></p>
-        </form>
+            <input class="hp" type="text" id="wWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button class="btn btn-solid btn-block" id="wBtn" type="submit">Confirmar mi lugar</button>
+            <p class="form-msg" id="wMsg" role="alert"></p>
+          </form>
         </div></div>
         <p class="form-note">100% gratis</p>
       </div>
@@ -378,77 +356,60 @@
         <div class="check">✓</div>
         <h2>¡Listo, ya tienes tu lugar!</h2>
         <p id="doneTxt">Último paso: entra al grupo de WhatsApp para recibir el aviso y el acceso a la clase.</p>
-        <a class="btn-main" id="doneBtn" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t">Entrar al grupo de WhatsApp</a>
+        <a class="btn btn-solid btn-block" id="doneBtn" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t">Entrar al grupo de WhatsApp</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===== Urgencia: cupos limitados + segunda cuenta regresiva ===== -->
-<section class="urgencia" id="urgencia">
-  <div class="wrap">
-    <div class="urg-card">
-      <div class="urg-left">
-        <span class="cupos-pill"><i class="pulse"></i>Cupos limitados</span>
-        <h2>Los lugares son limitados</h2>
-        <p>El acceso a la clase se da por el grupo de WhatsApp, que tiene un cupo máximo de personas. Reserva el tuyo antes de que se llene.</p>
+<!-- 2. Cupos limitados + segunda cuenta regresiva -->
+<section class="strip" id="urgencia">
+  <div class="wrap strip-in">
+    <div class="strip-left">
+      <span class="pill"><i class="pulse"></i>Cupos limitados</span>
+      <p>El acceso a la clase se da por el grupo de WhatsApp, que tiene un cupo máximo de personas. Reserva el tuyo antes de que se llene.</p>
+    </div>
+    <div class="strip-mid">
+      <span class="strip-label" id="ubTitulo">La clase empieza en</span>
+      <div class="strip-timer" id="ubTimer">
+        <div class="st-u"><b id="ubD">00</b><i>Días</i></div>
+        <div class="st-u"><b id="ubH">00</b><i>Horas</i></div>
+        <div class="st-u"><b id="ubM">00</b><i>Min</i></div>
+        <div class="st-u"><b id="ubS">00</b><i>Seg</i></div>
       </div>
-      <div class="urg-right">
-        <div class="urg-label" id="ubTitulo">La clase empieza en</div>
-        <div class="urg-timer" id="ubTimer">
-          <div class="urg-unit"><span class="urg-num" id="ubD">00</span><span class="urg-lab">Días</span></div>
-          <div class="urg-unit"><span class="urg-num" id="ubH">00</span><span class="urg-lab">Horas</span></div>
-          <div class="urg-unit"><span class="urg-num" id="ubM">00</span><span class="urg-lab">Min</span></div>
-          <div class="urg-unit"><span class="urg-num" id="ubS">00</span><span class="urg-lab">Seg</span></div>
-        </div>
-        <a class="btn-main" href="#registro" id="urgCta">Quiero mi lugar</a>
-      </div>
+    </div>
+    <a class="btn btn-solid js-abrir" href="#registro" id="urgCta">Quiero mi lugar</a>
+  </div>
+</section>
+
+<!-- 3. Beneficios + Gianie -->
+<section class="light" id="beneficios">
+  <div class="wrap ben-grid">
+    <figure class="ben-photo">
+      <img src="images/gianie/gianie-foto.jpg" alt="Gianie Milet" loading="lazy">
+      <figcaption>
+        <b>Gianie Milet</b>
+        <span>Estratega en posicionamiento y crecimiento de negocios para mujeres profesionales</span>
+        <em>Más de 70 mujeres acompañadas</em>
+      </figcaption>
+    </figure>
+    <div class="ben-copy">
+      <span class="kicker">En esta clase</span>
+      <h2 class="title">Lo que te llevas de la <em>clase</em></h2>
+      <p class="lede">Ordena tu mensaje, tu oferta y la forma en que vendes.</p>
+      <ol class="ben-list">
+        <li><span class="num">01</span><p>Entender <b>por qué tu negocio no está creciendo</b> aunque trabajas más que nunca.</p></li>
+        <li><span class="num">02</span><p>Descubrir los <b>3 ajustes de posicionamiento</b> que convierten tu servicio en una oferta irresistible.</p></li>
+        <li><span class="num">03</span><p>Aprender a <b>vender con autoridad y estrategia</b>, sin bajar precios ni aceptar clientas tóxicas.</p></li>
+        <li><span class="num">04</span><p>Ver cómo <b>atraer a tus clientas ideales</b> y cobrar lo que vales.</p></li>
+        <li><span class="num">05</span><p>Recibir el aviso y el acceso a la clase en el <b>grupo de WhatsApp</b>.</p></li>
+      </ol>
+      <a class="btn btn-wine js-abrir" href="#registro">Quiero mi lugar</a>
     </div>
   </div>
 </section>
 
-<!-- ===== Flyer: lo que te llevas ===== -->
-<section class="flyer-sec" id="beneficios">
-  <div class="wrap">
-    <h2 class="sec-title">Lo que te llevas de la clase</h2>
-    <p class="sec-sub">Una hora para ordenar tu mensaje, tu oferta y la forma en que vendes.</p>
-    <article class="flyer">
-      <div class="flyer-photo" role="img" aria-label="Gianie Milet">
-        <div class="flyer-name"><b>Gianie Milet</b><span>Estratega en posicionamiento y crecimiento de negocios para mujeres profesionales</span></div>
-      </div>
-      <div class="flyer-body">
-        <div class="flyer-top">
-          <img src="assets/logo.png" alt="Step Her Up">
-          <span class="flyer-badge">Clase gratis en vivo</span>
-        </div>
-        <h3>De experta invisible a <em>autoridad pagada</em></h3>
-        <div class="flyer-date"><span>📅 Mié 21 de octubre</span><span>🕖 7:00 PM (Puerto Rico)</span></div>
-        <h4>En esta clase vas a</h4>
-        <ul class="benefits">
-          <li><span class="tick">✓</span><span>Entender <b>por qué tu negocio no está creciendo</b> aunque trabajas más que nunca.</span></li>
-          <li><span class="tick">✓</span><span>Descubrir los <b>3 ajustes de posicionamiento</b> que convierten tu servicio en una oferta irresistible.</span></li>
-          <li><span class="tick">✓</span><span>Aprender a <b>vender con autoridad y estrategia</b>, sin bajar precios ni aceptar clientas tóxicas.</span></li>
-          <li><span class="tick">✓</span><span>Ver cómo <b>atraer a tus clientas ideales</b> y cobrar lo que vales.</span></li>
-          <li><span class="tick">✓</span><span>Recibir el aviso y el acceso a la clase en el <b>grupo de WhatsApp</b>.</span></li>
-        </ul>
-        <div class="flyer-foot"><span><b>100% gratis</b> · En vivo</span><span><b>Cupos limitados</b></span></div>
-      </div>
-    </article>
-  </div>
-</section>
-
-<!-- ===== Sobre Gianie ===== -->
-<section class="about">
-  <div class="wrap about-card">
-    <h2 class="sec-title">Quién te va a guiar</h2>
-    <p><b>Gianie Milet</b> es estratega en posicionamiento y crecimiento de negocios para mujeres profesionales. Con Step Her Up acompañó a más de 70 mujeres a estructurar su marca, redefinir su oferta y escalar su facturación, con un sistema y no con promesas genéricas.</p>
-    <div class="stats">
-      <div class="stat"><b>70+</b><span>mujeres acompañadas</span></div>
-      <div class="stat"><b>En vivo</b><span>con tiempo para tus dudas</span></div>
-    </div>
-  </div>
-</section>
-
+<!-- 4. Testimonios (iguales a la landing del VSL) -->
 <section class="section">
     <div class="wrap">
       <div class="section-head">
@@ -653,11 +614,13 @@
     </div>
   </section>
 
+<!-- 5. Cierre -->
 <section class="final">
   <div class="wrap">
-    <h2>Tu lugar es gratis. Resérvalo ahora.</h2>
-    <p><span class="cupos-pill" style="margin:0 8px 6px 0;"><i class="pulse"></i>Cupos limitados</span><br>Miércoles 21 de octubre · 7:00 PM (hora de Puerto Rico).</p>
-    <a class="btn-main" href="#registro" id="finalCta">Quiero mi lugar</a>
+    <span class="pill"><i class="pulse"></i>Cupos limitados</span>
+    <h2 class="title">Tu lugar es gratis. <em>Resérvalo ahora.</em></h2>
+    <p class="lede">Miércoles 21 de octubre · 7:00 PM, hora de Puerto Rico</p>
+    <a class="btn btn-solid js-abrir" href="#registro" id="finalCta">Quiero mi lugar</a>
   </div>
 </section>
 </main>
@@ -665,6 +628,7 @@
 <footer>© Step Her Up · Todos los derechos reservados</footer>
 
 <script>
+
 (function () {
   // ===== Datos del evento =====
   // 21/10/2026, 7:00 PM hora de Puerto Rico (AST, UTC-4 todo el año).
@@ -830,11 +794,12 @@
   $("openForm").addEventListener("click", () => abrirFormulario(true));
   // El botón de abajo sube al formulario y también lo despliega.
   const alFormulario = () => { abrirFormulario(false); setTimeout(() => $("wNombre").focus({ preventScroll: true }), 650); };
-  $("finalCta").addEventListener("click", alFormulario);
-  $("urgCta").addEventListener("click", (ev) => { if (EVENTO - Date.now() > 0) alFormulario(); });
+  document.querySelectorAll(".js-abrir").forEach((el) => el.addEventListener("click", () => { if (EVENTO - Date.now() > 0) alFormulario(); }));
 })();
+
 </script>
 <script>
+
 
 (function(){
   const track = document.getElementById("carouselTrack");
@@ -994,6 +959,7 @@
     if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); }
   }, true);
 })();
+
 
 </script>
 </body>
