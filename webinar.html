@@ -59,22 +59,32 @@
 
   /* ===== Barra superior con cuenta regresiva (siempre visible) ===== */
   .topbar{ position:sticky; top:0; z-index:50; background:rgba(22,5,9,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--line); }
-  .tb-in{ max-width:1120px; margin:0 auto; padding:10px 24px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
-  .tb-info{ display:flex; flex-direction:column; line-height:1.3; }
+  .tb-in{ max-width:1120px; margin:0 auto; padding:9px 24px; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:20px; }
+  .tb-logo{ justify-self:start; display:block; line-height:0; }
+  .tb-logo img{ height:56px; width:auto; display:block; margin:-8px 0 -8px -4px; }
+  .tb-center{ display:flex; align-items:center; justify-content:center; gap:26px; }
+  .tb-info{ display:flex; flex-direction:column; line-height:1.3; text-align:right; }
   .tb-kicker{ font-size:11px; font-weight:600; letter-spacing:0.2em; text-transform:uppercase; color:var(--blush); }
   .tb-date{ font-size:13px; color:var(--text-dim); }
-  .tb-timer{ display:flex; align-items:flex-start; gap:2px; }
-  .tb-u{ position:relative; min-width:50px; padding:0 10px; text-align:center; }
+  .tb-timer{ display:flex; align-items:flex-start; }
+  .tb-u{ position:relative; min-width:52px; padding:0 10px; text-align:center; }
   .tb-u + .tb-u::before{ content:""; position:absolute; left:0; top:6px; bottom:6px; width:1px; background:var(--line); }
   .tb-u b{ display:block; font:600 24px/1.1 "Inter",sans-serif; font-variant-numeric:tabular-nums; color:var(--cream); }
   .tb-u i{ display:block; font-style:normal; font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); }
-  .tb-join{ padding:10px 20px; font-size:14px; }
-  @media(max-width:640px){
-    .tb-in{ flex-direction:column; gap:6px; padding:9px 12px 10px; }
-    .tb-info{ align-items:center; text-align:center; }
+  .tb-join{ padding:10px 22px; font-size:14px; }
+  @media(max-width:900px){
     .tb-date{ display:none; }
-    .tb-u{ min-width:60px; }
-    .tb-u b{ font-size:22px; }
+    .tb-center{ gap:18px; }
+  }
+  @media(max-width:640px){
+    .tb-info{ display:none; }
+    .tb-in{ grid-template-columns:auto 1fr; padding:8px 12px; gap:10px; }
+    .tb-spacer{ display:none; }
+    .tb-logo img{ height:44px; margin:-6px 0 -6px -4px; }
+    .tb-center{ justify-content:flex-end; }
+    .tb-u{ min-width:48px; padding:0 7px; }
+    .tb-u b{ font-size:20px; }
+    .tb-u i{ font-size:9px; letter-spacing:0.12em; }
   }
 
   /* ===== Hero ===== */
@@ -83,18 +93,15 @@
   .hero-copy{ grid-area:copy; align-self:end; }
   .facts{ grid-area:facts; align-self:start; margin-top:34px !important; }
   .form-card{ grid-area:card; }
-  .hero-tag{
-    display:inline-flex; align-items:center; gap:16px; padding:11px 22px; border-radius:999px;
-    border:1px solid rgba(240,168,190,0.5); background:linear-gradient(90deg,rgba(240,168,190,0.16),rgba(240,168,190,0.04));
-    font-size:13px; letter-spacing:0.2em; text-transform:uppercase; line-height:1.3;
-    box-shadow:0 0 0 4px rgba(240,168,190,0.05), 0 8px 24px rgba(0,0,0,0.25);
-  }
-  .hero-tag b{ font-weight:600; color:var(--cream); }
-  .hero-tag i{ width:1px; height:16px; background:rgba(240,168,190,0.55); }
-  .hero-tag span{ font-weight:600; color:var(--blush); }
+  .eyebrow-ed{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .ee-a{ font-size:12.5px; font-weight:600; letter-spacing:0.26em; text-transform:uppercase; color:var(--cream); }
+  .ee-line{ width:56px; height:1px; background:linear-gradient(90deg,var(--blush),rgba(240,168,190,0)); flex:none; }
+  .ee-b{ font:italic 500 23px/1.2 "Playfair Display",Georgia,serif; color:var(--blush); }
   @media(max-width:520px){
-    .hero-tag{ flex-direction:column; gap:3px; padding:12px 24px; border-radius:22px; font-size:12px; letter-spacing:0.17em; text-align:center; }
-    .hero-tag i{ display:none; }
+    .eyebrow-ed{ flex-direction:column; align-items:flex-start; gap:6px; }
+    .ee-line{ display:none; }
+    .ee-a{ font-size:12px; letter-spacing:0.22em; }
+    .ee-b{ font-size:22px; }
   }
   .hero h1{ font-size:clamp(38px,5.6vw,66px); line-height:1.06; margin:26px 0 22px; }
   .facts{ margin:0; padding:0; list-style:none; border-top:1px solid var(--line); max-width:30em; }
@@ -223,17 +230,21 @@
 <!-- Cuenta regresiva (arriba de todo, siempre visible) -->
 <header class="topbar" id="countdownBar">
   <div class="tb-in">
-    <div class="tb-info">
-      <span class="tb-kicker" id="cbTitulo">La clase gratis empieza en</span>
-      <span class="tb-date" id="tbFecha">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
+    <a class="tb-logo" href="#registro" aria-label="Step Her Up"><img src="assets/logo.png" alt="Step Her Up"></a>
+    <div class="tb-center">
+      <div class="tb-info">
+        <span class="tb-kicker" id="cbTitulo">La clase gratis empieza en</span>
+        <span class="tb-date" id="tbFecha">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
+      </div>
+      <div class="tb-timer" id="cbTimer">
+        <div class="tb-u"><b id="cbD">00</b><i>Días</i></div>
+        <div class="tb-u"><b id="cbH">00</b><i>Horas</i></div>
+        <div class="tb-u"><b id="cbM">00</b><i>Min</i></div>
+        <div class="tb-u"><b id="cbS">00</b><i>Seg</i></div>
+      </div>
+      <a class="btn btn-solid tb-join" id="cbJoin" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t" hidden>Entrar a la clase en vivo</a>
     </div>
-    <div class="tb-timer" id="cbTimer">
-      <div class="tb-u"><b id="cbD">00</b><i>Días</i></div>
-      <div class="tb-u"><b id="cbH">00</b><i>Horas</i></div>
-      <div class="tb-u"><b id="cbM">00</b><i>Min</i></div>
-      <div class="tb-u"><b id="cbS">00</b><i>Seg</i></div>
-    </div>
-    <a class="btn btn-solid tb-join" id="cbJoin" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t" hidden>Entrar a la clase en vivo</a>
+    <span class="tb-spacer" aria-hidden="true"></span>
   </div>
 </header>
 
@@ -242,7 +253,7 @@
 <section class="hero" id="registro">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <span class="hero-tag"><b>Clase gratuita en vivo</b><i aria-hidden="true"></i><span>con Gianie Milet</span></span>
+      <div class="eyebrow-ed"><span class="ee-a">Clase gratuita en vivo</span><span class="ee-line" aria-hidden="true"></span><span class="ee-b">con Gianie Milet</span></div>
       <h1>De experta invisible a <em>autoridad pagada</em></h1>
       <p class="lede">Aprende a posicionar tu servicio, atraer a tus clientas ideales y cobrar lo que vales, sin trabajar más horas.</p>
     </div>
