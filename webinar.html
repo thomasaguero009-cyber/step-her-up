@@ -144,6 +144,7 @@
   .done .check{ width:60px; height:60px; margin:0 auto 18px; border-radius:50%; border:1px solid rgba(95,211,154,0.6); background:rgba(95,211,154,0.12); display:flex; align-items:center; justify-content:center; font-size:26px; color:#5fd39a; }
   .done h2{ font-size:28px; }
   .done p{ color:var(--text-dim); margin:12px 0 24px; font-size:15.5px; }
+  .done .done-hint{ margin:14px 0 0; font-size:13.5px; }
   @media(max-width:520px){ .form-card{ padding:28px 22px 24px; } .tel-row{ grid-template-columns:1fr; } }
 
   /* ===== Franja de urgencia ===== */
@@ -380,6 +381,7 @@
         <h2>¡Listo, ya tienes tu lugar!</h2>
         <p id="doneTxt">Último paso: entra al grupo de WhatsApp para recibir el aviso y el acceso a la clase.</p>
         <a class="btn btn-solid btn-block" id="doneBtn" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t">Entrar al grupo de WhatsApp</a>
+        <p class="done-hint" id="doneHint" hidden>Si WhatsApp no se abrió solo, toca el botón de arriba.</p>
       </div>
     </div>
   </div>
@@ -753,11 +755,19 @@
     });
   }
 
+  // Al confirmar el lugar, la mandamos de inmediato al grupo de WhatsApp. La
+  // tarjeta con el botón queda como respaldo: algunos navegadores (por ejemplo
+  // el de Instagram) bloquean el salto automático, y ahí toca el botón.
   function mostrarListo(redirigir) {
     $("formView").hidden = true;
     $("doneView").hidden = false;
     $("doneBtn").href = WHATSAPP_URL;
-    if (redirigir) setTimeout(() => { location.href = WHATSAPP_URL; }, 1300);
+    $("formCard").scrollIntoView({ behavior: "smooth", block: "center" });
+    if (redirigir) {
+      $("doneTxt").textContent = "Te estamos llevando al grupo de WhatsApp para que recibas el aviso y el acceso a la clase.";
+      setTimeout(() => { location.href = WHATSAPP_URL; }, 350);
+      setTimeout(() => { if (document.visibilityState === "visible") $("doneHint").hidden = false; }, 2800);
+    }
   }
 
   const MENSAJES = {
