@@ -1,18 +1,18 @@
-// Backend chico para las pestañas de lecciones del Sheet — maneja
-// agregar, eliminar y reordenar filas (el título y el módulo se definen
-// al agregar; video y descripción se siguen cargando a mano en el
-// Sheet). Se pega en Extensiones → Apps Script DEL MISMO Sheet (queda
-// "bound", así SpreadsheetApp.getActiveSpreadsheet() ya apunta solo).
+// Backend chico para las pestanas de lecciones del Sheet - maneja
+// agregar, eliminar y reordenar filas (el titulo y el modulo se definen
+// al agregar; video y descripcion se siguen cargando a mano en el
+// Sheet). Se pega en Extensiones -> Apps Script DEL MISMO Sheet (queda
+// "bound", asi SpreadsheetApp.getActiveSpreadsheet() ya apunta solo).
 //
 // Soporta varias pistas de onboarding (Setters, Closers, etc.), cada
-// una en su propia pestaña del Sheet — el cliente manda qué pestaña
+// una en su propia pestana del Sheet - el cliente manda que pestana
 // tocar en body.sheetName. Si no lo manda, usa "Lecciones" (la pista
-// general de siempre), así los llamados viejos sin ese campo siguen
+// general de siempre), asi los llamados viejos sin ese campo siguen
 // funcionando igual.
 
 function getSheet(nombre) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
-  if (!sheet) throw new Error('No existe la pestaña "' + nombre + '"');
+  if (!sheet) throw new Error('No existe la pesta\u00f1a "' + nombre + '"');
   return sheet;
 }
 
@@ -31,7 +31,7 @@ function doPost(e) {
     } else if (body.action === 'addMetricas') {
       resultado = addMetricas(body);
     } else {
-      throw new Error('Acción desconocida: ' + body.action);
+      throw new Error('Acci\u00f3n desconocida: ' + body.action);
     }
     return responder(resultado);
   } catch (err) {
@@ -48,9 +48,9 @@ function responder(data) {
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
 }
 
-// Lee las filas actuales con sus índices REALES de fila del sheet (1-based,
-// incluyendo el header) — hace falta para poder editar/borrar la fila
-// correcta después. idx.modulo puede ser -1 en pestañas que todavía no
+// Lee las filas actuales con sus indices REALES de fila del sheet (1-based,
+// incluyendo el header) - hace falta para poder editar/borrar la fila
+// correcta despues. idx.modulo puede ser -1 en pestanas que todavia no
 // tengan esa columna (no rompe nada, simplemente no se usa).
 function leerFilas(sheet) {
   var values = sheet.getDataRange().getValues();
@@ -77,7 +77,7 @@ function leerFilas(sheet) {
 function addLesson(sheet, titulo, modulo) {
   titulo = String(titulo || '').trim();
   modulo = String(modulo || '').trim();
-  if (!titulo) throw new Error('Falta el título de la lección');
+  if (!titulo) throw new Error('Falta el t\u00edtulo de la lecci\u00f3n');
   var data = leerFilas(sheet);
   var maxOrden = data.filas.reduce(function (m, f) { return Math.max(m, Number(f.orden) || 0); }, 0);
   sheet.appendRow([maxOrden + 1, titulo, '', '', modulo]);
@@ -88,20 +88,20 @@ function deleteLesson(sheet, titulo) {
   titulo = String(titulo || '').trim();
   var data = leerFilas(sheet);
   var fila = data.filas.filter(function (f) { return String(f.titulo).trim() === titulo; })[0];
-  if (!fila) throw new Error('No se encontró la lección "' + titulo + '"');
+  if (!fila) throw new Error('No se encontr\u00f3 la lecci\u00f3n "' + titulo + '"');
   sheet.deleteRow(fila.rowIndex);
   renumerar(sheet);
   return {};
 }
 
-// El cliente manda el ARRAY COMPLETO de títulos en el orden nuevo —
+// El cliente manda el ARRAY COMPLETO de titulos en el orden nuevo -
 // se reescribe la columna Orden 1..N siguiendo ese orden, evitando
-// depender de números de fila que puedan haber cambiado. moduloCambiado
-// (opcional) es { titulo, modulo } cuando arrastrar la lección también
-// la movió a otro módulo/capítulo — así el drag-and-drop sirve para
-// reordenar Y para cambiar de módulo en un solo gesto.
+// depender de numeros de fila que puedan haber cambiado. moduloCambiado
+// (opcional) es { titulo, modulo } cuando arrastrar la leccion tambien
+// la movio a otro modulo/capitulo - asi el drag-and-drop sirve para
+// reordenar Y para cambiar de modulo en un solo gesto.
 function reorderLessons(sheet, ordenTitulos, moduloCambiado) {
-  if (!Array.isArray(ordenTitulos) || !ordenTitulos.length) throw new Error('Orden inválido');
+  if (!Array.isArray(ordenTitulos) || !ordenTitulos.length) throw new Error('Orden inv\u00e1lido');
   var data = leerFilas(sheet);
   ordenTitulos.forEach(function (titulo, i) {
     var fila = data.filas.filter(function (f) { return String(f.titulo).trim() === String(titulo).trim(); })[0];
@@ -114,10 +114,10 @@ function reorderLessons(sheet, ordenTitulos, moduloCambiado) {
   return {};
 }
 
-// Lee UNA fila completa por título, con sus campos por NOMBRE de
-// columna (no por posición) — así no importa si el orden de columnas
-// difiere entre la pestaña de origen y la de destino al mover una
-// lección de pista.
+// Lee UNA fila completa por titulo, con sus campos por NOMBRE de
+// columna (no por posicion) - asi no importa si el orden de columnas
+// difiere entre la pestana de origen y la de destino al mover una
+// leccion de pista.
 function leerFilaCompleta(sheet, titulo) {
   titulo = String(titulo || '').trim();
   var values = sheet.getDataRange().getValues();
@@ -142,13 +142,13 @@ function leerFilaCompleta(sheet, titulo) {
   return null;
 }
 
-// Muda una lección de una pestaña a otra preservando su video y
-// descripción ya cargados (borrar+addLesson los perdería, ya que
-// addLesson no los recibe). moduloNuevo es opcional — si no se manda,
-// conserva el módulo que ya tenía.
+// Muda una leccion de una pestana a otra preservando su video y
+// descripcion ya cargados (borrar+addLesson los perderia, ya que
+// addLesson no los recibe). moduloNuevo es opcional - si no se manda,
+// conserva el modulo que ya tenia.
 function moveLesson(sheetOrigen, sheetDestino, titulo, moduloNuevo) {
   var fila = leerFilaCompleta(sheetOrigen, titulo);
-  if (!fila) throw new Error('No se encontró la lección "' + titulo + '" en la pestaña de origen');
+  if (!fila) throw new Error('No se encontr\u00f3 la lecci\u00f3n "' + titulo + '" en la pesta\u00f1a de origen');
   var dataDestino = leerFilas(sheetDestino);
   var maxOrden = dataDestino.filas.reduce(function (m, f) { return Math.max(m, Number(f.orden) || 0); }, 0);
   var modulo = moduloNuevo != null ? moduloNuevo : fila.modulo;
@@ -167,22 +167,22 @@ function renumerar(sheet) {
 }
 
 
-// ===== Métricas del día (formulario "Métricas" del dashboard) ===========
+// ===== Metricas del dia (formulario "Metricas" del dashboard) ===========
 // El formulario manda un rol: "setter" o "closer".
-//  - Setter -> UNA fila en el tracker (pestaña con las columnas Fecha y Setter);
-//    si le faltan las columnas "No califica" y "No respondió", se agregan solas.
-//  - Closer -> UNA fila en la pestaña de closers (la que tiene Fecha y Closer,
+//  - Setter -> UNA fila en el tracker (pestana con las columnas Fecha y Setter);
+//    si le faltan las columnas "No califica" y "No respondio", se agregan solas.
+//  - Closer -> UNA fila en la pestana de closers (la que tiene Fecha y Closer,
 //    "Ranking"): Closer, Monto (= cash collected), Agendas, Shows, No shows y
-//    Cierres. Si a esa pestaña le faltan las columnas Agendas / Shows /
+//    Cierres. Si a esa pestana le faltan las columnas Agendas / Shows /
 //    No shows / Cierres, se agregan solas a la derecha (no mueve las que ya hay).
-// Cada dato se ubica por el NOMBRE de la columna, así no importa el orden ni
+// Cada dato se ubica por el NOMBRE de la columna, asi no importa el orden ni
 // si dice "Leads" o "Llamadas", "Agendas" o "Agendadas".
 function encontrarPestana(tipo) {
   var hojas = SpreadsheetApp.getActiveSpreadsheet().getSheets();
   for (var i = 0; i < hojas.length; i++) {
     if (tipoDePestana(encabezados(hojas[i])) === tipo) return hojas[i];
   }
-  throw new Error('No encontré la pestaña de ' + tipo + ' (revisá que tenga la fila de encabezados)');
+  throw new Error('No encontr\u00e9 la pesta\u00f1a de ' + tipo + ' (revis\u00e1 que tenga la fila de encabezados)');
 }
 
 // Agrega al final del encabezado las columnas que falten (devuelve los encabezados actualizados).
@@ -219,6 +219,7 @@ function addMetricas(body) {
   var cash = Number(body.ventas) || 0;
   if (esCloser) {
     var sheetC = encontrarPestana('closers');
+    repararEncabezados(sheetC);
     var hC = asegurarColumnas(sheetC, ['Agendas', 'Shows', 'No shows', 'Cierres']);
     sheetC.appendRow(filaPorEncabezado(hC, {
       'fecha': fecha,
@@ -231,14 +232,15 @@ function addMetricas(body) {
     }));
   } else {
     var sheet = encontrarPestana('tracker');
-    var h = asegurarColumnas(sheet, ['No califica', 'No respondió']);
+    repararEncabezados(sheet);
+    var h = asegurarColumnas(sheet, ['No califica', 'No respondi\u00f3']);
     sheet.appendRow(filaPorEncabezado(h, {
       'fecha': fecha,
       'setter': nombre,
       'llamadas|leads': Number(body.llamadas) || 0,
       'agendadas|agendas|llamadas agendadas': Number(body.agendadas) || 0,
       'no califica|nocalifica': Number(body.noCalifica) || 0,
-      'no respondió|no respondio|norespondio': Number(body.noRespondio) || 0,
+      'no respondi\u00f3|no respondio|norespondio': Number(body.noRespondio) || 0,
       'shows': Number(body.shows) || 0,
       'cierres': Number(body.cierres) || 0,
       'ventas': cash,
@@ -248,12 +250,12 @@ function addMetricas(body) {
 }
 
 // ===== Ordenar la hoja ===================================================
-// Menú "Step Her Up → Ordenar hoja". Es SEGURO para el dashboard: no mueve
-// ni renombra columnas, no cambia los nombres de las pestañas ni los
-// formatos de fecha/número (el dashboard lee los valores tal como se ven).
+// Menu "Step Her Up -> Ordenar hoja". Es SEGURO para el dashboard: no mueve
+// ni renombra columnas, no cambia los nombres de las pestanas ni los
+// formatos de fecha/numero (el dashboard lee los valores tal como se ven).
 // Solo: limpia espacios, unifica nombres, ordena el tracker por fecha,
-// completa números de "orden" vacíos, agrega listas desplegables, da
-// formato a los encabezados y ordena/colorea las pestañas. Se puede correr
+// completa numeros de "orden" vacios, agrega listas desplegables, da
+// formato a los encabezados y ordena/colorea las pestanas. Se puede correr
 // las veces que haga falta. Lo que no puede arreglar solo lo avisa al final.
 var SETTERS = ['Paula', 'Paola', 'Mia'];
 var COLOR_VINO = '#5a1626';
@@ -262,15 +264,40 @@ var COLOR_ROSA = '#e88aa8';
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Step Her Up')
     .addItem('Ordenar hoja ahora', 'ordenarHoja')
-    .addItem('Activar orden automático', 'activarOrdenAutomatico')
-    .addItem('Desactivar orden automático', 'desactivarOrdenAutomatico')
+    .addItem('Activar orden autom\u00e1tico', 'activarOrdenAutomatico')
+    .addItem('Desactivar orden autom\u00e1tico', 'desactivarOrdenAutomatico')
     .addToUi();
+}
+
+// Texto con tildes que quedo danado al copiar/pegar el script (por ejemplo
+// "No respondi\u221a\u2265" en vez de "No respondi\u00f3"): se vuelve a su forma correcta.
+var MOJIBAKE = [['\u221a\u00b0', '\u00e1'], ['\u221a\u00a9', '\u00e9'], ['\u221a\u2260', '\u00ed'],
+                ['\u221a\u2265', '\u00f3'], ['\u221a\u222b', '\u00fa'], ['\u221a\u00b1', '\u00f1']];
+function repararTexto(t) {
+  MOJIBAKE.forEach(function (par) { t = t.split(par[0]).join(par[1]); });
+  return t;
+}
+
+// Arregla los encabezados danados que ya estan escritos en la hoja.
+function repararEncabezados(sheet) {
+  var n = sheet.getLastColumn();
+  if (n < 1) return false;
+  var rango = sheet.getRange(1, 1, 1, n);
+  var cambio = false;
+  var nuevos = rango.getValues()[0].map(function (x) {
+    if (typeof x !== 'string') return x;
+    var y = repararTexto(x);
+    if (y !== x) cambio = true;
+    return y;
+  });
+  if (cambio) rango.setValues([nuevos]);
+  return cambio;
 }
 
 function encabezados(sheet) {
   if (sheet.getLastColumn() < 1) return [];
   return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
-    .map(function (x) { return String(x).trim().toLowerCase(); });
+    .map(function (x) { return repararTexto(String(x)).trim().toLowerCase(); });
 }
 
 function tipoDePestana(h) {
@@ -293,7 +320,7 @@ function letraDeColumna(n) {
   return s;
 }
 
-// Saca espacios sobrantes de las columnas de texto; devuelve cuántas celdas cambió.
+// Saca espacios sobrantes de las columnas de texto; devuelve cuantas celdas cambio.
 function limpiarTexto(sheet, columnas) {
   var ultima = sheet.getLastRow();
   if (ultima < 2) return 0;
@@ -323,6 +350,7 @@ function ejecutarOrden() {
   hojas.forEach(function (sheet) {
     var nombre = sheet.getName();
     try {
+      if (repararEncabezados(sheet)) reporte.push(nombre + ': arreglo encabezados con tildes danadas');
       var h = encabezados(sheet);
       if (!h.length) return;
       var tipo = tipoDePestana(h);
@@ -340,9 +368,9 @@ function ejecutarOrden() {
       if (tipo === 'tracker' || tipo === 'closers') {
         var colNombre = h.indexOf(tipo === 'tracker' ? 'setter' : 'closer');
         var limpias = limpiarTexto(sheet, [colNombre]);
-        if (limpias) hechas.push('sacó espacios sobrantes en ' + limpias + ' celdas');
+        if (limpias) hechas.push('sac\u00f3 espacios sobrantes en ' + limpias + ' celdas');
 
-        // Unifica mayúsculas de los nombres conocidos (paula -> Paula).
+        // Unifica mayusculas de los nombres conocidos (paula -> Paula).
         if (tipo === 'tracker' && ultima > 1) {
           var rN = sheet.getRange(2, colNombre + 1, ultima - 1, 1);
           var vN = rN.getValues();
@@ -354,10 +382,10 @@ function ejecutarOrden() {
             }
             return [f[0]];
           });
-          if (corregidos) { rN.setValues(vN); hechas.push('unificó ' + corregidos + ' nombres'); }
+          if (corregidos) { rN.setValues(vN); hechas.push('unific\u00f3 ' + corregidos + ' nombres'); }
         }
 
-        // Ordena por fecha (más vieja arriba), salvo que haya fórmulas.
+        // Ordena por fecha (mas vieja arriba), salvo que haya formulas.
         if (ultima > 2) {
           var rango = sheet.getRange(2, 1, ultima - 1, h.length);
           var hayFormulas = rango.getFormulas().some(function (f) { return f.some(function (c) { return c !== ''; }); });
@@ -372,7 +400,7 @@ function ejecutarOrden() {
             var vacias = datos.length - orden.length;
             for (var k = 0; k < vacias; k++) orden.push(new Array(h.length).fill(''));
             var cambioOrden = orden.some(function (f, i) { return f.join('|') !== datos[i].join('|'); });
-            if (cambioOrden) { rango.setValues(orden); hechas.push('ordenó las filas por fecha'); }
+            if (cambioOrden) { rango.setValues(orden); hechas.push('orden\u00f3 las filas por fecha'); }
             if (sinFecha.length) avisos.push('"' + nombre + '": ' + sinFecha.length + ' fila(s) con la fecha mal escrita (deben ser DD/MM/AAAA); quedaron al final.');
           }
         }
@@ -400,8 +428,8 @@ function ejecutarOrden() {
           sheet.getRange(2, colNombre + 1, filasValidar, 1).setDataValidation(lista(closers));
           hechas.push('lista desplegable de closers');
         }
-        // Los números no pueden ser negativos (solo avisa).
-        ['llamadas', 'leads', 'agendadas', 'agendas', 'no califica', 'no respondió', 'shows', 'no shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
+        // Los numeros no pueden ser negativos (solo avisa).
+        ['llamadas', 'leads', 'agendadas', 'agendas', 'no califica', 'no respondi\u00f3', 'shows', 'no shows', 'cierres', 'ventas', 'monto', 'gasto'].forEach(function (n) {
           var c = h.indexOf(n);
           if (c > -1) {
             sheet.getRange(2, c + 1, filasValidar, 1).setDataValidation(
@@ -417,9 +445,9 @@ function ejecutarOrden() {
         var cT = h.indexOf('titulo'), cO = h.indexOf('orden');
         var cV = h.indexOf('videourl'), cD = h.indexOf('descripcion');
         var l = limpiarTexto(sheet, [cT]);
-        if (l) hechas.push('sacó espacios sobrantes en ' + l + ' títulos');
+        if (l) hechas.push('sac\u00f3 espacios sobrantes en ' + l + ' t\u00edtulos');
 
-        // Completa los "orden" vacíos con el siguiente número libre.
+        // Completa los "orden" vacios con el siguiente numero libre.
         if (ultima > 1) {
           var rO = sheet.getRange(2, 1, ultima - 1, h.length);
           var vals = rO.getValues();
@@ -428,7 +456,7 @@ function ejecutarOrden() {
           vals.forEach(function (f, i) {
             if (f[cT] && (f[cO] === '' || f[cO] === null)) { max++; sheet.getRange(i + 2, cO + 1).setValue(max); completados++; }
           });
-          if (completados) hechas.push('numeró ' + completados + ' lección(es) que no tenían orden');
+          if (completados) hechas.push('numer\u00f3 ' + completados + ' lecci\u00f3n(es) que no ten\u00edan orden');
         }
         // Datos que quedaron fuera de la tabla (columnas a la derecha).
         var ultimaCol = sheet.getLastColumn();
@@ -438,7 +466,7 @@ function ejecutarOrden() {
             var contenido = f.filter(function (c) { return c !== ''; });
             if (contenido.length) {
               avisos.push('"' + nombre + '": en la fila ' + (i + 2) + ', columnas ' + letraDeColumna(cantidadEncabezados + 1) + ' a ' + letraDeColumna(ultimaCol)
-                + ' hay datos fuera de la tabla (' + contenido.filter(function (c) { return isNaN(Number(c)); }).join(' · ').slice(0, 90) + '). Mové esa fila a la pestaña que corresponda.');
+                + ' hay datos fuera de la tabla (' + contenido.filter(function (c) { return isNaN(Number(c)); }).join(' \u00b7 ').slice(0, 90) + '). Mov\u00e9 esa fila a la pesta\u00f1a que corresponda.');
             }
           });
         }
@@ -461,7 +489,7 @@ function ejecutarOrden() {
     }
   });
 
-  // Orden de las pestañas: tracker, closers, ads, otras, lecciones.
+  // Orden de las pestanas: tracker, closers, ads, otras, lecciones.
   var peso = { tracker: 0, closers: 1, ads: 2, otra: 3, lecciones: 4 };
   var ordenadas = ss.getSheets().map(function (sh, i) { return { sh: sh, i: i, p: peso[tipoDePestana(encabezados(sh))] }; });
   ordenadas.sort(function (a, b) { return a.p - b.p || a.i - b.i; });
@@ -472,25 +500,25 @@ function ejecutarOrden() {
 }
 
 function textoDeReporte(r) {
-  var texto = 'Lo que hice:\n\n• ' + r.reporte.join('\n• ');
-  if (r.avisos.length) texto += '\n\nPara revisar a mano:\n\n• ' + r.avisos.join('\n• ');
+  var texto = 'Lo que hice:\n\n\u2022 ' + r.reporte.join('\n\u2022 ');
+  if (r.avisos.length) texto += '\n\nPara revisar a mano:\n\n\u2022 ' + r.avisos.join('\n\u2022 ');
   return texto;
 }
 
-// A mano, desde el menú.
+// A mano, desde el menu.
 function ordenarHoja() {
   var ui = SpreadsheetApp.getUi();
   ui.alert('Hoja ordenada', textoDeReporte(ejecutarOrden()), ui.ButtonSet.OK);
 }
 
-// ===== Orden automático ===================================================
-// 1) Cada día de madrugada (trigger de tiempo): corre todo el ordenamiento.
+// ===== Orden automatico ===================================================
+// 1) Cada dia de madrugada (trigger de tiempo): corre todo el ordenamiento.
 //    Si queda algo que no puede arreglar solo (por ejemplo datos fuera de la
-//    tabla), manda UN mail con el aviso (y no repite el mismo aviso cada día).
+//    tabla), manda UN mail con el aviso (y no repite el mismo aviso cada dia).
 // 2) En el momento en que alguien escribe o pega (onEdit): limpia espacios y
-//    unifica mayúsculas de Setter / Closer al instante.
-// 3) Las métricas que llegan del formulario ya entran limpias (addMetricas).
-// Se activa UNA sola vez desde el menú: Step Her Up → Activar orden automático.
+//    unifica mayusculas de Setter / Closer al instante.
+// 3) Las metricas que llegan del formulario ya entran limpias (addMetricas).
+// Se activa UNA sola vez desde el menu: Step Her Up -> Activar orden automatico.
 function ordenarHojaAutomatico() {
   var r = ejecutarOrden();
   var props = PropertiesService.getScriptProperties();
@@ -498,7 +526,7 @@ function ordenarHojaAutomatico() {
   if (r.avisos.length && props.getProperty('avisosEnviados') !== firma) {
     MailApp.sendEmail(Session.getEffectiveUser().getEmail(),
       'Step Her Up: hay cosas para revisar en el Sheet',
-      'El orden automático del Sheet encontró esto y no puede arreglarlo solo:\n\n• ' + r.avisos.join('\n• ')
+      'El orden autom\u00e1tico del Sheet encontr\u00f3 esto y no puede arreglarlo solo:\n\n\u2022 ' + r.avisos.join('\n\u2022 ')
       + '\n\nSheet: ' + SpreadsheetApp.getActiveSpreadsheet().getUrl());
     props.setProperty('avisosEnviados', firma);
   }
@@ -511,8 +539,8 @@ function activarOrdenAutomatico() {
   });
   ScriptApp.newTrigger('ordenarHojaAutomatico').timeBased().everyDays(1).atHour(5).create();
   var ui = SpreadsheetApp.getUi();
-  ui.alert('Orden automático activado',
-    'Desde ahora el Sheet se ordena solo todos los días de madrugada, y al escribir se limpian al instante los nombres.\n\nOrdené una vez ahora mismo:\n\n' + textoDeReporte(ejecutarOrden()),
+  ui.alert('Orden autom\u00e1tico activado',
+    'Desde ahora el Sheet se ordena solo todos los d\u00edas de madrugada, y al escribir se limpian al instante los nombres.\n\nOrden\u00e9 una vez ahora mismo:\n\n' + textoDeReporte(ejecutarOrden()),
     ui.ButtonSet.OK);
 }
 
@@ -521,7 +549,7 @@ function desactivarOrdenAutomatico() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'ordenarHojaAutomatico') { ScriptApp.deleteTrigger(t); borrados++; }
   });
-  SpreadsheetApp.getUi().alert(borrados ? 'Orden automático desactivado.' : 'No había orden automático activado.');
+  SpreadsheetApp.getUi().alert(borrados ? 'Orden autom\u00e1tico desactivado.' : 'No hab\u00eda orden autom\u00e1tico activado.');
 }
 
 // Se ejecuta solo cada vez que alguien edita una celda (trigger simple).
@@ -549,6 +577,6 @@ function onEdit(e) {
     }
     if (cambio) e.range.setValues(valores);
   } catch (err) {
-    // un fallo acá no debe molestar a quien está escribiendo
+    // un fallo aca no debe molestar a quien esta escribiendo
   }
 }
