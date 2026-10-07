@@ -212,7 +212,7 @@
   <div class="tb-in">
     <div class="tb-info">
       <span class="tb-kicker" id="cbTitulo">La clase gratis empieza en</span>
-      <span class="tb-date">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
+      <span class="tb-date" id="tbFecha">Miércoles 21 de octubre · 7:00 PM (Puerto Rico)</span>
     </div>
     <div class="tb-timer" id="cbTimer">
       <div class="tb-u"><b id="cbD">00</b><i>Días</i></div>
@@ -234,8 +234,8 @@
       <p class="lede">Aprende a posicionar tu servicio, atraer a tus clientas ideales y cobrar lo que vales, sin trabajar más horas.</p>
     </div>
     <ul class="facts">
-      <li><span class="k">Fecha</span><span class="v">Miércoles 21 de octubre</span></li>
-      <li><span class="k">Hora</span><span class="v">7:00 PM, hora de Puerto Rico<small id="horaLocal" hidden></small></span></li>
+      <li><span class="k">Fecha</span><span class="v" id="heroFecha">Miércoles 21 de octubre</span></li>
+      <li><span class="k">Hora</span><span class="v"><span id="heroHora">7:00 PM, hora de Puerto Rico</span><small id="horaLocal" hidden></small></span></li>
       <li><span class="k">Acceso</span><span class="v">Grupo de WhatsApp<small>Ahí recibes el aviso y el enlace a la clase</small></span></li>
     </ul>
 
@@ -618,7 +618,7 @@
   <div class="wrap">
     <span class="pill"><i class="pulse"></i>Cupos limitados</span>
     <h2 class="title">Tu lugar es gratis. <em>Resérvalo ahora.</em></h2>
-    <p class="lede">Miércoles 21 de octubre · 7:00 PM, hora de Puerto Rico</p>
+    <p class="lede" id="finalFecha">Miércoles 21 de octubre · 7:00 PM, hora de Puerto Rico</p>
     <a class="btn btn-solid js-abrir" href="#registro" id="finalCta">Quiero mi lugar</a>
   </div>
 </section>
@@ -662,16 +662,32 @@
     const t = setInterval(() => { if (!tick()) clearInterval(t); }, 1000);
   }
 
-  // Hora local de quien mira la página (si es distinta a la de Puerto Rico).
-  try {
-    const zona = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const fmt = (tz) => new Intl.DateTimeFormat("es", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(EVENTO);
-    if (zona && fmt(zona) !== fmt("America/Puerto_Rico")) {
-      const local = new Intl.DateTimeFormat("es", { weekday: "long", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(EVENTO);
-      $("horaLocal").textContent = "En tu zona horaria: " + local;
+  // ===== Horario en la zona de cada persona =====
+  // Se toma de la zona horaria que tiene configurada su dispositivo (no de la
+  // IP ni de una VPN). Si es distinta a la de Puerto Rico, TODOS los lugares
+  // donde aparece el horario muestran su hora, y la de Puerto Rico queda como
+  // referencia. Para previsualizar otra zona: agregar ?tz=America/Mexico_City
+  function horarioLocal() {
+    try {
+      let zona = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const prueba = new URLSearchParams(location.search).get("tz");
+      if (prueba) { new Intl.DateTimeFormat("es", { timeZone: prueba }); zona = prueba; }
+      if (!zona) return;
+      const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+      const fecha = (tz) => cap(new Intl.DateTimeFormat("es", { weekday: "long", day: "numeric", month: "long", timeZone: tz }).format(EVENTO).replace(",", ""));
+      const hora = (tz) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(EVENTO);
+      const PR = "America/Puerto_Rico";
+      if (fecha(zona) === fecha(PR) && hora(zona) === hora(PR)) return; // misma hora que Puerto Rico: queda como está
+      const fLocal = fecha(zona), hLocal = hora(zona);
+      $("tbFecha").textContent = fLocal + " · " + hLocal + " (tu hora)";
+      $("heroFecha").textContent = fLocal;
+      $("heroHora").textContent = hLocal + ", tu hora local";
+      $("horaLocal").textContent = "Equivale a " + hora(PR) + " en Puerto Rico" + (fecha(zona) !== fecha(PR) ? " (" + fecha(PR) + ")" : "");
       $("horaLocal").hidden = false;
-    }
-  } catch (e) {}
+      $("finalFecha").textContent = fLocal + " · " + hLocal + ", tu hora local";
+    } catch (e) {}
+  }
+  horarioLocal();
 
   // ===== Código de país según la IP (igual que el resto del funnel) =====
   async function detectarPais() {
