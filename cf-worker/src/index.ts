@@ -11,6 +11,7 @@ export interface Env {
   // Secrets (se cargan con `npx wrangler secret put ...`, nunca van en el repo)
   OPENAI_API_KEY: string;
   ADMIN_KEY: string;
+  SITE_KEY: string; // contraseña de la plataforma (para los recursos privados)
   OPENAI_MODEL: string;
   ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
 }
@@ -24,7 +25,7 @@ function corsHeaders(origin: string | null, env: Env): HeadersInit {
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key, X-Site-Key",
   };
 }
 
@@ -735,6 +736,22 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
   return json({ ok: true, id: body.contact?.id || null }, 200, cors);
 }
 
+// --- Recursos privados (presentaciones) ---------------------------------------
+// Se guardan en el KV (no en el repo, que es público) y solo se entregan a
+// quien manda la contraseña de la plataforma en el header X-Site-Key.
+async function handleRecurso(request: Request, env: Env, id: string, cors: HeadersInit): Promise<Response> {
+  if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
+  const clave = request.headers.get("X-Site-Key") || "";
+  if (!igualesSeguro(clave, env.SITE_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
+  if (!/^[a-z0-9-]{1,40}$/.test(id)) return json({ ok: false, error: "not_found" }, 404, cors);
+  const html = await env.ESTRATEGIAS.get("recurso:" + id);
+  if (!html) return json({ ok: false, error: "not_found" }, 404, cors);
+  return new Response(html, {
+    status: 200,
+    headers: { ...cors, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -762,6 +779,9 @@ export default {
       }
       if (url.pathname === "/funnel-por-dia" && request.method === "GET") {
         return await handleFunnelPorDia(url, env, cors);
+      }
+      if (url.pathname.startsWith("/recursos/") && request.method === "GET") {
+        return await handleRecurso(request, env, decodeURIComponent(url.pathname.slice("/recursos/".length)), cors);
       }
       if (url.pathname === "/webinar-registro" && request.method === "POST") {
         return await handleWebinarRegistro(request, env, cors);
