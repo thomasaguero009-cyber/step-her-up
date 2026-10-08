@@ -261,6 +261,30 @@
     background:rgba(13,3,4,0.72); border:1px solid rgba(232,138,168,0.45); border-radius:999px;
     padding:6px 14px; backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
   }
+  /* Controles propios: reproducir/pausar, barra, velocidad y pantalla completa. */
+  .vtest-ctrl{
+    position:absolute; left:0; right:0; bottom:0; z-index:3;
+    display:flex; align-items:center; gap:8px; padding:26px 10px 10px;
+    background:linear-gradient(180deg, rgba(13,3,4,0), rgba(13,3,4,0.82));
+    transition:opacity .25s;
+  }
+  .vtest-ctrl[hidden]{ display:none; }
+  .vtest-ctrl.oculto{ opacity:0; pointer-events:none; }
+  .vtest-ctrl button{
+    flex:none; min-width:32px; height:32px; padding:0 8px; border:0; border-radius:8px; cursor:pointer;
+    background:rgba(255,255,255,0.14); color:var(--cream); font:700 12px/1 Inter,system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .vtest-ctrl button:hover{ background:rgba(240,168,190,0.32); }
+  .vtest-ctrl svg{ width:16px; height:16px; fill:currentColor; display:block; }
+  .vtest-ctrl .vc-seek{ flex:1; min-width:0; height:4px; accent-color:var(--blush-2); cursor:pointer; }
+  .vtest-ctrl .vc-time{ flex:none; font-size:11px; color:var(--cream); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .vtest-video:fullscreen{ aspect-ratio:auto; width:100%; height:100%; background:#000; }
+  .vtest-video:fullscreen video{ object-fit:contain; }
+  .vtest-video:-webkit-full-screen{ aspect-ratio:auto; width:100%; height:100%; background:#000; }
+  .vtest-video:-webkit-full-screen video{ object-fit:contain; }
+  .vtest-video:fullscreen .vtest-ctrl{ padding:40px 20px 22px; gap:12px; }
+  .vtest-video:fullscreen .vtest-ctrl button{ height:40px; min-width:40px; font-size:14px; }
   .vtest-info{ padding:20px; }
   .vtest-quote{ font-size:14px; line-height:1.55; color:var(--cream); margin:0 0 14px; }
   .vtest-name{ font-size:14px; font-weight:700; }
@@ -286,7 +310,7 @@
 
       <div class="vtest-grid">
         <div class="vtest-card">
-          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-virnalis.mov">
+          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-virnalis.mp4">
             <video playsinline preload="none" poster="assets/testimonio-video-virnalis-poster.jpg" controlsList="nodownload noremoteplayback"></video>
             <div class="vtest-play">▶<span class="vtest-play-label">Ver testimonio</span></div>
           </div>
@@ -298,7 +322,7 @@
         </div>
 
         <div class="vtest-card">
-          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-aymar.mov">
+          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-aymar.mp4">
             <video playsinline preload="none" poster="assets/testimonio-video-aymar-poster.jpg" controlsList="nodownload noremoteplayback"></video>
             <div class="vtest-play">▶<span class="vtest-play-label">Ver testimonio</span></div>
           </div>
@@ -310,7 +334,7 @@
         </div>
 
         <div class="vtest-card">
-          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-fabiola.mov">
+          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-fabiola.mp4">
             <video playsinline preload="none" poster="assets/testimonio-video-fabiola-poster.jpg" controlsList="nodownload noremoteplayback"></video>
             <div class="vtest-play">▶<span class="vtest-play-label">Ver testimonio</span></div>
           </div>
@@ -541,28 +565,102 @@
   // (preload="none" en el HTML), así no se bajan ~40MB x 3 de una si
   // nadie los mira. Tocar CUALQUIER parte del cuadro (no solo el botón)
   // reproduce/pausa — mismo criterio que el VSL de index.html. =====
+  const ICO_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const ICO_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+  const ICO_FS = '<svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4zM14 4h6v6h-2V6h-4zM4 14h2v4h4v2H4zM18 14h2v6h-6v-2h4z"/></svg>';
+  const VELOCIDADES = [1, 1.25, 1.5, 2, 0.75];
+  const fmt = (t) => { t = Math.max(0, Math.floor(t || 0)); return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); };
+
   document.querySelectorAll(".vtest-video").forEach((wrap) => {
     const video = wrap.querySelector("video");
     const playBtn = wrap.querySelector(".vtest-play");
     const label = wrap.querySelector(".vtest-play-label");
     let iniciado = false;
+    let velocidad = 0; // índice en VELOCIDADES
+
+    // Barra de controles propia (se muestra desde que arranca el video).
+    const ctrl = document.createElement("div");
+    ctrl.className = "vtest-ctrl";
+    ctrl.hidden = true;
+    ctrl.innerHTML =
+      '<button type="button" class="vc-pp" aria-label="Pausar">' + ICO_PAUSE + '</button>' +
+      '<input type="range" class="vc-seek" min="0" max="1000" value="0" aria-label="Avanzar o retroceder">' +
+      '<span class="vc-time">0:00</span>' +
+      '<button type="button" class="vc-speed" aria-label="Velocidad">1x</button>' +
+      '<button type="button" class="vc-fs" aria-label="Pantalla completa">' + ICO_FS + '</button>';
+    wrap.appendChild(ctrl);
+    const pp = ctrl.querySelector(".vc-pp");
+    const seek = ctrl.querySelector(".vc-seek");
+    const time = ctrl.querySelector(".vc-time");
+    const speed = ctrl.querySelector(".vc-speed");
+    const fs = ctrl.querySelector(".vc-fs");
+    ["click", "dblclick"].forEach((ev) => ctrl.addEventListener(ev, (e) => e.stopPropagation()));
 
     function iniciar() {
       if (iniciado) return;
       iniciado = true;
       video.src = wrap.dataset.src;
+      ctrl.hidden = false;
       video.play().catch(() => {});
     }
 
+    let ocultarT = null;
+    function mostrarCtrl() {
+      ctrl.classList.remove("oculto");
+      clearTimeout(ocultarT);
+      ocultarT = setTimeout(() => { if (!video.paused) ctrl.classList.add("oculto"); }, 2800);
+    }
+    wrap.addEventListener("mousemove", mostrarCtrl);
+    wrap.addEventListener("touchstart", mostrarCtrl, { passive: true });
+
     wrap.addEventListener("click", () => {
       if (!iniciado) { iniciar(); return; }
+      mostrarCtrl();
       if (video.paused) video.play(); else video.pause();
     });
-    video.addEventListener("play", () => { playBtn.style.display = "none"; });
+    pp.addEventListener("click", () => { if (video.paused) video.play(); else video.pause(); });
+    video.addEventListener("play", () => { playBtn.style.display = "none"; pp.innerHTML = ICO_PAUSE; pp.setAttribute("aria-label", "Pausar"); mostrarCtrl(); });
     video.addEventListener("pause", () => {
       if (!iniciado) return;
       label.textContent = "Continuar viendo";
       playBtn.style.display = "flex";
+      pp.innerHTML = ICO_PLAY; pp.setAttribute("aria-label", "Reproducir");
+      ctrl.classList.remove("oculto");
+    });
+
+    let arrastrando = false;
+    function pintarTiempo() {
+      const d = video.duration || 0;
+      if (!arrastrando && d) seek.value = Math.round(video.currentTime / d * 1000);
+      time.textContent = fmt(video.currentTime) + (d ? " / " + fmt(d) : "");
+    }
+    video.addEventListener("timeupdate", pintarTiempo);
+    video.addEventListener("loadedmetadata", pintarTiempo);
+    seek.addEventListener("input", () => {
+      arrastrando = true;
+      if (video.duration) video.currentTime = seek.value / 1000 * video.duration;
+    });
+    seek.addEventListener("change", () => { arrastrando = false; });
+
+    speed.addEventListener("click", () => {
+      velocidad = (velocidad + 1) % VELOCIDADES.length;
+      video.playbackRate = VELOCIDADES[velocidad];
+      speed.textContent = VELOCIDADES[velocidad] + "x";
+    });
+    // Al cambiar la fuente el navegador reinicia la velocidad: se vuelve a aplicar.
+    video.addEventListener("loadedmetadata", () => { video.playbackRate = VELOCIDADES[velocidad]; });
+
+    fs.addEventListener("click", () => {
+      const enFs = document.fullscreenElement || document.webkitFullscreenElement;
+      if (enFs) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else if (wrap.requestFullscreen) {
+        wrap.requestFullscreen().catch(() => {});
+      } else if (wrap.webkitRequestFullscreen) {
+        wrap.webkitRequestFullscreen();
+      } else if (video.webkitEnterFullscreen) {
+        video.webkitEnterFullscreen(); // iPhone: solo deja pantalla completa del video
+      }
     });
   });
 })();
