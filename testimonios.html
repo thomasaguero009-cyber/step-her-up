@@ -210,6 +210,20 @@
     overflow:hidden;
   }
   .carousel-slide img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
+  .carousel-wrap{ position:relative; max-width:900px; margin:0 auto; }
+  .carousel-arrow{
+    position:absolute; top:50%; transform:translateY(-50%); z-index:5;
+    width:44px; height:44px; border-radius:50%; border:1px solid rgba(232,138,168,0.55); cursor:pointer;
+    background:rgba(13,3,4,0.78); color:var(--cream); display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); box-shadow:0 6px 20px rgba(0,0,0,0.4);
+    transition:background .2s, transform .2s;
+  }
+  .carousel-arrow:hover{ background:rgba(240,168,190,0.35); }
+  .carousel-arrow:focus-visible{ outline:2px solid var(--blush); outline-offset:2px; }
+  .carousel-arrow svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round; }
+  .carousel-prev{ left:-22px; }
+  .carousel-next{ right:-22px; }
+  @media (max-width:1000px){ .carousel-prev{ left:6px; } .carousel-next{ right:6px; } .carousel-arrow{ width:38px; height:38px; } }
   .carousel-caption{ text-align:center; color:var(--text-dim); font-size:12px; margin-top:18px; }
   @media (max-width:900px){ .carousel-slide{ flex-basis:calc((100% - 18px)/2); } }
   @media (max-width:600px){ .carousel-slide{ flex-basis:100%; } }
@@ -354,6 +368,9 @@
         <h2>Fotos de <span class="hl">testimonios</span></h2>
       </div>
 
+      <div class="carousel-wrap" role="region" aria-label="Fotos de testimonios" tabindex="0" id="carouselWrap">
+      <button type="button" class="carousel-arrow carousel-prev" id="carouselPrev" aria-label="Anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button type="button" class="carousel-arrow carousel-next" id="carouselNext" aria-label="Siguiente"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
       <div class="carousel">
         <div class="carousel-track" id="carouselTrack">
           <div class="carousel-slide"><img src="images/testimonios/testimonio-1.jpeg" alt="Captura de testimonio de una alumna" loading="lazy"></div>
@@ -370,6 +387,7 @@
           <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-2.jpeg" alt="" loading="lazy"></div>
           <div class="carousel-slide" aria-hidden="true"><img src="images/testimonios/testimonio-3.jpeg" alt="" loading="lazy"></div>
         </div>
+      </div>
       </div>
     </div>
   </section>
@@ -814,6 +832,48 @@
   track.addEventListener("pointerup", endDrag);
   track.addEventListener("pointercancel", endDrag);
   track.addEventListener("pointerleave", (ev) => { if (dragging) endDrag(ev); });
+
+  // ===== Flechas, teclado y rueda/trackpad horizontal — para quien no
+  // arrastra (mouse de computadora, trackpad). Usan la misma zona de clones
+  // que el autoplay, así el avance sigue siendo infinito sin saltos. =====
+  function irSiguiente(){
+    cancelBridgeReset();
+    if (index >= realSlides) {
+      track.style.transition = "none"; index = 0; update(); void track.offsetWidth; track.style.transition = "";
+    }
+    index += 1;
+    update();
+    if (index >= realSlides) armBridgeReset();
+    pauseAndScheduleResume();
+  }
+  function irAnterior(){
+    cancelBridgeReset();
+    if (index <= 0) {
+      track.style.transition = "none"; index = realSlides; update(); void track.offsetWidth; track.style.transition = "";
+    }
+    index -= 1;
+    update();
+    pauseAndScheduleResume();
+  }
+  document.getElementById("carouselNext").addEventListener("click", irSiguiente);
+  document.getElementById("carouselPrev").addEventListener("click", irAnterior);
+  const carouselWrap = document.getElementById("carouselWrap");
+  carouselWrap.addEventListener("keydown", (ev) => {
+    if (ev.key === "ArrowRight") { ev.preventDefault(); irSiguiente(); }
+    if (ev.key === "ArrowLeft") { ev.preventDefault(); irAnterior(); }
+  });
+  let ruedaOcupada = false;
+  carouselWrap.addEventListener("wheel", (ev) => {
+    // Solo el gesto horizontal (trackpad de dos dedos o shift + rueda):
+    // el scroll vertical de la página no se toca.
+    const h = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : (ev.shiftKey ? ev.deltaY : 0);
+    if (!h) return;
+    ev.preventDefault();
+    if (ruedaOcupada || Math.abs(h) < 8) return;
+    ruedaOcupada = true;
+    setTimeout(() => { ruedaOcupada = false; }, 550);
+    if (h > 0) irSiguiente(); else irAnterior();
+  }, { passive: false });
 
   // Si hubo arrastre real, que no dispare un click en el slide soltado.
   track.addEventListener("click", (ev) => {
