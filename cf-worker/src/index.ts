@@ -780,6 +780,45 @@ async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): 
   }
 }
 
+// ===== Rastreo de clics (para cuando el funnel va dentro de un iframe de
+// ClickFunnels, que no le pasa las UTMs del link a la página embebida).
+// Los links de anuncios/DMs apuntan a /go?utm_...: se guarda de qué UTM
+// vino la visita (con una huella irreconocible de IP + navegador, 6 horas)
+// y se la manda a la landing. Cuando la landing carga dentro del iframe, le
+// pregunta a /click-match con la misma huella y recupera las UTMs. =====
+const DESTINO_FUNNEL = "https://class.stepherup.com/step-her-up-c";
+const UTM_CLAVES = ["utm_source", "utm_medium", "utm_campaign", "utm_content"] as const;
+
+async function huellaVisita(request: Request): Promise<string> {
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  const ua = request.headers.get("User-Agent") || "";
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`shu|${ip}|${ua}`));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
+async function handleGo(request: Request, url: URL, env: Env): Promise<Response> {
+  const utm: Record<string, string> = {};
+  const destino = new URL(DESTINO_FUNNEL);
+  for (const k of UTM_CLAVES) {
+    const v = (url.searchParams.get(k) || "").trim().slice(0, 150);
+    if (v) { utm[k] = v; destino.searchParams.set(k, v); }
+  }
+  // Los robots de vista previa (Meta, WhatsApp...) también abren el link: no cuentan.
+  const ua = request.headers.get("User-Agent") || "";
+  const esRobot = /bot|crawler|spider|facebookexternalhit|facebot|preview|slurp|whatsapp|telegram/i.test(ua);
+  if (!esRobot && Object.keys(utm).length) {
+    await env.ESTRATEGIAS.put(`click:${await huellaVisita(request)}`, JSON.stringify(utm), { expirationTtl: 21600 });
+  }
+  return new Response(null, { status: 302, headers: { Location: destino.toString(), "Cache-Control": "no-store" } });
+}
+
+async function handleClickMatch(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  const guardado = await env.ESTRATEGIAS.get(`click:${await huellaVisita(request)}`);
+  let utm: Record<string, string> | null = null;
+  try { utm = guardado ? JSON.parse(guardado) : null; } catch { utm = null; }
+  return json({ ok: true, utm }, 200, { ...cors, "Cache-Control": "no-store" });
+}
+
 // Cuenta por etiquetas de atribución: { fuente, medio, campana, contenido }.
 function atribucionDeTags(tags: string[] | undefined): { src: string; med: string; camp: string; cont: string } {
   const out = { src: "", med: "", camp: "", cont: "" };
@@ -880,6 +919,12 @@ export default {
       }
       if (url.pathname.startsWith("/recursos/") && request.method === "GET") {
         return await handleRecurso(request, env, decodeURIComponent(url.pathname.slice("/recursos/".length)), cors);
+      }
+      if (url.pathname === "/go" && (request.method === "GET" || request.method === "HEAD")) {
+        return await handleGo(request, url, env);
+      }
+      if (url.pathname === "/click-match" && request.method === "GET") {
+        return await handleClickMatch(request, env, cors);
       }
       if (url.pathname === "/atribucion" && request.method === "POST") {
         return await handleAtribucion(request, env, cors);

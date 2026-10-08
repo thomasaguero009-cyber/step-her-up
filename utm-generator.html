@@ -169,6 +169,7 @@
         <div>
           <label>Destino</label>
           <select id="genDestino">
+            <option value="__go">Funnel en ClickFunnels (con rastreo)</option>
             <option value="">Landing (raíz)</option>
             <option value="formulario.html">Formulario</option>
             <option value="calendario.html">Calendario</option>
@@ -189,6 +190,7 @@
         <div>
           <label>Destino del anuncio</label>
           <select id="metaDestino">
+            <option value="__go">Funnel en ClickFunnels (con rastreo)</option>
             <option value="">Landing (raíz)</option>
             <option value="formulario.html">Formulario</option>
             <option value="calendario.html">Calendario</option>
@@ -222,6 +224,10 @@
 
 <script>
 (function () {
+  // Los links "con rastreo" pasan por el Worker: anota de qué anuncio/cuenta vino
+  // la visita y la manda a class.stepherup.com (el funnel de ClickFunnels no le
+  // pasa las UTMs a la página embebida, por eso hace falta este paso).
+  const TRACK_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev/go";
   const PLATFORM_LABELS = { ig:"Instagram", tk:"TikTok", fb:"Facebook", yt:"YouTube", google:"Google", chatgpt:"ChatGPT" };
   const DEFAULT_BASE_URL = location.origin + location.pathname.replace(/utm-generator\.html$/, "");
 
@@ -357,14 +363,15 @@
     const account = accounts.find((a) => a.code === accCodeVal);
     if (!account) return null;
     const base = (baseUrlInput.value.trim() || DEFAULT_BASE_URL).replace(/\/?$/, "/");
-    const path = genDestino.value;
+    const path = genDestino.value === "__go" ? "" : genDestino.value;
     const params = new URLSearchParams({
       utm_source: account.platform,
       utm_medium: genMedium.value,
       utm_campaign: account.code,
     });
     if (genSetter.value) params.set("utm_content", genSetter.value);
-    return { url: base + path + "?" + params.toString(), account, setterCode: genSetter.value };
+    const url = genDestino.value === "__go" ? TRACK_URL + "?" + params.toString() : base + path + "?" + params.toString();
+    return { url, account, setterCode: genSetter.value };
   }
 
   function renderLinks() {
@@ -424,7 +431,7 @@
   const metaDestino = document.getElementById("metaDestino");
   function renderMeta() {
     const base = (baseUrlInput.value.trim() || DEFAULT_BASE_URL).replace(/\/?$/, "/");
-    document.getElementById("metaUrl").textContent = base + metaDestino.value;
+    document.getElementById("metaUrl").textContent = metaDestino.value === "__go" ? TRACK_URL : base + metaDestino.value;
   }
   metaDestino.addEventListener("change", renderMeta);
   baseUrlInput.addEventListener("input", renderMeta);
