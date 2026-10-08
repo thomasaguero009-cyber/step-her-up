@@ -183,6 +183,32 @@
     </div>
 
     <div class="card">
+      <h2>Anuncios de Meta (pago)</h2>
+      <p class="hint">Para los anuncios no hace falta generar un link por cada uno: se pega una sola vez la URL y los parámetros de abajo en el anuncio (o se duplica uno que ya los tenga) y Meta completa solo el nombre de la campaña y del anuncio. Esos nombres son los que después se ven en el dashboard, en Campañas (UTM), así que ponles nombres claros.</p>
+      <div class="row" style="grid-template-columns:1fr;">
+        <div>
+          <label>Destino del anuncio</label>
+          <select id="metaDestino">
+            <option value="">Landing (raíz)</option>
+            <option value="formulario.html">Formulario</option>
+            <option value="calendario.html">Calendario</option>
+            <option value="webinar.html">Webinar</option>
+          </select>
+        </div>
+      </div>
+      <label>1) URL del sitio web (campo "URL del sitio web" del anuncio)</label>
+      <div class="result show" style="margin-top:8px;margin-bottom:18px;">
+        <div class="url" id="metaUrl"></div>
+        <button class="btn btn-sm" data-copy-id="metaUrl">Copiar</button>
+      </div>
+      <label>2) Parámetros de URL (campo "Seguimiento → Parámetros de URL")</label>
+      <div class="result show" style="margin-top:8px;">
+        <div class="url" id="metaParams">utm_source=facebook&amp;utm_medium=cpc&amp;utm_campaign={{campaign.name}}&amp;utm_content={{ad.name}}</div>
+        <button class="btn btn-sm" data-copy-id="metaParams">Copiar</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Links generados</h2>
       <table id="linksTable">
         <thead><tr><th>Fecha</th><th>Cuenta</th><th>Medio</th><th>Setter</th><th>URL</th><th></th></tr></thead>
@@ -393,6 +419,18 @@
   });
 
   document.getElementById("copyBtn").addEventListener("click", () => copyText(resultUrl.textContent));
+
+  // ===== Anuncios de Meta: URL + parámetros dinámicos =====
+  const metaDestino = document.getElementById("metaDestino");
+  function renderMeta() {
+    const base = (baseUrlInput.value.trim() || DEFAULT_BASE_URL).replace(/\/?$/, "/");
+    document.getElementById("metaUrl").textContent = base + metaDestino.value;
+  }
+  metaDestino.addEventListener("change", renderMeta);
+  baseUrlInput.addEventListener("input", renderMeta);
+  document.querySelectorAll("[data-copy-id]").forEach((b) =>
+    b.addEventListener("click", () => copyText(document.getElementById(b.getAttribute("data-copy-id")).textContent)));
+  renderMeta();
   linksBody.addEventListener("click", (ev) => {
     const encoded = ev.target.getAttribute("data-copy");
     if (encoded == null) return;

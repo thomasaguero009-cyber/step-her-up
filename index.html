@@ -737,14 +737,29 @@
 
 <script>
 (function () {
+  // ===== UTMs "arrastradas": se leen del link y se guardan en el navegador
+  // (shu_utm) para que sigan valiendo al pasar por landing -> formulario ->
+  // calendario aunque esas páginas se abran sin parámetros. Si llega un link
+  // con UTMs nuevas pisan a las guardadas (último anuncio tocado); las
+  // guardadas vencen a los 30 días. =====
+  const UTM_CLAVES = ["utm_source", "utm_medium", "utm_campaign", "utm_content"];
   function getUTMs() {
-    const params = new URLSearchParams(location.search);
-    return {
-      utm_source: params.get("utm_source") || "",
-      utm_medium: params.get("utm_medium") || "",
-      utm_campaign: params.get("utm_campaign") || "",
-      utm_content: params.get("utm_content") || "",
-    };
+    const vacio = { utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "" };
+    try {
+      const params = new URLSearchParams(location.search);
+      const nuevas = {};
+      UTM_CLAVES.forEach((k) => { const v = (params.get(k) || "").trim().slice(0, 150); if (v) nuevas[k] = v; });
+      if (Object.keys(nuevas).length) {
+        localStorage.setItem("shu_utm", JSON.stringify({ ...vacio, ...nuevas, fecha: Date.now() }));
+        return { ...vacio, ...nuevas };
+      }
+      const g = JSON.parse(localStorage.getItem("shu_utm"));
+      if (g && g.fecha && Date.now() - g.fecha < 30 * 24 * 3600 * 1000) {
+        const out = {}; UTM_CLAVES.forEach((k) => { out[k] = g[k] || ""; });
+        return out;
+      }
+    } catch (e) {}
+    return vacio;
   }
 
   // Webhook del Workflow de GHL ("Inbound Webhook") — cada lead se manda
@@ -815,6 +830,7 @@
       pagina: location.href,
       fecha: lead.fecha,
     });
+    registrarAtribucion({ nombre, email, telefono, ...getUTMs() });
     closeGate();
     startVsl();
   });
@@ -827,6 +843,21 @@
   // formulario. Se selecciona la <option> exacta y no por valor: varios
   // países comparten "+1" (Puerto Rico, EE.UU., Canadá...).
   const GEO_WORKER_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev";
+  // Etiqueta al contacto en GHL con de qué anuncio/cuenta vino (el dashboard
+  // arma "agendas por campaña" con esas etiquetas). Fire-and-forget: si falla
+  // no traba nada. Solo se manda si hay al menos una UTM.
+  function registrarAtribucion(p) {
+    if (!p.utm_source && !p.utm_campaign) return;
+    try {
+      fetch(GEO_WORKER_URL + "/atribucion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (e) {}
+  }
+  getUTMs(); // guarda las UTMs del link apenas carga la página
   async function detectCountryCode(selectEl) {
     const elegir = (opt) => { opt.selected = true; };
     try {

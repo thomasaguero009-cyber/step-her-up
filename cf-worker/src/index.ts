@@ -137,6 +137,10 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
     phone?: string;
     startTime?: string;
     timezone?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
   };
   try {
     payload = await request.json();
@@ -160,6 +164,14 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
     });
   } catch (err) {
     return json({ ok: false, error: "contact_failed", detail: String(err) }, 502, cors);
+  }
+
+  // Atribución: de qué link/anuncio vino. Si falla NO rompe la reserva.
+  let atribucion = "sin_utm";
+  try {
+    atribucion = await etiquetarAtribucion(env, contactId, payload);
+  } catch (err) {
+    atribucion = "error";
   }
 
   // No mandamos endTime: dejamos que GHL calcule la duración con la
@@ -195,7 +207,7 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
 
   const appt = await apptRes.json();
   const oportunidad = await ponerEnAutoBooked(env, contactId, `${firstName} ${lastName || ""}`.trim());
-  return json({ ok: true, appointment: appt, opportunity: oportunidad }, 200, cors);
+  return json({ ok: true, appointment: appt, opportunity: oportunidad, atribucion }, 200, cors);
 }
 
 // Al agendar desde el calendario propio, el lead también tiene que verse
@@ -294,6 +306,7 @@ interface OpportunityGHL {
   pipelineStageId: string;
   lastStageChangeAt: string;
   monetaryValue?: number;
+  contact?: { tags?: string[] };
 }
 
 // Trae TODAS las oportunidades de un pipeline (paginado, 100 por página) —
@@ -341,6 +354,17 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
 
   const totales = { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0, noShows: 0, descartados: 0 };
   const porFuente: Record<string, { llamadas: number; agendadas: number; shows: number; cierres: number; ventas: number }> = {};
+  // Desglose por UTM (etiquetas del contacto). "" = sin UTM.
+  type FilaUtm = { llamadas: number; agendadas: number; shows: number; cierres: number; ventas: number };
+  const utm: Record<"src" | "med" | "camp" | "cont", Record<string, FilaUtm>> = { src: {}, med: {}, camp: {}, cont: {} };
+  const sumar = (dim: "src" | "med" | "camp" | "cont", clave: string, v: { ll: boolean; ag: boolean; sh: boolean; ci: boolean; monto: number }) => {
+    const f = (utm[dim][clave] = utm[dim][clave] || { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
+    if (v.ll) f.llamadas++;
+    if (v.ag) f.agendadas++;
+    if (v.sh) f.shows++;
+    if (v.ci) { f.cierres++; f.ventas += v.monto; }
+  };
+  let conTags = 0, sinTags = 0;
 
   // Los 4 pipelines se paginan EN PARALELO (cada uno es independiente) —
   // secuencial tardaba ~17s con el volumen actual, así queda bien por debajo
@@ -364,6 +388,12 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
       const esShow = categoria === 'show_sin_cierre' || categoria === 'cerrado';
       const monto = o.monetaryValue || 0;
 
+      if (esLlamado || esAgendada || esShow || categoria === 'cerrado') {
+        const atr = atribucionDeTags(o.contact?.tags);
+        if (o.contact?.tags) conTags++; else sinTags++;
+        const v = { ll: esLlamado, ag: esAgendada, sh: esShow, ci: categoria === 'cerrado', monto };
+        (["src", "med", "camp", "cont"] as const).forEach((d) => sumar(d, atr[d], v));
+      }
       if (esLlamado) { totales.llamadas++; fu.llamadas++; }
       if (esAgendada) { totales.agendadas++; fu.agendadas++; }
       if (esShow) { totales.shows++; fu.shows++; }
@@ -373,7 +403,7 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
     }
   });
 
-  return json({ ok: true, totales, porFuente }, 200, cors);
+  return json({ ok: true, totales, porFuente, utm, utmDiagnostico: { conTags, sinTags } }, 200, cors);
 }
 
 // ===== Funnel día a día — mismo criterio que handleLeadsSummary (last
@@ -447,6 +477,7 @@ interface ContactoGHL {
   dateAdded: string;
   source?: string | null;
   attributions?: { medium?: string | null }[];
+  tags?: string[];
 }
 
 function origenDeContacto(c: ContactoGHL): string {
@@ -463,6 +494,7 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
   const diaPR = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" });
   const dias: Record<string, { total: number; porOrigen: Record<string, number> }> = {};
   const origenes = new Set<string>();
+  const utmLeads: Record<"src" | "camp" | "cont", Record<string, number>> = { src: {}, camp: {}, cont: {} };
   let total = 0;
   let cortadoPorLimite = false;
 
@@ -484,6 +516,8 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
       const d = (dias[dia] = dias[dia] || { total: 0, porOrigen: {} });
       d.total++;
       d.porOrigen[origen] = (d.porOrigen[origen] || 0) + 1;
+      const atr = atribucionDeTags(c.tags);
+      (["src", "camp", "cont"] as const).forEach((k) => { utmLeads[k][atr[k]] = (utmLeads[k][atr[k]] || 0) + 1; });
       total++;
     }
     const ultimo = lote.length ? Date.parse(lote[lote.length - 1].dateAdded) : 0;
@@ -493,7 +527,7 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
     startAfterId = String(body.meta.startAfterId);
   }
 
-  return json({ ok: true, total, dias, origenes: [...origenes].sort(), cortadoPorLimite }, 200, cors);
+  return json({ ok: true, total, dias, origenes: [...origenes].sort(), utmLeads, cortadoPorLimite }, 200, cors);
 }
 
 // ===== Videos servidos desde R2 (reemplaza a Bunny CDN — mismo archivo,
@@ -687,9 +721,73 @@ async function handleEstrategiaGenerar(request: Request, env: Env, cors: Headers
 // igual la dejan pasar y se reintenta después desde el navegador.
 const EVENTO_WEBINAR = { tag: "webinar-21-oct", fuente: "Webinar 21 oct" };
 
-function slugTag(prefijo: string, valor: unknown): string | null {
-  const v = String(valor || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+function slugTag(prefijo: string, valor: unknown, largo = 40): string | null {
+  const v = String(valor || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, largo);
   return v ? `${prefijo}-${v}` : null;
+}
+
+// ===== Atribución (UTMs) =====
+// Cada lead lleva las UTMs del link por el que entró (landing → formulario →
+// calendario). Se guardan en su ficha de GHL como etiquetas: src-<fuente>,
+// med-<medio>, camp-<campaña>, cont-<anuncio o setter>. El dashboard cuenta
+// agendas, shows y cierres por esas etiquetas. Gana el PRIMER toque: si el
+// contacto ya tiene src-/camp-, no se le suman otras (así no cuenta doble).
+type UtmPayload = { utm_source?: unknown; utm_medium?: unknown; utm_campaign?: unknown; utm_content?: unknown };
+
+function utmTags(p: UtmPayload): string[] {
+  return [
+    slugTag("src", p.utm_source, 40),
+    slugTag("med", p.utm_medium, 40),
+    slugTag("camp", p.utm_campaign, 70),
+    slugTag("cont", p.utm_content, 70),
+  ].filter(Boolean) as string[];
+}
+
+async function etiquetarAtribucion(env: Env, contactId: string, p: UtmPayload): Promise<string> {
+  const tags = utmTags(p);
+  if (!tags.length) return "sin_utm";
+  const actual = await fetch(`${GHL_BASE}/contacts/${contactId}`, { headers: ghlHeaders(env) });
+  if (actual.ok) {
+    const cuerpo = (await actual.json()) as { contact?: { tags?: string[] } };
+    if ((cuerpo.contact?.tags || []).some((t) => /^(src|camp)-/.test(t))) return "ya_tenia";
+  }
+  const res = await fetch(`${GHL_BASE}/contacts/${contactId}/tags`, {
+    method: "POST",
+    headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+    body: JSON.stringify({ tags }),
+  });
+  return res.ok ? "etiquetado" : `error_${res.status}`;
+}
+
+// Etiqueta a un lead apenas pasa por la landing (aunque todavía no agende).
+async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  let p: Record<string, unknown>;
+  try {
+    p = await request.json();
+  } catch {
+    return json({ ok: false, error: "invalid_json" }, 400, cors);
+  }
+  const nombre = String(p.nombre || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const email = String(p.email || "").trim().toLowerCase().slice(0, 120);
+  const telefono = String(p.telefono || "").replace(/[^\d+]/g, "").slice(0, 20);
+  if (!utmTags(p).length || (!email && !telefono)) return json({ ok: true, resultado: "nada_para_hacer" }, 200, cors);
+  const partes = (nombre || "Lead").split(" ");
+  try {
+    const id = await upsertContact(env, { firstName: partes[0], lastName: partes.slice(1).join(" "), email, phone: telefono });
+    return json({ ok: true, resultado: await etiquetarAtribucion(env, id, p) }, 200, cors);
+  } catch (err) {
+    return json({ ok: false, error: "atribucion_failed", detail: String(err).slice(0, 200) }, 502, cors);
+  }
+}
+
+// Cuenta por etiquetas de atribución: { fuente, medio, campana, contenido }.
+function atribucionDeTags(tags: string[] | undefined): { src: string; med: string; camp: string; cont: string } {
+  const out = { src: "", med: "", camp: "", cont: "" };
+  for (const t of tags || []) {
+    const m = /^(src|med|camp|cont)-(.+)$/.exec(t);
+    if (m && !out[m[1] as "src"]) out[m[1] as "src"] = m[2];
+  }
+  return out;
 }
 
 async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
@@ -710,7 +808,7 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
   if (telefono.replace(/\D/g, "").length < 7) return json({ ok: false, error: "telefono_invalido" }, 400, cors);
 
   const partes = nombre.split(" ");
-  const tags = [EVENTO_WEBINAR.tag, slugTag("src", p.utm_source), slugTag("camp", p.utm_campaign)].filter(Boolean) as string[];
+  const tags = [EVENTO_WEBINAR.tag, ...utmTags(p)];
   const pedir = (timezone?: string) =>
     fetch(`${GHL_BASE}/contacts/upsert`, {
       method: "POST",
@@ -782,6 +880,9 @@ export default {
       }
       if (url.pathname.startsWith("/recursos/") && request.method === "GET") {
         return await handleRecurso(request, env, decodeURIComponent(url.pathname.slice("/recursos/".length)), cors);
+      }
+      if (url.pathname === "/atribucion" && request.method === "POST") {
+        return await handleAtribucion(request, env, cors);
       }
       if (url.pathname === "/webinar-registro" && request.method === "POST") {
         return await handleWebinarRegistro(request, env, cors);

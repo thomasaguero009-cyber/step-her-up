@@ -732,12 +732,21 @@
 
   // ===== Registro =====
   const params = new URLSearchParams(location.search);
-  const utms = {
-    utm_source: params.get("utm_source") || "",
-    utm_medium: params.get("utm_medium") || "",
-    utm_campaign: params.get("utm_campaign") || "",
-    utm_content: params.get("utm_content") || "",
-  };
+  // Mismas UTMs "arrastradas" que el resto del funnel (shu_utm, 30 días).
+  const utms = (function () {
+    const vacio = { utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "" };
+    try {
+      const nuevas = {};
+      Object.keys(vacio).forEach((k) => { const v = (params.get(k) || "").trim().slice(0, 150); if (v) nuevas[k] = v; });
+      if (Object.keys(nuevas).length) {
+        localStorage.setItem("shu_utm", JSON.stringify({ ...vacio, ...nuevas, fecha: Date.now() }));
+        return { ...vacio, ...nuevas };
+      }
+      const g = JSON.parse(localStorage.getItem("shu_utm"));
+      if (g && g.fecha && Date.now() - g.fecha < 30 * 24 * 3600 * 1000) { Object.keys(vacio).forEach((k) => { vacio[k] = g[k] || ""; }); }
+    } catch (e) {}
+    return vacio;
+  })();
   function enviar(payload, esperarMs) {
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), esperarMs);

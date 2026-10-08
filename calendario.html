@@ -533,6 +533,25 @@
         "</div>";
     }
 
+    // UTMs del lead: primero las del link/guardadas (shu_utm), si no las que
+    // quedaron en su ficha al pasar por la landing.
+    function utmParaReservar() {
+      const vacio = { utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "" };
+      try {
+        const params = new URLSearchParams(location.search);
+        const nuevas = {};
+        Object.keys(vacio).forEach((k) => { const v = (params.get(k) || "").trim().slice(0, 150); if (v) nuevas[k] = v; });
+        if (Object.keys(nuevas).length) {
+          localStorage.setItem("shu_utm", JSON.stringify({ ...vacio, ...nuevas, fecha: Date.now() }));
+          return { ...vacio, ...nuevas };
+        }
+        const g = JSON.parse(localStorage.getItem("shu_utm"));
+        const out = {};
+        Object.keys(vacio).forEach((k) => { out[k] = (g && g.fecha && Date.now() - g.fecha < 30 * 24 * 3600 * 1000 && g[k]) || contacto[k] || ""; });
+        return out;
+      } catch (e) { return vacio; }
+    }
+
     async function reservar() {
       const confirmarBtn = document.getElementById("calConfirmar");
       const cancelarBtn = document.getElementById("calCancelar");
@@ -550,6 +569,7 @@
             phone: contacto.telefono || "",
             startTime: selectedSlot.iso,
             timezone: tz,
+            ...utmParaReservar(),
           }),
         });
         const body = await res.json();

@@ -410,6 +410,22 @@
   // manda el mismo email/teléfono, GHL actualiza el contacto que ya se
   // había creado ahí, en vez de duplicarlo.
   const GHL_WEBHOOK_URL = "https://services.leadconnectorhq.com/hooks/6cXs7Gwtzk0m50TZkWPg/webhook-trigger/0df4ac3d-a465-414c-98c2-f48607952e35";
+  // UTMs guardadas por la landing (shu_utm) — por si el lead entró directo acá.
+  function utmGuardadas() {
+    const vacio = { utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "" };
+    try {
+      const params = new URLSearchParams(location.search);
+      const claves = Object.keys(vacio), nuevas = {};
+      claves.forEach((k) => { const v = (params.get(k) || "").trim().slice(0, 150); if (v) nuevas[k] = v; });
+      if (Object.keys(nuevas).length) {
+        localStorage.setItem("shu_utm", JSON.stringify({ ...vacio, ...nuevas, fecha: Date.now() }));
+        return { ...vacio, ...nuevas };
+      }
+      const g = JSON.parse(localStorage.getItem("shu_utm"));
+      if (g && g.fecha && Date.now() - g.fecha < 30 * 24 * 3600 * 1000) { claves.forEach((k) => { vacio[k] = g[k] || ""; }); }
+    } catch (e) {}
+    return vacio;
+  }
   function sendToGHL(payload) {
     try {
       fetch(GHL_WEBHOOK_URL, {
@@ -437,10 +453,10 @@
       full_name: contacto.nombre || "",
       email: contacto.email || "",
       phone: contacto.telefono || "",
-      utm_source: contacto.utm_source || "",
-      utm_medium: contacto.utm_medium || "",
-      utm_campaign: contacto.utm_campaign || "",
-      utm_content: contacto.utm_content || "",
+      utm_source: contacto.utm_source || utmGuardadas().utm_source,
+      utm_medium: contacto.utm_medium || utmGuardadas().utm_medium,
+      utm_campaign: contacto.utm_campaign || utmGuardadas().utm_campaign,
+      utm_content: contacto.utm_content || utmGuardadas().utm_content,
       respuestas_quiz: respuestasTexto,
       pagina_origen: completo ? "formulario" : `formulario (parcial ${answeredLog.length}/${formSteps.length})`,
       fecha: new Date().toISOString(),
