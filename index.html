@@ -906,6 +906,14 @@
   // SHU, en vez de los controles nativos del navegador — no hay botón
   // de pausa ni reloj: tocar el video directamente lo pausa/reanuda. =====
   const applyBtn = document.getElementById("applyBtn");
+  // El botón arrastra las UTMs en el link (formulario.html?utm_...), así llegan
+  // aunque el formulario se abra en otro contexto del navegador (el funnel va
+  // dentro de un iframe de ClickFunnels y el botón sale de él con target _top).
+  (function () {
+    const u = getUTMs(), q = new URLSearchParams();
+    Object.keys(u).forEach((k) => { if (u[k]) q.set(k, u[k]); });
+    if (q.toString()) applyBtn.href = "formulario.html?" + q.toString();
+  })();
   const fill = document.getElementById("ctaFill");
   const vslVideo = document.getElementById("vslVideo");
   const vslVideoWrap = document.getElementById("vslVideoWrap");

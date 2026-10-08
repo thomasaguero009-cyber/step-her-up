@@ -475,7 +475,9 @@
         fecha: new Date().toISOString(),
       }));
     } catch (e) {}
-    window.top.location.href = "calendario.html";
+    const q = new URLSearchParams(), u = utmGuardadas();
+    Object.keys(u).forEach((k) => { if (u[k]) q.set(k, u[k]); });
+    window.top.location.href = "calendario.html" + (q.toString() ? "?" + q.toString() : "");
   }
 
   function recordAndAdvance(question, questionText, label) {
