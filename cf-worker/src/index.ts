@@ -796,7 +796,8 @@ async function huellaVisita(request: Request): Promise<string> {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
 
-async function handleGo(request: Request, url: URL, env: Env): Promise<Response> {
+// Anota de qué UTM vino esta visita (misma huella IP + navegador).
+async function registrarClic(request: Request, url: URL, env: Env): Promise<URL> {
   const utm: Record<string, string> = {};
   const destino = new URL(DESTINO_FUNNEL);
   for (const k of UTM_CLAVES) {
@@ -809,7 +810,19 @@ async function handleGo(request: Request, url: URL, env: Env): Promise<Response>
   if (!esRobot && Object.keys(utm).length) {
     await env.ESTRATEGIAS.put(`click:${await huellaVisita(request)}`, JSON.stringify(utm), { expirationTtl: 21600 });
   }
+  return destino;
+}
+
+// Link directo (con el dominio del Worker): anota y redirige.
+async function handleGo(request: Request, url: URL, env: Env): Promise<Response> {
+  const destino = await registrarClic(request, url, env);
   return new Response(null, { status: 302, headers: { Location: destino.toString(), "Cache-Control": "no-store" } });
+}
+
+// La página dash.stepherup.com/go lo llama desde el navegador y después redirige ella.
+async function handleClic(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  await registrarClic(request, url, env);
+  return new Response(null, { status: 204, headers: { ...cors, "Cache-Control": "no-store" } });
 }
 
 async function handleClickMatch(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
@@ -922,6 +935,9 @@ export default {
       }
       if (url.pathname === "/go" && (request.method === "GET" || request.method === "HEAD")) {
         return await handleGo(request, url, env);
+      }
+      if (url.pathname === "/click" && request.method === "GET") {
+        return await handleClic(request, url, env, cors);
       }
       if (url.pathname === "/click-match" && request.method === "GET") {
         return await handleClickMatch(request, env, cors);

@@ -224,10 +224,10 @@
 
 <script>
 (function () {
-  // Los links "con rastreo" pasan por el Worker: anota de qué anuncio/cuenta vino
+  // Los links "con rastreo" pasan por dash.stepherup.com/go (que avisa al Worker): anota de qué anuncio/cuenta vino
   // la visita y la manda a class.stepherup.com (el funnel de ClickFunnels no le
   // pasa las UTMs a la página embebida, por eso hace falta este paso).
-  const TRACK_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev/go";
+  const TRACK_URL = "https://dash.stepherup.com/go/";
   const PLATFORM_LABELS = { ig:"Instagram", tk:"TikTok", fb:"Facebook", yt:"YouTube", google:"Google", chatgpt:"ChatGPT" };
   const DEFAULT_BASE_URL = location.origin + location.pathname.replace(/utm-generator\.html$/, "");
 
