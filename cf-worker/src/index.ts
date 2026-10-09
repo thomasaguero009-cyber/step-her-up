@@ -852,6 +852,17 @@ async function handleClickMatch(request: Request, env: Env, cors: HeadersInit): 
   return json({ ok: true, utm }, 200, { ...cors, "Cache-Control": "no-store" });
 }
 
+// Diagnóstico (solo admin): pipelines con sus etapas e ids, para conectar el funnel.
+async function handlePipelinesAdmin(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) {
+    return json({ ok: false, error: "unauthorized" }, 401, cors);
+  }
+  const res = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!res.ok) return json({ ok: false, error: "pipelines_failed", detail: (await res.text()).slice(0, 200) }, 502, cors);
+  const body = (await res.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] };
+  return json({ ok: true, pipelines: (body.pipelines || []).map((p) => ({ id: p.id, name: p.name, etapas: (p.stages || []).map((e) => ({ id: e.id, name: e.name })) })) }, 200, cors);
+}
+
 // Diagnóstico (solo admin): últimos contactos con sus etiquetas de UTM, para
 // comprobar que la atribución llegó. ?q= busca por email/teléfono/nombre.
 async function handleContactosRecientes(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
@@ -974,6 +985,9 @@ export default {
       }
       if (url.pathname === "/go" && (request.method === "GET" || request.method === "HEAD")) {
         return await handleGo(request, url, env);
+      }
+      if (url.pathname === "/admin/pipelines" && request.method === "GET") {
+        return await handlePipelinesAdmin(request, env, cors);
       }
       if (url.pathname === "/admin/contactos-recientes" && request.method === "GET") {
         return await handleContactosRecientes(request, url, env, cors);
