@@ -1,6 +1,6 @@
 /* Carrusel de capturas de testimonios (compartido por index, webinar y testimonios).
    Autoplay infinito con zona de clones, arrastre (mouse y dedo), flechas, teclado,
-   trackpad horizontal y visor al tocar una captura. Necesita #carouselTrack con las
+   trackpad horizontal y zoom en el lugar al tocar una captura. Necesita #carouselTrack con las
    slides reales seguidas de 3 clones de las primeras. */
 (function () {
   var track = document.getElementById("carouselTrack");
@@ -16,7 +16,7 @@
 
   var index = 0;
   var autoplayTimer = null, resumeTimer = null, bridgeResetHandler = null;
-  var hovering = false, lightboxAbierto = false;
+  var hovering = false;
 
   // ----- Estructura: flechas alrededor del carrusel -----
   var wrap = document.createElement("div");
@@ -62,7 +62,7 @@
     stopAutoplay();
     if (resumeTimer) clearTimeout(resumeTimer);
     resumeTimer = setTimeout(function () {
-      if (hovering || lightboxAbierto) return; // sigue mirando: no se mueve
+      if (hovering || zoom) return; // sigue mirando: no se mueve
       startAutoplay();
     }, msParaRetomar);
   }
@@ -146,88 +146,83 @@
   track.addEventListener("pointercancel", endDrag);
   track.addEventListener("pointerleave", function (ev) { if (dragging) endDrag(ev); });
 
-  // ----- Visor: tocar una captura la abre grande -----
-  var imgs = [];
-  for (var i = 0; i < realSlides; i++) {
-    var im = track.children[i].querySelector("img");
-    imgs.push({ src: im ? im.getAttribute("src") : "", alt: im ? im.getAttribute("alt") : "" });
+  // ----- Zoom en el mismo lugar: tocar una captura la agranda un poco; tocarla
+  // otra vez (o tocar afuera, o Esc) la devuelve a su tamaño. -----
+  var ESCALA = 1.25;
+  var zoom = null; // { el, slide }
+  function lugarDe(slide) {
+    var r = slide.getBoundingClientRect();
+    return { left: r.left + window.pageXOffset, top: r.top + window.pageYOffset, width: r.width, height: r.height };
   }
-  var lb = document.createElement("div");
-  lb.className = "shu-lb";
-  lb.setAttribute("role", "dialog"); lb.setAttribute("aria-modal", "true"); lb.setAttribute("aria-label", "Captura ampliada");
-  lb.innerHTML =
-    '<div class="shu-lb-stage">' +
-    '<div class="shu-lb-cuenta"></div>' +
-    '<button type="button" class="shu-lb-btn shu-lb-cerrar" aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
-    '<button type="button" class="shu-lb-btn shu-lb-prev" aria-label="Anterior">' + svgIzq + '</button>' +
-    '<button type="button" class="shu-lb-btn shu-lb-next" aria-label="Siguiente">' + svgDer + '</button>' +
-    '<img alt="">' +
-    '</div>';
-  document.body.appendChild(lb);
-  var lbImg = lb.querySelector("img"), lbCuenta = lb.querySelector(".shu-lb-cuenta");
-  var lbActual = 0;
-  var embebido = false;
-  try { embebido = window.self !== window.top; } catch (e) { embebido = true; }
-
-  function pintarLb() {
-    lbImg.src = imgs[lbActual].src;
-    lbImg.alt = imgs[lbActual].alt || "Captura de testimonio";
-    lbCuenta.textContent = (lbActual + 1) + " / " + imgs.length;
+  function lugarAmpliado(base) {
+    var embebido = false;
+    try { embebido = window.self !== window.top; } catch (e) { embebido = true; }
+    var docW = document.documentElement.clientWidth;
+    var s = Math.min(ESCALA, (docW - 16) / base.width);
+    // Fuera de un iframe también se cuida que entre en la pantalla; dentro de uno
+    // (ClickFunnels) la altura de la ventana es la de toda la página, no sirve.
+    if (!embebido) s = Math.min(s, (window.innerHeight * 0.94) / base.height);
+    s = Math.max(1, s);
+    var w = base.width * s, h = base.height * s;
+    var left = base.left - (w - base.width) / 2;
+    var top = base.top - (h - base.height) / 2;
+    left = Math.max(8, Math.min(left, docW - w - 8));
+    if (!embebido) {
+      // que se vea entera sin tener que mover la página
+      var minTop = window.pageYOffset + 8, maxTop = window.pageYOffset + window.innerHeight - h - 8;
+      top = Math.max(minTop, Math.min(top, Math.max(minTop, maxTop)));
+    }
+    return { left: left, top: top, width: w, height: h };
   }
-  function abrirLb(i) {
-    lbActual = ((i % imgs.length) + imgs.length) % imgs.length;
-    pintarLb();
-    lightboxAbierto = true;
+  function ponerLugar(el, p) {
+    el.style.left = p.left + "px"; el.style.top = p.top + "px";
+    el.style.width = p.width + "px"; el.style.height = p.height + "px";
+  }
+  function abrirZoom(slide) {
+    cerrarZoom(true);
+    var img = slide.querySelector("img");
+    if (!img) return;
+    var base = lugarDe(slide);
+    var el = document.createElement("div");
+    el.className = "shu-zoom";
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", "Captura ampliada. Toca para achicar");
+    el.innerHTML = '<img alt="">';
+    el.firstChild.src = img.getAttribute("src");
+    el.firstChild.alt = img.getAttribute("alt") || "Captura de testimonio";
+    ponerLugar(el, base);
+    document.body.appendChild(el);
+    void el.offsetWidth;
+    el.classList.add("abierto");
+    ponerLugar(el, lugarAmpliado(base));
+    zoom = { el: el, slide: slide };
     stopAutoplay();
     if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
-    if (embebido) {
-      // Dentro de un iframe (ClickFunnels) el visor no puede ocupar "la pantalla":
-      // el iframe mide toda la página. Se ancla donde está el carrusel, que es donde
-      // la persona acaba de tocar y por eso está a la vista.
-      var r = wrap.getBoundingClientRect();
-      var alto = Math.min(820, Math.max(520, window.innerHeight - 40));
-      var centro = r.top + window.pageYOffset + r.height / 2;
-      lb.classList.add("incrustado");
-      lb.style.top = Math.max(0, centro - alto / 2) + "px";
-      lb.style.height = alto + "px";
-    } else {
-      document.body.style.overflow = "hidden";
-    }
-    lb.classList.add("open");
-    lb.querySelector(".shu-lb-cerrar").focus();
+    el.addEventListener("click", function (e) { e.stopPropagation(); cerrarZoom(); });
   }
-  function cerrarLb() {
-    lb.classList.remove("open");
-    lightboxAbierto = false;
-    if (!embebido) document.body.style.overflow = "";
+  function cerrarZoom(sinAnimar) {
+    if (!zoom) return;
+    var z = zoom; zoom = null;
+    if (sinAnimar) { z.el.remove(); return; }
+    z.el.classList.remove("abierto");
+    ponerLugar(z.el, lugarDe(z.slide));
+    setTimeout(function () { z.el.remove(); }, 260);
     pausar(RESUME_AFTER_LEAVE_MS);
   }
-  lb.querySelector(".shu-lb-cerrar").addEventListener("click", cerrarLb);
-  lb.querySelector(".shu-lb-prev").addEventListener("click", function (e) { e.stopPropagation(); lbActual = (lbActual - 1 + imgs.length) % imgs.length; pintarLb(); });
-  lb.querySelector(".shu-lb-next").addEventListener("click", function (e) { e.stopPropagation(); lbActual = (lbActual + 1) % imgs.length; pintarLb(); });
-  lb.addEventListener("click", function (e) { if (e.target === lb || e.target.classList.contains("shu-lb-stage")) cerrarLb(); });
-  document.addEventListener("keydown", function (ev) {
-    if (!lightboxAbierto) return;
-    if (ev.key === "Escape") cerrarLb();
-    if (ev.key === "ArrowRight") { lbActual = (lbActual + 1) % imgs.length; pintarLb(); }
-    if (ev.key === "ArrowLeft") { lbActual = (lbActual - 1 + imgs.length) % imgs.length; pintarLb(); }
-  });
-  var tx = null;
-  lb.addEventListener("touchstart", function (e) { tx = e.touches[0].clientX; }, { passive: true });
-  lb.addEventListener("touchend", function (e) {
-    if (tx == null) return;
-    var dx = e.changedTouches[0].clientX - tx; tx = null;
-    if (Math.abs(dx) < 50) return;
-    lbActual = (lbActual + (dx < 0 ? 1 : imgs.length - 1)) % imgs.length; pintarLb();
-  }, { passive: true });
+  document.addEventListener("click", function (ev) { if (zoom && !zoom.el.contains(ev.target)) cerrarZoom(); });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") cerrarZoom(); });
+  window.addEventListener("resize", function () { cerrarZoom(true); });
+  prevBtn.addEventListener("click", function () { cerrarZoom(true); }, true);
+  nextBtn.addEventListener("click", function () { cerrarZoom(true); }, true);
 
-  // Un toque (no un arrastre) abre la captura. Se calcula por posición porque, con el
-  // puntero capturado por el arrastre, el clic puede llegar al carril y no a la slide.
+  // Un toque (no un arrastre) agranda la captura. Se calcula por posición porque, con
+  // el puntero capturado por el arrastre, el clic puede llegar al carril y no a la slide.
   track.addEventListener("click", function (ev) {
     if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); return; }
+    ev.stopPropagation();
     for (var i = 0; i < track.children.length; i++) {
       var r = track.children[i].getBoundingClientRect();
-      if (ev.clientX >= r.left && ev.clientX <= r.right) { abrirLb(i % realSlides); return; }
+      if (ev.clientX >= r.left && ev.clientX <= r.right) { abrirZoom(track.children[i]); return; }
     }
   });
 })();
