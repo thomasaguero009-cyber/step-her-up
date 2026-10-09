@@ -206,7 +206,10 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
   }
 
   const appt = await apptRes.json();
-  const oportunidad = await ponerEnAutoBooked(env, contactId, `${firstName} ${lastName || ""}`.trim());
+  // Si vino con UTMs, la oportunidad nace con el origen legible: "facebook · cpc · campaña · anuncio".
+  const origenTxt = [payload.utm_source, payload.utm_medium, payload.utm_campaign, payload.utm_content]
+    .map((v) => String(v || "").trim().slice(0, 60)).filter(Boolean).join(" · ");
+  const oportunidad = await ponerEnAutoBooked(env, contactId, `${firstName} ${lastName || ""}`.trim(), origenTxt || "Calendario landing");
   return json({ ok: true, appointment: appt, opportunity: oportunidad, atribucion }, 200, cors);
 }
 
@@ -221,7 +224,7 @@ const PIPELINE_CLICKFUNNELS = "9n9W39rlWHmD2cPdSWji";
 const ETAPA_NEW_LEAD = "31763877-0e89-482d-8fed-6afd89bc85a7";
 const ETAPA_AUTO_BOOKED = "f90944a5-3652-4756-8379-6e92041e051c";
 
-async function ponerEnAutoBooked(env: Env, contactId: string, nombre: string): Promise<{ accion: string; detail?: string }> {
+async function ponerEnAutoBooked(env: Env, contactId: string, nombre: string, origen = "Calendario landing"): Promise<{ accion: string; detail?: string }> {
   try {
     const buscar = await fetch(
       `${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${PIPELINE_CLICKFUNNELS}&contact_id=${contactId}`,
@@ -241,7 +244,7 @@ async function ponerEnAutoBooked(env: Env, contactId: string, nombre: string): P
           contactId,
           name: nombre || "Lead calendario",
           status: "open",
-          source: "Calendario landing",
+          source: origen,
         }),
       });
       if (!crear.ok) return { accion: "error", detail: `create ${crear.status}: ${await crear.text()}` };
