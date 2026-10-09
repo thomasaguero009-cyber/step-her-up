@@ -210,7 +210,12 @@ async function handleBook(request: Request, env: Env, cors: HeadersInit): Promis
   const origenTxt = [payload.utm_source, payload.utm_medium, payload.utm_campaign, payload.utm_content]
     .map((v) => String(v || "").trim().slice(0, 60)).filter(Boolean).join(" · ");
   const oportunidad = await ponerEnAutoBooked(env, contactId, `${firstName} ${lastName || ""}`.trim(), origenTxt || "Calendario landing");
-  return json({ ok: true, appointment: appt, opportunity: oportunidad, atribucion }, 200, cors);
+  // Si venía del webinar (tiene la etiqueta), también avanza en el pipeline del webinar.
+  let webinar: { accion: string; detail?: string } | null = null;
+  if (await contactoTieneTag(env, contactId, EVENTO_WEBINAR.tag)) {
+    webinar = await oportunidadWebinar(env, contactId, `${firstName} ${lastName || ""}`.trim(), "agendo");
+  }
+  return json({ ok: true, appointment: appt, opportunity: oportunidad, atribucion, webinar }, 200, cors);
 }
 
 // Al agendar desde el calendario propio, el lead también tiene que verse
@@ -724,6 +729,86 @@ async function handleEstrategiaGenerar(request: Request, env: Env, cors: Headers
 // igual la dejan pasar y se reintenta después desde el navegador.
 const EVENTO_WEBINAR = { tag: "webinar-21-oct", fuente: "Webinar 21 oct" };
 
+// Pipeline "STEP HER UP - WEBINAR": Registrada -> Asistió a la clase -> No asistió -> Agendó llamada.
+// Se crea la oportunidad al registrarse y se pasa a "Agendó llamada" al reservar. Asistió/No asistió
+// se marcan a mano. Una oportunidad nunca retrocede de etapa.
+const PIPELINE_WEBINAR = "va2QR7GwWJH7U9oeIajC";
+const ETAPAS_WEBINAR = {
+  registrada: "279f06fd-4489-409d-bd09-2fce64fa2cd9",
+  asistio: "566fff1d-884f-40b8-84d0-322bbe0a1180",
+  noAsistio: "c40c4a4b-a726-4242-b3e9-7e459396b309",
+  agendo: "f5aa115f-673c-4764-b619-c87efbd50140",
+};
+const ORDEN_ETAPAS_WEBINAR = [ETAPAS_WEBINAR.registrada, ETAPAS_WEBINAR.asistio, ETAPAS_WEBINAR.noAsistio, ETAPAS_WEBINAR.agendo];
+
+async function oportunidadWebinar(
+  env: Env,
+  contactId: string,
+  nombre: string,
+  destino: keyof typeof ETAPAS_WEBINAR
+): Promise<{ accion: string; detail?: string }> {
+  const destinoId = ETAPAS_WEBINAR[destino];
+  // Pasa una oportunidad existente a la etapa destino solo si eso es avanzar.
+  const avanzar = async (id: string, etapaActual: string): Promise<{ accion: string; detail?: string }> => {
+    if (ORDEN_ETAPAS_WEBINAR.indexOf(etapaActual) >= ORDEN_ETAPAS_WEBINAR.indexOf(destinoId)) return { accion: "sin_cambios" };
+    const mover = await fetch(`${GHL_BASE}/opportunities/${id}`, {
+      method: "PUT",
+      headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+      body: JSON.stringify({ pipelineStageId: destinoId }),
+    });
+    return mover.ok ? { accion: "movida" } : { accion: "error", detail: `move ${mover.status}: ${(await mover.text()).slice(0, 200)}` };
+  };
+  try {
+    const buscar = await fetch(
+      `${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${PIPELINE_WEBINAR}&contact_id=${contactId}`,
+      { headers: ghlHeaders(env) }
+    );
+    if (!buscar.ok) return { accion: "error", detail: `search ${buscar.status}` };
+    const { opportunities = [] } = (await buscar.json()) as { opportunities?: { id: string; pipelineStageId: string }[] };
+    if (opportunities.length) return await avanzar(opportunities[0].id, opportunities[0].pipelineStageId);
+
+    const crear = await fetch(`${GHL_BASE}/opportunities/`, {
+      method: "POST",
+      headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pipelineId: PIPELINE_WEBINAR,
+        locationId: env.GHL_LOCATION_ID,
+        pipelineStageId: destinoId,
+        contactId,
+        name: nombre || "Registro webinar",
+        status: "open",
+        source: EVENTO_WEBINAR.fuente,
+      }),
+    });
+    if (crear.ok) return { accion: "creada" };
+    const texto = await crear.text();
+    // La búsqueda de GHL a veces tarda en ver una oportunidad recién creada. GHL no permite
+    // duplicados y devuelve el id de la que ya existe: se usa esa.
+    const existente = /"existingId":"([^"]+)"/.exec(texto)?.[1];
+    if (existente) {
+      const r = await fetch(`${GHL_BASE}/opportunities/${existente}`, { headers: ghlHeaders(env) });
+      if (r.ok) {
+        const o = (await r.json()) as { opportunity?: { pipelineStageId?: string } };
+        return await avanzar(existente, o.opportunity?.pipelineStageId || "");
+      }
+    }
+    return { accion: "error", detail: `create ${crear.status}: ${texto.slice(0, 200)}` };
+  } catch (err) {
+    return { accion: "error", detail: String(err).slice(0, 200) };
+  }
+}
+
+async function contactoTieneTag(env: Env, contactId: string, tag: string): Promise<boolean> {
+  try {
+    const r = await fetch(`${GHL_BASE}/contacts/${contactId}`, { headers: ghlHeaders(env) });
+    if (!r.ok) return false;
+    const c = (await r.json()) as { contact?: { tags?: string[] } };
+    return (c.contact?.tags || []).includes(tag);
+  } catch {
+    return false;
+  }
+}
+
 function slugTag(prefijo: string, valor: unknown, largo = 40): string | null {
   const v = String(valor || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, largo);
   return v ? `${prefijo}-${v}` : null;
@@ -933,7 +1018,9 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
     return json({ ok: false, error: "ghl_failed", detail: (await res.text()).slice(0, 300) }, 502, cors);
   }
   const body = (await res.json()) as { contact?: { id?: string } };
-  return json({ ok: true, id: body.contact?.id || null }, 200, cors);
+  const idContacto = body.contact?.id || null;
+  const oportunidad = idContacto ? await oportunidadWebinar(env, idContacto, nombre, "registrada") : { accion: "sin_contacto" };
+  return json({ ok: true, id: idContacto, oportunidad }, 200, cors);
 }
 
 // --- Recursos privados (presentaciones) ---------------------------------------
