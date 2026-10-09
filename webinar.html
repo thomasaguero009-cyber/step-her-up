@@ -196,16 +196,6 @@
   .section-head{ text-align:center; max-width:620px; margin:0 auto 44px; }
   .section-head h2{ font-size:clamp(28px,3.6vw,40px); font-weight:500; }
   .section-head h2 .hl{ color:var(--blush); font-style:italic; }
-  .carousel{ max-width:900px; margin:0 auto; overflow:hidden; }
-  .carousel-track{ display:flex; gap:18px; transition:transform .6s cubic-bezier(.65,0,.35,1); will-change:transform; cursor:grab; touch-action:pan-y; user-select:none; }
-  .carousel-track:active{ cursor:grabbing; }
-  .carousel-slide{
-    flex:0 0 calc((100% - 36px)/3); aspect-ratio:369/705; border-radius:14px;
-    background:linear-gradient(160deg, var(--wine-3), var(--wine-1)); border:1px solid var(--border); overflow:hidden; touch-action:pan-y;
-  }
-  .carousel-slide img{ width:100%; height:100%; object-fit:cover; display:block; pointer-events:none; }
-  @media (max-width:900px){ .carousel-slide{ flex-basis:calc((100% - 18px)/2); } }
-  @media (max-width:600px){ .carousel-slide{ flex-basis:100%; } }
   .reviews-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; max-width:1240px; margin:0 auto; }
   .review-card{ background:#fff; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:12px; box-shadow:0 12px 30px rgba(0,0,0,0.25); }
   .review-stars{ color:#fbbc04; font-size:16px; letter-spacing:2px; }
@@ -225,6 +215,7 @@
   @media(max-width:600px){ .final{ padding:72px 0 80px; } .final .btn{ width:100%; min-width:0; } }
   footer{ border-top:1px solid var(--line); padding:26px 24px; text-align:center; font-size:13px; color:var(--text-dim); }
 </style>
+<link rel="stylesheet" href="assets/carrusel.css">
 </head>
 <body>
 
@@ -856,169 +847,6 @@
 })();
 
 </script>
-<script>
-
-
-(function(){
-  const track = document.getElementById("carouselTrack");
-  // Al final del track hay clones de las primeras CLONE_COUNT slides
-  // (ver HTML) — sirven para que el carrusel pueda seguir avanzando,
-  // a mano o solo, más allá de la última foto real sin que se note el
-  // salto al volver al principio.
-  const CLONE_COUNT = 3;
-  const totalSlides = track.children.length;
-  const realSlides = totalSlides - CLONE_COUNT;
-
-  let index = 0;
-
-  // Todo en píxeles, siempre con la MISMA cuenta (track.scrollWidth /
-  // totalSlides) — antes update() posicionaba en porcentaje mientras el
-  // arrastre calculaba en píxeles, y esos dos sistemas no coincidían
-  // exactamente; el desfasaje se iba acumulando de a poco con cada slide
-  // hasta notarse como un "tirón" después de unas cuantas fotos.
-  function stepPx(){
-    return track.scrollWidth / totalSlides;
-  }
-
-  function update(){
-    track.style.transform = `translateX(-${stepPx() * index}px)`;
-  }
-
-  update();
-
-  // ===== Autoplay: se pausa apenas se arrastra el carrusel a mano y
-  // recién retoma solo después de un rato sin que se lo toque. Cuando
-  // el índice llega a las slides clonadas (idéntico visualmente a las
-  // reales del principio), apenas termina esa transición se reposiciona
-  // sin animación al índice 0 real — el loop queda infinito sin salto. =====
-  const AUTOPLAY_MS = 3200;
-  const RESUME_AFTER_IDLE_MS = 3500;
-  let autoplayTimer = null;
-  let resumeTimer = null;
-  let bridgeResetHandler = null;
-
-  function cancelBridgeReset(){
-    if (bridgeResetHandler) {
-      track.removeEventListener("transitionend", bridgeResetHandler);
-      bridgeResetHandler = null;
-    }
-  }
-
-  function armBridgeReset(){
-    cancelBridgeReset();
-    bridgeResetHandler = () => {
-      bridgeResetHandler = null;
-      track.style.transition = "none";
-      index = 0;
-      update();
-      void track.offsetWidth;
-      track.style.transition = "";
-    };
-    track.addEventListener("transitionend", bridgeResetHandler, { once: true });
-  }
-
-  function startAutoplay(){
-    stopAutoplay();
-    autoplayTimer = setInterval(() => {
-      index += 1;
-      update();
-      if (index >= realSlides) armBridgeReset();
-    }, AUTOPLAY_MS);
-  }
-  function stopAutoplay(){
-    if (autoplayTimer) clearInterval(autoplayTimer);
-    autoplayTimer = null;
-  }
-  function pauseAndScheduleResume(){
-    stopAutoplay();
-    if (resumeTimer) clearTimeout(resumeTimer);
-    resumeTimer = setTimeout(startAutoplay, RESUME_AFTER_IDLE_MS);
-  }
-
-  startAutoplay();
-
-  // ===== Arrastre manual (mouse y touch, vía Pointer Events unificados).
-  // El contenido sigue el dedo/mouse: arrastrar hacia la izquierda
-  // retrocede, hacia la derecha avanza. Si el arrastre pasa la última
-  // foto real, entra en la misma zona de clones que usa el autoplay y
-  // hace el mismo salto invisible de vuelta al principio. =====
-  let dragging = false;
-  let dragMoved = false;
-  let dragStartX = 0;
-  let dragStartOffsetPx = 0;
-
-  function currentOffsetPx(){
-    // Usa la posición visual REAL (vía computed style), no la posición
-    // "destino" de index — si el autoplay está a mitad de una animación
-    // cuando arrancás a arrastrar, ambas no coinciden, y usar el destino
-    // en vez de dónde está de verdad provoca un salto brusco al agarrarlo.
-    const matrix = new DOMMatrixReadOnly(getComputedStyle(track).transform);
-    return -matrix.m41;
-  }
-
-  track.addEventListener("pointerdown", (ev) => {
-    cancelBridgeReset();
-    if (index >= realSlides) {
-      track.style.transition = "none";
-      index = 0;
-      update();
-      void track.offsetWidth;
-      track.style.transition = "";
-    }
-    dragging = true;
-    dragMoved = false;
-    dragStartX = ev.clientX;
-    dragStartOffsetPx = currentOffsetPx();
-    // Clava el transform exactamente en la posición visual que ya tenía
-    // (aunque el autoplay estuviera a mitad de una animación) ANTES de
-    // apagar la transición — si no, apagarla solita ya provoca un salto
-    // al valor "destino" de esa animación en curso.
-    track.style.transition = "none";
-    track.style.transform = `translateX(-${dragStartOffsetPx}px)`;
-    try { track.setPointerCapture(ev.pointerId); } catch (e) {}
-    // Solo pausa acá — la cuenta regresiva para retomar el autoplay
-    // arranca recién cuando se suelta (endDrag), no desde que se toca.
-    // Si arrancaba desde acá, un arrastre largo (más de RESUME_AFTER_IDLE_MS
-    // sin soltar) hacía que el autoplay se reactivara solo A MITAD del
-    // arrastre y peleara por el transform contra el dedo/mouse.
-    stopAutoplay();
-    if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; }
-  });
-
-  track.addEventListener("pointermove", (ev) => {
-    if (!dragging) return;
-    // En mobile, si no se cancela el evento acá, el navegador puede
-    // interpretar el arrastre como scroll vertical de la página a mitad
-    // de camino y quedarse con el gesto — eso es lo que impedía deslizar
-    // el carrusel con el dedo.
-    ev.preventDefault();
-    const deltaX = ev.clientX - dragStartX;
-    if (Math.abs(deltaX) > 4) dragMoved = true;
-    track.style.transform = `translateX(-${dragStartOffsetPx - deltaX}px)`;
-  });
-
-  function endDrag(ev){
-    if (!dragging) return;
-    dragging = false;
-    track.style.transition = "";
-    const deltaX = ev.clientX - dragStartX;
-    const newIndex = Math.round((dragStartOffsetPx - deltaX) / stepPx());
-    index = Math.max(0, Math.min(realSlides, newIndex));
-    update();
-    if (index >= realSlides) armBridgeReset();
-    pauseAndScheduleResume();
-  }
-  track.addEventListener("pointerup", endDrag);
-  track.addEventListener("pointercancel", endDrag);
-  track.addEventListener("pointerleave", (ev) => { if (dragging) endDrag(ev); });
-
-  // Si hubo arrastre real, que no dispare un click en el slide soltado.
-  track.addEventListener("click", (ev) => {
-    if (dragMoved) { ev.preventDefault(); ev.stopPropagation(); }
-  }, true);
-})();
-
-
-</script>
+<script src="assets/carrusel.js" defer></script>
 </body>
 </html>
