@@ -957,8 +957,8 @@ async function handlePipelinesAdmin(request: Request, env: Env, cors: HeadersIni
   }
   const res = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
   if (!res.ok) return json({ ok: false, error: "pipelines_failed", detail: (await res.text()).slice(0, 200) }, 502, cors);
-  const body = (await res.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] };
-  return json({ ok: true, pipelines: (body.pipelines || []).map((p) => ({ id: p.id, name: p.name, etapas: (p.stages || []).map((e) => ({ id: e.id, name: e.name })) })) }, 200, cors);
+  const body = (await res.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string; [k: string]: unknown }[] }[] };
+  return json({ ok: true, pipelines: (body.pipelines || []).map((p) => ({ id: p.id, name: p.name, etapas: (p.stages || []).map((e) => ({ ...e })) })) }, 200, cors);
 }
 
 // Diagnóstico (solo admin): últimos contactos con sus etiquetas de UTM, para
