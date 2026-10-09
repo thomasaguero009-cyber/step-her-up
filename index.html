@@ -743,23 +743,30 @@
   // con UTMs nuevas pisan a las guardadas (último anuncio tocado); las
   // guardadas vencen a los 30 días. =====
   const UTM_CLAVES = ["utm_source", "utm_medium", "utm_campaign", "utm_content"];
+  let utmMemoria = null; // por si el navegador no deja usar localStorage (iframes, modo privado)
+  function utmEnLink() {
+    const params = new URLSearchParams(location.search), nuevas = {};
+    UTM_CLAVES.forEach((k) => { const v = (params.get(k) || "").trim().slice(0, 150); if (v) nuevas[k] = v; });
+    return Object.keys(nuevas).length ? nuevas : null;
+  }
   function getUTMs() {
     const vacio = { utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "" };
     try {
-      const params = new URLSearchParams(location.search);
-      const nuevas = {};
-      UTM_CLAVES.forEach((k) => { const v = (params.get(k) || "").trim().slice(0, 150); if (v) nuevas[k] = v; });
-      if (Object.keys(nuevas).length) {
-        localStorage.setItem("shu_utm", JSON.stringify({ ...vacio, ...nuevas, fecha: Date.now() }));
-        return { ...vacio, ...nuevas };
+      const nuevas = utmEnLink();
+      if (nuevas) {
+        utmMemoria = { ...vacio, ...nuevas };
+        try { localStorage.setItem("shu_utm", JSON.stringify({ ...utmMemoria, fecha: Date.now() })); } catch (e) {}
+        return utmMemoria;
       }
+      if (utmMemoria) return utmMemoria;
       const g = JSON.parse(localStorage.getItem("shu_utm"));
       if (g && g.fecha && Date.now() - g.fecha < 30 * 24 * 3600 * 1000) {
         const out = {}; UTM_CLAVES.forEach((k) => { out[k] = g[k] || ""; });
+        utmMemoria = out;
         return out;
       }
     } catch (e) {}
-    return vacio;
+    return utmMemoria || vacio;
   }
 
   // Webhook del Workflow de GHL ("Inbound Webhook") — cada lead se manda
@@ -863,15 +870,14 @@
   // los links de anuncios pasan por /go, que anotó de qué anuncio vino esta
   // visita. Es la misma persona (misma conexión y navegador), pocos minutos antes.
   (function recuperarClic() {
-    const u = getUTMs();
-    if (u.utm_source || u.utm_medium || u.utm_campaign || u.utm_content) return;
+    if (utmEnLink()) return; // ya vienen en el link: no hace falta
     fetch(GEO_WORKER_URL + "/click-match")
       .then((r) => r.json())
       .then((d) => {
         if (!d || !d.utm) return;
-        try {
-          localStorage.setItem("shu_utm", JSON.stringify({ utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "", ...d.utm, fecha: Date.now(), via: "click" }));
-        } catch (e) {}
+        // El último clic manda: pisa lo que hubiera guardado de visitas anteriores.
+        utmMemoria = { utm_source: "", utm_medium: "", utm_campaign: "", utm_content: "", ...d.utm };
+        try { localStorage.setItem("shu_utm", JSON.stringify({ ...utmMemoria, fecha: Date.now(), via: "click" })); } catch (e) {}
         actualizarBotonAplicar();
       })
       .catch(() => {});

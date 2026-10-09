@@ -770,11 +770,17 @@ async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): 
   const nombre = String(p.nombre || "").replace(/\s+/g, " ").trim().slice(0, 80);
   const email = String(p.email || "").trim().toLowerCase().slice(0, 120);
   const telefono = String(p.telefono || "").replace(/[^\d+]/g, "").slice(0, 20);
-  if (!utmTags(p).length || (!email && !telefono)) return json({ ok: true, resultado: "nada_para_hacer" }, 200, cors);
-  const partes = (nombre || "Lead").split(" ");
+  if (!utmTags(p).length || (!email && !telefono)) {
+    await anotarDiagnostico(env, "atribucion", { resultado: "nada_para_hacer", utm: utmTags(p) });
+    return json({ ok: true, resultado: "nada_para_hacer" }, 200, cors);
+  }
   try {
-    const id = await upsertContact(env, { firstName: partes[0], lastName: partes.slice(1).join(" "), email, phone: telefono });
-    return json({ ok: true, resultado: await etiquetarAtribucion(env, id, p) }, 200, cors);
+    // Mismo criterio que el webhook del funnel: el nombre completo va en firstName
+    // (si se separaba acá, el workflow lo volvía a escribir y el apellido salía duplicado).
+    const id = await upsertContact(env, { firstName: nombre || "Lead", lastName: "", email, phone: telefono });
+    const resultado = await etiquetarAtribucion(env, id, p);
+    await anotarDiagnostico(env, "atribucion", { resultado, utm: utmTags(p) });
+    return json({ ok: true, resultado }, 200, cors);
   } catch (err) {
     return json({ ok: false, error: "atribucion_failed", detail: String(err).slice(0, 200) }, 502, cors);
   }
@@ -808,7 +814,9 @@ async function registrarClic(request: Request, url: URL, env: Env): Promise<URL>
   const ua = request.headers.get("User-Agent") || "";
   const esRobot = /bot|crawler|spider|facebookexternalhit|facebot|preview|slurp|whatsapp|telegram/i.test(ua);
   if (!esRobot && Object.keys(utm).length) {
-    await env.ESTRATEGIAS.put(`click:${await huellaVisita(request)}`, JSON.stringify(utm), { expirationTtl: 21600 });
+    const huella = await huellaVisita(request);
+    await env.ESTRATEGIAS.put(`click:${huella}`, JSON.stringify(utm), { expirationTtl: 21600 });
+    await anotarDiagnostico(env, "clic", { huella: huella.slice(0, 8), utm });
   }
   return destino;
 }
@@ -825,11 +833,39 @@ async function handleClic(request: Request, url: URL, env: Env, cors: HeadersIni
   return new Response(null, { status: 204, headers: { ...cors, "Cache-Control": "no-store" } });
 }
 
+// Registro corto (2 días) de qué pasó en cada paso, para poder diagnosticar.
+async function anotarDiagnostico(env: Env, evento: string, datos: Record<string, unknown>): Promise<void> {
+  try {
+    await env.ESTRATEGIAS.put(`dbg:${evento}:${Date.now()}`, JSON.stringify(datos), { expirationTtl: 172800 });
+  } catch { /* nunca debe romper el flujo */ }
+}
+
 async function handleClickMatch(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
-  const guardado = await env.ESTRATEGIAS.get(`click:${await huellaVisita(request)}`);
+  const huella = await huellaVisita(request);
+  const guardado = await env.ESTRATEGIAS.get(`click:${huella}`);
+  await anotarDiagnostico(env, "match", { encontrado: !!guardado, huella: huella.slice(0, 8), origen: request.headers.get("Origin") });
   let utm: Record<string, string> | null = null;
   try { utm = guardado ? JSON.parse(guardado) : null; } catch { utm = null; }
   return json({ ok: true, utm }, 200, { ...cors, "Cache-Control": "no-store" });
+}
+
+// Diagnóstico (solo admin): últimos contactos con sus etiquetas de UTM, para
+// comprobar que la atribución llegó. ?q= busca por email/teléfono/nombre.
+async function handleContactosRecientes(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) {
+    return json({ ok: false, error: "unauthorized" }, 401, cors);
+  }
+  const q = (url.searchParams.get("q") || "").trim();
+  let u = `${GHL_BASE}/contacts/?locationId=${env.GHL_LOCATION_ID}&limit=8`;
+  if (q) u += `&query=${encodeURIComponent(q)}`;
+  const res = await fetch(u, { headers: ghlHeaders(env) });
+  if (!res.ok) return json({ ok: false, error: "contacts_failed", detail: (await res.text()).slice(0, 200) }, 502, cors);
+  const body = (await res.json()) as { contacts?: { id: string; contactName?: string; email?: string; dateAdded?: string; source?: string; tags?: string[] }[] };
+  const contactos = (body.contacts || []).map((c) => ({
+    nombre: c.contactName, email: c.email, creado: c.dateAdded, origen: c.source,
+    tags: (c.tags || []).filter((t) => /^(src|med|camp|cont)-/.test(t) || t === "webinar-21-oct"),
+  }));
+  return json({ ok: true, contactos }, 200, cors);
 }
 
 // Cuenta por etiquetas de atribución: { fuente, medio, campana, contenido }.
@@ -935,6 +971,9 @@ export default {
       }
       if (url.pathname === "/go" && (request.method === "GET" || request.method === "HEAD")) {
         return await handleGo(request, url, env);
+      }
+      if (url.pathname === "/admin/contactos-recientes" && request.method === "GET") {
+        return await handleContactosRecientes(request, url, env, cors);
       }
       if (url.pathname === "/click" && request.method === "GET") {
         return await handleClic(request, url, env, cors);
