@@ -1024,7 +1024,11 @@ async function handleEtiquetarEtapa(request: Request, url: URL, env: Env, cors: 
   const pipeBody = (await pipeRes.json()) as { pipelines?: { id: string; stages?: { id: string; name: string }[] }[] };
   const ids = new Set(((pipeBody.pipelines || []).find((x) => x.id === pipe.id)?.stages || []).filter((st) => st.name.trim().toLowerCase() === etapa).map((st) => st.id));
   const opps = (await traerOportunidadesDePipeline(env, pipe.id)) as (OpportunityGHL & { contactId?: string; contact?: { id?: string } })[];
-  const contactos = [...new Set(opps.filter((o) => ids.has(o.pipelineStageId)).map((o) => o.contactId || o.contact?.id).filter(Boolean) as string[])];
+  // ?dias=90 deja solo las oportunidades que cambiaron de columna en los últimos N días (segmentos de email recientes).
+  const dias = parseInt(url.searchParams.get("dias") || "0", 10) || 0;
+  const limite = dias > 0 ? Date.now() - dias * 86400000 : 0;
+  const contactos = [...new Set(opps.filter((o) => ids.has(o.pipelineStageId) && (!limite || (Date.parse(o.lastStageChangeAt) || 0) >= limite))
+    .map((o) => o.contactId || o.contact?.id).filter(Boolean) as string[])];
   const desde = Math.max(0, parseInt(url.searchParams.get("desde") || "0", 10) || 0);
   if (url.searchParams.get("probar")) return json({ ok: true, pipeline: pipe.fuente, etapa, total: contactos.length }, 200, cors);
   const LOTE = 20;
