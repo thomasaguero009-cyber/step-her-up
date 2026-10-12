@@ -27,4 +27,4 @@ id = "e4cf8c7402e5449592cb0c64c7fda7ef"
 
 # Etiquetas automáticas por columna y pipeline (ver etiquetasCalcular / etiquetasAplicar)
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["*/10 * * * *", "0 17 * * 1-5"]  # etiquetas cada 10 min · recordatorio Slack 1:00 PM AST lun-vie

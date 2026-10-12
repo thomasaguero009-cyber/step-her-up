@@ -14,6 +14,7 @@ export interface Env {
   SITE_KEY: string; // contraseña de la plataforma (para los recursos privados)
   OPENAI_MODEL: string;
   ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
+  SLACK_BOT_TOKEN?: string; // bot de Slack para el recordatorio diario de #setters (secret)
 }
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
@@ -1126,6 +1127,53 @@ async function handleEtiquetasAdmin(request: Request, url: URL, env: Env, cors: 
   }
 }
 
+// ===== Recordatorio diario en Slack (#setters) =====
+// Lunes a viernes 1:00 PM AST: recuerda enviar los números con el formato de Paula y menciona solo a quienes
+// todavía no los enviaron ese día. No menciona a Thomas ni a Gianie. "Enviado" = un mensaje de hoy (hora de
+// Puerto Rico) en #setters que diga "llamadas" y "agend".
+const SLACK_CANAL = "setters";
+const SLACK_EXCLUIDOS = /thomas|gianie/i;
+const PLANTILLA_NUMEROS = "Llamadas:\nNo contestaron:\nColgaron:\nLlamar más tarde:\nAgendé:\nCitas confirmadas:\nNo show:";
+
+async function slack(env: Env, metodo: string, params: Record<string, string> = {}, cuerpo?: unknown): Promise<any> {
+  const url = `https://slack.com/api/${metodo}` + (cuerpo ? "" : "?" + new URLSearchParams(params).toString());
+  const r = await fetch(url, {
+    method: cuerpo ? "POST" : "GET",
+    headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, ...(cuerpo ? { "Content-Type": "application/json; charset=utf-8" } : {}) },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  const d = (await r.json()) as { ok: boolean; error?: string };
+  if (!d.ok) throw new Error(`slack ${metodo}: ${d.error}`);
+  return d;
+}
+
+async function recordatorioSetters(env: Env, enviar: boolean): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
+  if (!env.SLACK_BOT_TOKEN) throw new Error("falta SLACK_BOT_TOKEN");
+  const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
+  const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
+  if (!canal) throw new Error(`no encuentro #${SLACK_CANAL} (¿invitaste al bot al canal?)`);
+  const miembros: string[] = (await slack(env, "conversations.members", { channel: canal.id, limit: "200" })).members || [];
+  const usuarios = (await slack(env, "users.list", { limit: "500" })).members || [];
+  const info = new Map<string, any>(usuarios.map((u: any) => [u.id, u]));
+  const nombre = (id: string) => { const u = info.get(id); return u ? u.real_name || u.profile?.real_name || u.name : id; };
+  const equipo = miembros.filter((id) => { const u = info.get(id); return u && !u.is_bot && !u.deleted && id !== "USLACKBOT" && !SLACK_EXCLUIDOS.test(`${u.real_name || ""} ${u.name || ""} ${u.profile?.display_name || ""}`); });
+  // Medianoche de hoy en Puerto Rico (UTC-4, sin horario de verano).
+  const ahoraPR = new Date(Date.now() - 4 * 3600000);
+  const inicioDia = Date.UTC(ahoraPR.getUTCFullYear(), ahoraPR.getUTCMonth(), ahoraPR.getUTCDate()) / 1000 + 4 * 3600;
+  const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(inicioDia), limit: "200" })).messages || [];
+  const enviaron = new Set<string>(historial.filter((m: any) => m.user && /llamadas/i.test(m.text || "") && /agend/i.test(m.text || "")).map((m: any) => m.user));
+  const pendientes = equipo.filter((id) => !enviaron.has(id));
+  let publicado = false;
+  if (enviar) {
+    const texto = pendientes.length
+      ? `⏰ *Recordatorio de la 1:00 PM*: envíen sus números del día en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: ${pendientes.map((id) => `<@${id}>`).join(" ")}`
+      : "✅ Todas enviaron sus números de hoy. ¡Gracias, equipo!";
+    await slack(env, "chat.postMessage", {}, { channel: canal.id, text: texto });
+    publicado = true;
+  }
+  return { canal: `#${canal.name}`, pendientes: pendientes.map(nombre), enviaron: [...enviaron].map(nombre), publicado };
+}
+
 // Diagnóstico (solo admin): últimos contactos con sus etiquetas de UTM, para
 // comprobar que la atribución llegó. ?q= busca por email/teléfono/nombre.
 async function handleContactosRecientes(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
@@ -1220,6 +1268,10 @@ async function handleRecurso(request: Request, env: Env, id: string, cors: Heade
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === "0 17 * * 1-5") {               // 1:00 PM AST, lunes a viernes
+      ctx.waitUntil(recordatorioSetters(env, true).then(() => undefined).catch(() => undefined));
+      return;
+    }
     const minuto = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((minuto % 30 < 10 ? etiquetasCalcular(env) : etiquetasAplicar(env)).then(() => undefined).catch(() => undefined));
   },
@@ -1266,6 +1318,11 @@ export default {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
         const r = await fetch(`${GHL_BASE}/workflows/?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
         return json({ ok: r.ok, status: r.status, body: r.ok ? await r.json() : (await r.text()).slice(0, 300) }, 200, cors);
+      }
+      if (url.pathname === "/admin/slack-recordatorio" && request.method === "POST") {
+        if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
+        try { return json({ ok: true, ...(await recordatorioSetters(env, url.searchParams.get("enviar") === "1")) }, 200, cors); }
+        catch (e) { return json({ ok: false, error: String(e) }, 502, cors); }
       }
       if (url.pathname.startsWith("/admin/etiquetas/")) {
         return await handleEtiquetasAdmin(request, url, env, cors);
