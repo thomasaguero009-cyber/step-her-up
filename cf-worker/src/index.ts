@@ -1172,20 +1172,23 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
   const desde = tipo === "cierre" ? inicioDia + 17 * 3600 : inicioDia;
   const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(desde), limit: "200" })).messages || [];
   // "numeros": mensaje con "llamadas" y "agend" (formato de Paula). "metas": cualquier mensaje de hoy que hable de "meta".
-  const cuenta = (t: string) => (tipo === "cierre" ? t.trim().length > 0 : tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
+  // Números y cierre usan el formato de Paula; para el cierre solo cuentan los enviados desde las 5:00 PM.
+  const cuenta = (t: string) => (tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
   const enviaron = new Set<string>(historial.filter((m: any) => m.user && cuenta(m.text || "")).map((m: any) => m.user));
   const pendientes = equipo.filter((id) => !enviaron.has(id));
   let publicado = false;
-  if (enviar && (tipo === "metas" || tipo === "cierre")) {
+  if (enviar && tipo === "metas") {
     if (pendientes.length) {
-      const saludo = tipo === "metas" ? "☀️ ¡Buenos días, equipo! Recuerden enviar sus metas de hoy." : "🌙 ¿Cómo terminaron el día, equipo? Compartan su cierre de hoy.";
-      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `${saludo} ${pendientes.map((id) => `<@${id}>`).join(" ")}` });
+      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `☀️ ¡Buenos días, equipo! Recuerden enviar sus metas de hoy. ${pendientes.map((id) => `<@${id}>`).join(" ")}` });
       publicado = true;
     }
   } else if (enviar) {
+    const cierre = tipo === "cierre";
     const texto = pendientes.length
-      ? `⏰ *Recordatorio de la 1:00 PM*: envíen sus números del día en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: ${pendientes.map((id) => `<@${id}>`).join(" ")}`
-      : "✅ Todas enviaron sus números de hoy. ¡Gracias, equipo!";
+      ? (cierre
+          ? `🌙 *Cierre del día*: ¿cómo terminaron hoy? Envíen sus números finales en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: `
+          : `⏰ *Recordatorio de la 1:00 PM*: envíen sus números del día en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: `) + pendientes.map((id) => `<@${id}>`).join(" ")
+      : cierre ? "✅ Todas enviaron su cierre de hoy. ¡Gracias, equipo!" : "✅ Todas enviaron sus números de hoy. ¡Gracias, equipo!";
     await slack(env, "chat.postMessage", {}, { channel: canal.id, text: texto });
     publicado = true;
   }
