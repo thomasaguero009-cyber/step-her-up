@@ -1149,7 +1149,7 @@ async function slack(env: Env, metodo: string, params: Record<string, string> = 
   return d;
 }
 
-async function recordatorioSetters(env: Env, enviar: boolean): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
+async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | "metas" = "numeros"): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
   if (!env.SLACK_BOT_TOKEN) throw new Error("falta SLACK_BOT_TOKEN");
   const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
   const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
@@ -1169,10 +1169,17 @@ async function recordatorioSetters(env: Env, enviar: boolean): Promise<{ canal: 
   const ahoraPR = new Date(Date.now() - 4 * 3600000);
   const inicioDia = Date.UTC(ahoraPR.getUTCFullYear(), ahoraPR.getUTCMonth(), ahoraPR.getUTCDate()) / 1000 + 4 * 3600;
   const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(inicioDia), limit: "200" })).messages || [];
-  const enviaron = new Set<string>(historial.filter((m: any) => m.user && /llamadas/i.test(m.text || "") && /agend/i.test(m.text || "")).map((m: any) => m.user));
+  // "numeros": mensaje con "llamadas" y "agend" (formato de Paula). "metas": cualquier mensaje de hoy que hable de "meta".
+  const cuenta = (t: string) => (tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
+  const enviaron = new Set<string>(historial.filter((m: any) => m.user && cuenta(m.text || "")).map((m: any) => m.user));
   const pendientes = equipo.filter((id) => !enviaron.has(id));
   let publicado = false;
-  if (enviar) {
+  if (enviar && tipo === "metas") {
+    if (pendientes.length) {
+      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `☀️ ¡Buenos días, equipo! Recuerden enviar sus metas de hoy. ${pendientes.map((id) => `<@${id}>`).join(" ")}` });
+      publicado = true;
+    }
+  } else if (enviar) {
     const texto = pendientes.length
       ? `⏰ *Recordatorio de la 1:00 PM*: envíen sus números del día en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: ${pendientes.map((id) => `<@${id}>`).join(" ")}`
       : "✅ Todas enviaron sus números de hoy. ¡Gracias, equipo!";
@@ -1276,6 +1283,10 @@ async function handleRecurso(request: Request, env: Env, id: string, cors: Heade
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === "30 14 * * 1-5") {              // 10:30 AM AST, lunes a viernes: metas del día
+      ctx.waitUntil(recordatorioSetters(env, true, "metas").then(() => undefined).catch(() => undefined));
+      return;
+    }
     if (event.cron === "0 17 * * 1-5") {               // 1:00 PM AST, lunes a viernes
       ctx.waitUntil(recordatorioSetters(env, true).then(() => undefined).catch(() => undefined));
       return;
@@ -1329,7 +1340,7 @@ export default {
       }
       if (url.pathname === "/admin/slack-recordatorio" && request.method === "POST") {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
-        try { return json({ ok: true, ...(await recordatorioSetters(env, url.searchParams.get("enviar") === "1")) }, 200, cors); }
+        try { return json({ ok: true, ...(await recordatorioSetters(env, url.searchParams.get("enviar") === "1", url.searchParams.get("tipo") === "metas" ? "metas" : "numeros")) }, 200, cors); }
         catch (e) { return json({ ok: false, error: String(e) }, 502, cors); }
       }
       if (url.pathname.startsWith("/admin/etiquetas/")) {
