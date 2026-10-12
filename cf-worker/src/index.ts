@@ -1149,7 +1149,7 @@ async function slack(env: Env, metodo: string, params: Record<string, string> = 
   return d;
 }
 
-async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | "metas" = "numeros"): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
+async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | "metas" | "cierre" = "numeros"): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
   if (!env.SLACK_BOT_TOKEN) throw new Error("falta SLACK_BOT_TOKEN");
   const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
   const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
@@ -1168,15 +1168,18 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
   // Medianoche de hoy en Puerto Rico (UTC-4, sin horario de verano).
   const ahoraPR = new Date(Date.now() - 4 * 3600000);
   const inicioDia = Date.UTC(ahoraPR.getUTCFullYear(), ahoraPR.getUTCMonth(), ahoraPR.getUTCDate()) / 1000 + 4 * 3600;
-  const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(inicioDia), limit: "200" })).messages || [];
+  // Para el cierre solo cuentan los mensajes desde las 5:00 PM de hoy (el reporte de fin de día).
+  const desde = tipo === "cierre" ? inicioDia + 17 * 3600 : inicioDia;
+  const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(desde), limit: "200" })).messages || [];
   // "numeros": mensaje con "llamadas" y "agend" (formato de Paula). "metas": cualquier mensaje de hoy que hable de "meta".
-  const cuenta = (t: string) => (tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
+  const cuenta = (t: string) => (tipo === "cierre" ? t.trim().length > 0 : tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
   const enviaron = new Set<string>(historial.filter((m: any) => m.user && cuenta(m.text || "")).map((m: any) => m.user));
   const pendientes = equipo.filter((id) => !enviaron.has(id));
   let publicado = false;
-  if (enviar && tipo === "metas") {
+  if (enviar && (tipo === "metas" || tipo === "cierre")) {
     if (pendientes.length) {
-      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `☀️ ¡Buenos días, equipo! Recuerden enviar sus metas de hoy. ${pendientes.map((id) => `<@${id}>`).join(" ")}` });
+      const saludo = tipo === "metas" ? "☀️ ¡Buenos días, equipo! Recuerden enviar sus metas de hoy." : "🌙 ¿Cómo terminaron el día, equipo? Compartan su cierre de hoy.";
+      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `${saludo} ${pendientes.map((id) => `<@${id}>`).join(" ")}` });
       publicado = true;
     }
   } else if (enviar) {
@@ -1283,6 +1286,10 @@ async function handleRecurso(request: Request, env: Env, id: string, cors: Heade
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === "0 0 * * 2-6") {                // 8:00 PM AST de lunes a viernes (= 00:00 UTC del día siguiente)
+      ctx.waitUntil(recordatorioSetters(env, true, "cierre").then(() => undefined).catch(() => undefined));
+      return;
+    }
     if (event.cron === "30 14 * * 1-5") {              // 10:30 AM AST, lunes a viernes: metas del día
       ctx.waitUntil(recordatorioSetters(env, true, "metas").then(() => undefined).catch(() => undefined));
       return;
@@ -1340,7 +1347,7 @@ export default {
       }
       if (url.pathname === "/admin/slack-recordatorio" && request.method === "POST") {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
-        try { return json({ ok: true, ...(await recordatorioSetters(env, url.searchParams.get("enviar") === "1", url.searchParams.get("tipo") === "metas" ? "metas" : "numeros")) }, 200, cors); }
+        try { return json({ ok: true, ...(await recordatorioSetters(env, url.searchParams.get("enviar") === "1", (["metas", "cierre"].includes(url.searchParams.get("tipo") || "") ? url.searchParams.get("tipo") : "numeros") as "numeros" | "metas" | "cierre")) }, 200, cors); }
         catch (e) { return json({ ok: false, error: String(e) }, 502, cors); }
       }
       if (url.pathname.startsWith("/admin/etiquetas/")) {
