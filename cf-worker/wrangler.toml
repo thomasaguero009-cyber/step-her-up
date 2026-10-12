@@ -24,3 +24,7 @@ bucket_name = "step-her-up-videos"
 [[kv_namespaces]]
 binding = "ESTRATEGIAS"
 id = "e4cf8c7402e5449592cb0c64c7fda7ef"
+
+# Etiquetas automáticas por columna y pipeline (ver etiquetasCalcular / etiquetasAplicar)
+[triggers]
+crons = ["*/10 * * * *"]

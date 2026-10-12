@@ -961,6 +961,171 @@ async function handlePipelinesAdmin(request: Request, env: Env, cors: HeadersIni
   return json({ ok: true, pipelines: (body.pipelines || []).map((p) => ({ id: p.id, name: p.name, etapas: (p.stages || []).map((e) => ({ ...e })) })) }, 200, cors);
 }
 
+// Diagnóstico (solo admin): cuántas oportunidades hay en una etapa (p. ej. "Follow Up") en los pipelines
+// de leads, cuántas tienen email y qué tan recientes son. Solo devuelve conteos, nunca datos personales.
+async function handleSegmentoAdmin(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) {
+    return json({ ok: false, error: "unauthorized" }, 401, cors);
+  }
+  const etapa = (url.searchParams.get("etapa") || "").trim().toLowerCase();
+  if (!etapa) return json({ ok: false, error: "missing_etapa" }, 400, cors);
+  const pipeRes = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!pipeRes.ok) return json({ ok: false, error: "pipelines_failed" }, 502, cors);
+  const pipeBody = (await pipeRes.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] };
+  const ahora = Date.now(), DIA = 86400000;
+  const porPipeline: Record<string, { total: number; conEmail: number; ult30: number; ult90: number; masDe90: number; conEmailUlt90: number }> = {};
+  for (const p of PIPELINES_LEADS) {
+    const meta = (pipeBody.pipelines || []).find((x) => x.id === p.id);
+    const ids = new Set((meta?.stages || []).filter((st) => st.name.trim().toLowerCase() === etapa).map((st) => st.id));
+    const fila = (porPipeline[p.fuente] = { total: 0, conEmail: 0, ult30: 0, ult90: 0, masDe90: 0, conEmailUlt90: 0 });
+    if (!ids.size) continue;
+    const opps = (await traerOportunidadesDePipeline(env, p.id)) as (OpportunityGHL & { status?: string; contact?: { email?: string | null } })[];
+    for (const o of opps) {
+      if (!ids.has(o.pipelineStageId)) continue;
+      const dias = (ahora - (Date.parse(o.lastStageChangeAt) || 0)) / DIA;
+      const conEmail = !!(o.contact && o.contact.email);
+      fila.total++; if (conEmail) fila.conEmail++;
+      if (dias <= 30) fila.ult30++; else if (dias <= 90) fila.ult90++; else fila.masDe90++;
+      if (conEmail && dias <= 90) fila.conEmailUlt90++;
+    }
+  }
+  const total = Object.values(porPipeline).reduce((a, f) => ({ total: a.total + f.total, conEmail: a.conEmail + f.conEmail, conEmailUlt90: a.conEmailUlt90 + f.conEmailUlt90 }), { total: 0, conEmail: 0, conEmailUlt90: 0 });
+  return json({ ok: true, etapa, total, porPipeline }, 200, { ...cors, "Cache-Control": "no-store" });
+}
+
+// Admin: pone (o con ?quitar=1 quita) una etiqueta a los contactos de una etapa (p. ej. "Follow Up" -> "follow up") en UN pipeline
+// de leads, de a lotes chicos (los Workers gratis permiten ~50 pedidos externos por llamada). Se llama varias
+// veces con ?desde= hasta que "siguiente" sea null. Con ?probar=1 solo cuenta, no escribe. ?contacto=<id> etiqueta
+// solo ese contacto (para pruebas). Agregar una etiqueta no borra nada y se puede quitar desde GHL.
+async function handleEtiquetarEtapa(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) {
+    return json({ ok: false, error: "unauthorized" }, 401, cors);
+  }
+  // La etiqueta lleva el mismo nombre que la columna (etapa) del pipeline, p. ej. "follow up" (GHL las guarda en minúsculas).
+  const tag = (url.searchParams.get("tag") || "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (!/^[a-z0-9][a-z0-9 _-]{1,60}$/.test(tag)) return json({ ok: false, error: "tag_invalida" }, 400, cors);
+  const quitar = url.searchParams.get("quitar") === "1";
+  const ponerTag = async (id: string) => {
+    const r = await fetch(`${GHL_BASE}/contacts/${id}/tags`, {
+      method: quitar ? "DELETE" : "POST", headers: { ...ghlHeaders(env), "Content-Type": "application/json" }, body: JSON.stringify({ tags: [tag] }),
+    });
+    return r.ok ? null : `${r.status} ${(await r.text()).slice(0, 160)}`;
+  };
+  const uno = url.searchParams.get("contacto");
+  if (uno) { const err = await ponerTag(uno); return json({ ok: !err, error: err }, err ? 502 : 200, cors); }
+
+  const etapa = (url.searchParams.get("etapa") || "").trim().toLowerCase();
+  const fuente = url.searchParams.get("pipeline") || "";
+  const pipe = PIPELINES_LEADS.find((p) => p.fuente.toLowerCase() === fuente.toLowerCase());
+  if (!etapa || !pipe) return json({ ok: false, error: "falta_etapa_o_pipeline", pipelines: PIPELINES_LEADS.map((p) => p.fuente) }, 400, cors);
+  const pipeRes = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!pipeRes.ok) return json({ ok: false, error: "pipelines_failed" }, 502, cors);
+  const pipeBody = (await pipeRes.json()) as { pipelines?: { id: string; stages?: { id: string; name: string }[] }[] };
+  const ids = new Set(((pipeBody.pipelines || []).find((x) => x.id === pipe.id)?.stages || []).filter((st) => st.name.trim().toLowerCase() === etapa).map((st) => st.id));
+  const opps = (await traerOportunidadesDePipeline(env, pipe.id)) as (OpportunityGHL & { contactId?: string; contact?: { id?: string } })[];
+  const contactos = [...new Set(opps.filter((o) => ids.has(o.pipelineStageId)).map((o) => o.contactId || o.contact?.id).filter(Boolean) as string[])];
+  const desde = Math.max(0, parseInt(url.searchParams.get("desde") || "0", 10) || 0);
+  if (url.searchParams.get("probar")) return json({ ok: true, pipeline: pipe.fuente, etapa, total: contactos.length }, 200, cors);
+  const LOTE = 20;
+  const errores: string[] = [];
+  for (const id of contactos.slice(desde, desde + LOTE)) { const e = await ponerTag(id); if (e) errores.push(e); }
+  const siguiente = desde + LOTE < contactos.length ? desde + LOTE : null;
+  return json({ ok: errores.length === 0, pipeline: pipe.fuente, etapa, tag, total: contactos.length, hechos: Math.min(contactos.length, desde + LOTE), siguiente, errores: errores.slice(0, 3) }, 200, cors);
+}
+
+// ===== Etiquetas automáticas por columna y por pipeline =====
+// Cada contacto lleva una etiqueta con el nombre de la columna (etapa) donde está su oportunidad y otra con el
+// nombre del pipeline, en minúsculas (así las guarda GHL): p. ej. "follow up" + "step her up - clickfunnels".
+// Un cron revisa todos los pipelines cada 30 min ("calcular") y otro va aplicando los cambios ("aplicar"):
+// pone las etiquetas nuevas y quita las de la columna anterior. Solo quita etiquetas que puso este sistema
+// (las guarda en KV), nunca toca etiquetas de UTM, del webinar ni las que el equipo pone a mano.
+const ETQ_APLICADO = "etq:aplicado";   // { contactId: string[] } lo que ya está puesto en GHL
+const ETQ_PEND = "etq:pendientes";     // { contactId: { add: string[]; del: string[] } }
+const ETQ_ESTADO = "etq:estado";       // resumen de la última pasada
+const nombreTag = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
+
+async function etiquetasCalcular(env: Env): Promise<{ contactos: number; pendientes: number; oportunidades: number }> {
+  const pipeRes = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!pipeRes.ok) throw new Error("pipelines_failed " + pipeRes.status);
+  const pipeBody = (await pipeRes.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] };
+  const etapa = new Map<string, string>();
+  for (const p of pipeBody.pipelines || []) for (const st of p.stages || []) etapa.set(st.id, st.name);
+  const deseado = new Map<string, Set<string>>();
+  let oportunidades = 0;
+  for (const p of pipeBody.pipelines || []) {
+    const opps = (await traerOportunidadesDePipeline(env, p.id)) as (OpportunityGHL & { contactId?: string; contact?: { id?: string } })[];
+    for (const o of opps) {
+      const cid = o.contactId || o.contact?.id;
+      const col = etapa.get(o.pipelineStageId);
+      if (!cid || !col) continue;
+      oportunidades++;
+      if (!deseado.has(cid)) deseado.set(cid, new Set());
+      deseado.get(cid)!.add(nombreTag(col)).add(nombreTag(p.name));
+    }
+  }
+  const aplicado = ((await env.ESTRATEGIAS.get(ETQ_APLICADO, "json")) || {}) as Record<string, string[]>;
+  const pend: Record<string, { add: string[]; del: string[] }> = {};
+  for (const cid of new Set([...deseado.keys(), ...Object.keys(aplicado)])) {
+    const quiero = deseado.get(cid) || new Set<string>();
+    const tengo = new Set(aplicado[cid] || []);
+    const add = [...quiero].filter((t) => !tengo.has(t));
+    const del = [...tengo].filter((t) => !quiero.has(t));
+    if (add.length || del.length) pend[cid] = { add, del };
+  }
+  await env.ESTRATEGIAS.put(ETQ_PEND, JSON.stringify(pend));
+  const r = { contactos: deseado.size, pendientes: Object.keys(pend).length, oportunidades };
+  await env.ESTRATEGIAS.put(ETQ_ESTADO, JSON.stringify({ ...r, calculado: new Date().toISOString() }));
+  return r;
+}
+
+// Aplica en GHL hasta `maxPedidos` cambios (los Workers gratis permiten ~50 pedidos externos por llamada).
+async function etiquetasAplicar(env: Env, maxPedidos = 44): Promise<{ hechos: number; quedan: number; errores: string[] }> {
+  const pend = ((await env.ESTRATEGIAS.get(ETQ_PEND, "json")) || {}) as Record<string, { add: string[]; del: string[] }>;
+  const ids = Object.keys(pend);
+  if (!ids.length) return { hechos: 0, quedan: 0, errores: [] };
+  const aplicado = ((await env.ESTRATEGIAS.get(ETQ_APLICADO, "json")) || {}) as Record<string, string[]>;
+  let pedidos = 0, hechos = 0;
+  const errores: string[] = [];
+  for (const cid of ids) {
+    const { add, del } = pend[cid];
+    const necesita = (add.length ? 1 : 0) + (del.length ? 1 : 0);
+    if (pedidos + necesita > maxPedidos) break;
+    let ok = true;
+    for (const [metodo, tags] of [["POST", add], ["DELETE", del]] as [string, string[]][]) {
+      if (!tags.length) continue;
+      pedidos++;
+      const r = await fetch(`${GHL_BASE}/contacts/${cid}/tags`, { method: metodo, headers: { ...ghlHeaders(env), "Content-Type": "application/json" }, body: JSON.stringify({ tags }) });
+      if (r.status === 404) break;                        // contacto borrado: se descarta
+      if (!r.ok) { ok = false; errores.push(`${metodo} ${r.status}`); if (r.status === 429) break; }
+    }
+    if (!ok) { if (errores.some((e) => e.endsWith("429"))) break; continue; }
+    const quedan = new Set(aplicado[cid] || []);
+    del.forEach((t) => quedan.delete(t)); add.forEach((t) => quedan.add(t));
+    if (quedan.size) aplicado[cid] = [...quedan]; else delete aplicado[cid];
+    delete pend[cid];
+    hechos++;
+  }
+  await env.ESTRATEGIAS.put(ETQ_PEND, JSON.stringify(pend));
+  await env.ESTRATEGIAS.put(ETQ_APLICADO, JSON.stringify(aplicado));
+  return { hechos, quedan: Object.keys(pend).length, errores: errores.slice(0, 5) };
+}
+
+async function handleEtiquetasAdmin(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
+  const accion = url.pathname.split("/").pop();
+  try {
+    if (accion === "calcular") return json({ ok: true, ...(await etiquetasCalcular(env)) }, 200, cors);
+    if (accion === "aplicar") return json({ ok: true, ...(await etiquetasAplicar(env, Math.min(44, parseInt(url.searchParams.get("max") || "44", 10) || 44))) }, 200, cors);
+    const pend = ((await env.ESTRATEGIAS.get(ETQ_PEND, "json")) || {}) as Record<string, unknown>;
+    const aplicado = ((await env.ESTRATEGIAS.get(ETQ_APLICADO, "json")) || {}) as Record<string, string[]>;
+    const conteo: Record<string, number> = {};
+    Object.values(aplicado).forEach((ts) => ts.forEach((t) => (conteo[t] = (conteo[t] || 0) + 1)));
+    return json({ ok: true, estado: await env.ESTRATEGIAS.get(ETQ_ESTADO, "json"), pendientes: Object.keys(pend).length, contactosEtiquetados: Object.keys(aplicado).length, porEtiqueta: conteo }, 200, cors);
+  } catch (e) {
+    return json({ ok: false, error: String(e) }, 502, cors);
+  }
+}
+
 // Diagnóstico (solo admin): últimos contactos con sus etiquetas de UTM, para
 // comprobar que la atribución llegó. ?q= busca por email/teléfono/nombre.
 async function handleContactosRecientes(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
@@ -1053,6 +1218,11 @@ async function handleRecurso(request: Request, env: Env, id: string, cors: Heade
 }
 
 export default {
+  // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const minuto = new Date(event.scheduledTime).getUTCMinutes();
+    ctx.waitUntil((minuto % 30 < 10 ? etiquetasCalcular(env) : etiquetasAplicar(env)).then(() => undefined).catch(() => undefined));
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const cors = corsHeaders(request.headers.get("Origin"), env);
@@ -1088,6 +1258,20 @@ export default {
       }
       if (url.pathname === "/admin/pipelines" && request.method === "GET") {
         return await handlePipelinesAdmin(request, env, cors);
+      }
+      if (url.pathname === "/admin/etiquetar-etapa" && request.method === "POST") {
+        return await handleEtiquetarEtapa(request, url, env, cors);
+      }
+      if (url.pathname === "/admin/workflows" && request.method === "GET") {
+        if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
+        const r = await fetch(`${GHL_BASE}/workflows/?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+        return json({ ok: r.ok, status: r.status, body: r.ok ? await r.json() : (await r.text()).slice(0, 300) }, 200, cors);
+      }
+      if (url.pathname.startsWith("/admin/etiquetas/")) {
+        return await handleEtiquetasAdmin(request, url, env, cors);
+      }
+      if (url.pathname === "/admin/segmento" && request.method === "GET") {
+        return await handleSegmentoAdmin(request, url, env, cors);
       }
       if (url.pathname === "/admin/contactos-recientes" && request.method === "GET") {
         return await handleContactosRecientes(request, url, env, cors);
