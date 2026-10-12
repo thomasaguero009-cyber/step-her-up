@@ -1133,6 +1133,8 @@ async function handleEtiquetasAdmin(request: Request, url: URL, env: Env, cors: 
 // Puerto Rico) en #setters que diga "llamadas" y "agend".
 const SLACK_CANAL = "setters";
 const SLACK_EXCLUIDOS = /thomas|gianie/i;
+// Setters activas (por primer nombre). Solo a ellas se las menciona. Para sumar o sacar a alguien, cambiar esta lista.
+const SLACK_ACTIVAS = ["mia", "paula", "paola"];
 const PLANTILLA_NUMEROS = "Llamadas:\nNo contestaron:\nColgaron:\nLlamar más tarde:\nAgendé:\nCitas confirmadas:\nNo show:";
 
 async function slack(env: Env, metodo: string, params: Record<string, string> = {}, cuerpo?: unknown): Promise<any> {
@@ -1156,7 +1158,13 @@ async function recordatorioSetters(env: Env, enviar: boolean): Promise<{ canal: 
   const usuarios = (await slack(env, "users.list", { limit: "500" })).members || [];
   const info = new Map<string, any>(usuarios.map((u: any) => [u.id, u]));
   const nombre = (id: string) => { const u = info.get(id); return u ? u.real_name || u.profile?.real_name || u.name : id; };
-  const equipo = miembros.filter((id) => { const u = info.get(id); return u && !u.is_bot && !u.deleted && id !== "USLACKBOT" && !SLACK_EXCLUIDOS.test(`${u.real_name || ""} ${u.name || ""} ${u.profile?.display_name || ""}`); });
+  const primerNombre = (u: any) => (u.real_name || u.profile?.real_name || u.profile?.display_name || u.name || "").trim().split(/\s+/)[0].toLowerCase();
+  const equipo = miembros.filter((id) => {
+    const u = info.get(id);
+    if (!u || u.is_bot || u.deleted || id === "USLACKBOT") return false;
+    if (SLACK_EXCLUIDOS.test(`${u.real_name || ""} ${u.name || ""} ${u.profile?.display_name || ""}`)) return false;
+    return SLACK_ACTIVAS.includes(primerNombre(u));
+  });
   // Medianoche de hoy en Puerto Rico (UTC-4, sin horario de verano).
   const ahoraPR = new Date(Date.now() - 4 * 3600000);
   const inicioDia = Date.UTC(ahoraPR.getUTCFullYear(), ahoraPR.getUTCMonth(), ahoraPR.getUTCDate()) / 1000 + 4 * 3600;
