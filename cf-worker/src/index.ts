@@ -1218,6 +1218,14 @@ async function handleContactosRecientes(request: Request, url: URL, env: Env, co
   if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) {
     return json({ ok: false, error: "unauthorized" }, 401, cors);
   }
+  // ?id=<contacto>: lectura directa de un contacto con TODAS sus etiquetas (el buscador de GHL tarda en reflejar cambios).
+  const id = (url.searchParams.get("id") || "").trim();
+  if (/^[A-Za-z0-9]{10,40}$/.test(id)) {
+    const r = await fetch(`${GHL_BASE}/contacts/${id}`, { headers: ghlHeaders(env) });
+    if (!r.ok) return json({ ok: false, error: "contact_failed", status: r.status }, 502, cors);
+    const c = ((await r.json()) as { contact?: { contactName?: string; firstName?: string; lastName?: string; dateAdded?: string; source?: string; tags?: string[] } }).contact || {};
+    return json({ ok: true, contacto: { nombre: c.contactName || `${c.firstName || ""} ${c.lastName || ""}`.trim(), creado: c.dateAdded, origen: c.source, tags: c.tags || [] } }, 200, cors);
+  }
   const q = (url.searchParams.get("q") || "").trim();
   let u = `${GHL_BASE}/contacts/?locationId=${env.GHL_LOCATION_ID}&limit=8`;
   if (q) u += `&query=${encodeURIComponent(q)}`;
@@ -1261,7 +1269,10 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
   const partes = nombre.split(" ");
   // Qué versión de la landing registró a la persona: etiqueta "lp-<variante>" (p. ej. lp-sistema-marca).
   const variante = String(p.variante || "").trim().toLowerCase();
-  const tags = [EVENTO_WEBINAR.tag, ...(/^[a-z0-9][a-z0-9-]{1,39}$/.test(variante) ? [`lp-${variante}`] : []), ...utmTags(p)];
+  const tags = [EVENTO_WEBINAR.tag, ...(/^[a-z0-9][a-z0-9-]{1,39}$/.test(variante) ? [`lp-${variante}`] : [])];
+  // Las etiquetas y el origen NO van en el upsert: GHL reemplaza TODAS las etiquetas del contacto por las que se le
+  // mandan, y una persona que ya estaba en el CRM perdía las suyas (columna, pipeline, UTM del primer toque).
+  // Se agregan después con la llamada que suma etiquetas sin tocar las existentes.
   const pedir = (timezone?: string) =>
     fetch(`${GHL_BASE}/contacts/upsert`, {
       method: "POST",
@@ -1272,8 +1283,6 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
         lastName: partes.slice(1).join(" "),
         email,
         phone: telefono,
-        tags,
-        source: EVENTO_WEBINAR.fuente,
         timezone,
       }),
     });
@@ -1283,10 +1292,25 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
   if (!res.ok) {
     return json({ ok: false, error: "ghl_failed", detail: (await res.text()).slice(0, 300) }, 502, cors);
   }
-  const body = (await res.json()) as { contact?: { id?: string } };
+  const body = (await res.json()) as { new?: boolean; contact?: { id?: string; dateAdded?: string } };
   const idContacto = body.contact?.id || null;
+  let etiquetas = "sin_contacto";
+  if (idContacto) {
+    const cabeceras = { ...ghlHeaders(env), "Content-Type": "application/json" };
+    const sumar = () => fetch(`${GHL_BASE}/contacts/${idContacto}/tags`, { method: "POST", headers: cabeceras, body: JSON.stringify({ tags }) });
+    let rt = await sumar();
+    if (!rt.ok) rt = await sumar();   // la etiqueta dispara la confirmación: se reintenta una vez
+    etiquetas = rt.ok ? "ok" : `error_${rt.status}`;
+    // UTMs: gana el primer toque (si ya tiene src-/camp- no se pisan), igual que en el resto del funnel.
+    await etiquetarAtribucion(env, idContacto, p).catch(() => "error");
+    // El origen "Webinar 21 oct" solo se escribe en contactos nuevos: a los que ya existían se les respeta el suyo.
+    const esNuevo = body.new === true || Date.now() - (Date.parse(body.contact?.dateAdded || "") || 0) < 120000;
+    if (esNuevo) {
+      await fetch(`${GHL_BASE}/contacts/${idContacto}`, { method: "PUT", headers: cabeceras, body: JSON.stringify({ source: EVENTO_WEBINAR.fuente }) }).catch(() => null);
+    }
+  }
   const oportunidad = idContacto ? await oportunidadWebinar(env, idContacto, nombre, "registro") : { accion: "sin_contacto" };
-  return json({ ok: true, id: idContacto, oportunidad }, 200, cors);
+  return json({ ok: true, id: idContacto, oportunidad, etiquetas }, 200, cors);
 }
 
 // --- Recursos privados (presentaciones) ---------------------------------------
