@@ -1226,7 +1226,7 @@ async function handleContactosRecientes(request: Request, url: URL, env: Env, co
   const body = (await res.json()) as { contacts?: { id: string; contactName?: string; email?: string; dateAdded?: string; source?: string; tags?: string[] }[] };
   const contactos = (body.contacts || []).map((c) => ({
     nombre: c.contactName, email: c.email, creado: c.dateAdded, origen: c.source,
-    tags: (c.tags || []).filter((t) => /^(src|med|camp|cont)-/.test(t) || t === "webinar-21-oct"),
+    tags: (c.tags || []).filter((t) => /^(src|med|camp|cont|lp)-/.test(t) || t === "webinar-21-oct"),
   }));
   return json({ ok: true, contactos }, 200, cors);
 }
