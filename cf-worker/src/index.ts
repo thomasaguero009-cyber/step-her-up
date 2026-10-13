@@ -1153,6 +1153,19 @@ async function slack(env: Env, metodo: string, params: Record<string, string> = 
   return d;
 }
 
+// Lo llama el cron. Solo publica de lunes a viernes (día de Puerto Rico) y una sola vez por día y tipo:
+// Cloudflare puede disparar el mismo cron dos veces, así que un candado en KV evita el mensaje doble.
+async function recordatorioProgramado(env: Env, tipo: "numeros" | "metas" | "cierre", cuando: number): Promise<void> {
+  const pr = new Date(cuando - 4 * 3600 * 1000);
+  const dia = pr.getUTCDay();
+  if (dia === 0 || dia === 6) return;
+  const clave = `slack:${tipo}:${pr.toISOString().slice(0, 10)}`;
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1", { expirationTtl: 86400 });
+  try { await recordatorioSetters(env, true, tipo); }
+  catch (e) { await env.ESTRATEGIAS.delete(clave); throw e; }
+}
+
 async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | "metas" | "cierre" = "numeros"): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
   if (!env.SLACK_BOT_TOKEN) throw new Error("falta SLACK_BOT_TOKEN");
   const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
@@ -1293,16 +1306,11 @@ async function handleRecurso(request: Request, env: Env, id: string, cors: Heade
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (event.cron === "0 0 * * 2-6") {                // 8:00 PM AST de lunes a viernes (= 00:00 UTC del día siguiente)
-      ctx.waitUntil(recordatorioSetters(env, true, "cierre").then(() => undefined).catch(() => undefined));
-      return;
-    }
-    if (event.cron === "30 14 * * 1-5") {              // 10:30 AM AST, lunes a viernes: metas del día
-      ctx.waitUntil(recordatorioSetters(env, true, "metas").then(() => undefined).catch(() => undefined));
-      return;
-    }
-    if (event.cron === "0 17 * * 1-5") {               // 1:00 PM AST, lunes a viernes
-      ctx.waitUntil(recordatorioSetters(env, true).then(() => undefined).catch(() => undefined));
+    // Recordatorios de Slack (hora de Puerto Rico, UTC-4): 00:00 UTC = cierre 8:00 PM · 14:30 = metas 10:30 AM · 17:00 = números 1:00 PM.
+    // Los crons corren todos los días; el filtro lunes-viernes y el candado anti-duplicado están en recordatorioProgramado.
+    const tipo = event.cron.startsWith("0 0 ") ? "cierre" : event.cron.startsWith("30 14 ") ? "metas" : event.cron.startsWith("0 17 ") ? "numeros" : null;
+    if (tipo) {
+      ctx.waitUntil(recordatorioProgramado(env, tipo, event.scheduledTime).catch(() => undefined));
       return;
     }
     const minuto = new Date(event.scheduledTime).getUTCMinutes();
