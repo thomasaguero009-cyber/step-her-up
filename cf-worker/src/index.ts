@@ -504,6 +504,8 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
   const dias: Record<string, { total: number; porOrigen: Record<string, number> }> = {};
   const origenes = new Set<string>();
   const utmLeads: Record<"src" | "camp" | "cont", Record<string, number>> = { src: {}, camp: {}, cont: {} };
+  // Contactos nuevos del rango según la landing del webinar por la que entraron (etiqueta lp-<variante>). Solo conteos.
+  const landings: Record<string, number> = {};
   let total = 0;
   let cortadoPorLimite = false;
 
@@ -527,6 +529,7 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
       d.porOrigen[origen] = (d.porOrigen[origen] || 0) + 1;
       const atr = atribucionDeTags(c.tags);
       (["src", "camp", "cont"] as const).forEach((k) => { utmLeads[k][atr[k]] = (utmLeads[k][atr[k]] || 0) + 1; });
+      for (const tag of c.tags || []) if (tag.startsWith("lp-")) landings[tag.slice(3)] = (landings[tag.slice(3)] || 0) + 1;
       total++;
     }
     const ultimo = lote.length ? Date.parse(lote[lote.length - 1].dateAdded) : 0;
@@ -536,7 +539,7 @@ async function handleLeadsPorDia(url: URL, env: Env, cors: HeadersInit): Promise
     startAfterId = String(body.meta.startAfterId);
   }
 
-  return json({ ok: true, total, dias, origenes: [...origenes].sort(), utmLeads, cortadoPorLimite }, 200, cors);
+  return json({ ok: true, total, dias, origenes: [...origenes].sort(), utmLeads, landings, cortadoPorLimite }, 200, cors);
 }
 
 // ===== Videos servidos desde R2 (reemplaza a Bunny CDN — mismo archivo,
