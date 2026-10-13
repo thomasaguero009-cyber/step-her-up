@@ -1223,8 +1223,20 @@ async function handleContactosRecientes(request: Request, url: URL, env: Env, co
   if (/^[A-Za-z0-9]{10,40}$/.test(id)) {
     const r = await fetch(`${GHL_BASE}/contacts/${id}`, { headers: ghlHeaders(env) });
     if (!r.ok) return json({ ok: false, error: "contact_failed", status: r.status }, 502, cors);
-    const c = ((await r.json()) as { contact?: { contactName?: string; firstName?: string; lastName?: string; dateAdded?: string; source?: string; tags?: string[] } }).contact || {};
-    return json({ ok: true, contacto: { nombre: c.contactName || `${c.firstName || ""} ${c.lastName || ""}`.trim(), creado: c.dateAdded, origen: c.source, tags: c.tags || [] } }, 200, cors);
+    const c = ((await r.json()) as { contact?: { contactName?: string; firstName?: string; lastName?: string; email?: string; phone?: string; timezone?: string; dateAdded?: string; source?: string; tags?: string[] } }).contact || {};
+    // Oportunidades del contacto, con el nombre del pipeline y de la columna (para comprobar dónde quedó guardado).
+    const [ro, rp] = await Promise.all([
+      fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&contact_id=${id}`, { headers: ghlHeaders(env) }),
+      fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) }),
+    ]);
+    const ops = ro.ok ? ((await ro.json()) as { opportunities?: { name?: string; status?: string; source?: string; pipelineId: string; pipelineStageId: string; createdAt?: string }[] }).opportunities || [] : [];
+    const pipes = rp.ok ? ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [] : [];
+    const oportunidades = ops.map((o) => {
+      const pp = pipes.find((x) => x.id === o.pipelineId);
+      return { nombre: o.name, estado: o.status, origen: o.source, creada: o.createdAt, pipeline: pp?.name || o.pipelineId, columna: pp?.stages?.find((s) => s.id === o.pipelineStageId)?.name || o.pipelineStageId };
+    });
+    const tapar = (v?: string) => (v ? v.slice(0, 3) + "…" + v.slice(-4) : "");
+    return json({ ok: true, contacto: { nombre: c.contactName || `${c.firstName || ""} ${c.lastName || ""}`.trim(), email: tapar(c.email), telefono: tapar(c.phone), zona: c.timezone, creado: c.dateAdded, origen: c.source, tags: c.tags || [], oportunidades } }, 200, cors);
   }
   const q = (url.searchParams.get("q") || "").trim();
   let u = `${GHL_BASE}/contacts/?locationId=${env.GHL_LOCATION_ID}&limit=8`;
