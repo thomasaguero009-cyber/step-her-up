@@ -1259,7 +1259,9 @@ async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersIn
   if (telefono.replace(/\D/g, "").length < 7) return json({ ok: false, error: "telefono_invalido" }, 400, cors);
 
   const partes = nombre.split(" ");
-  const tags = [EVENTO_WEBINAR.tag, ...utmTags(p)];
+  // Qué versión de la landing registró a la persona: etiqueta "lp-<variante>" (p. ej. lp-sistema-marca).
+  const variante = String(p.variante || "").trim().toLowerCase();
+  const tags = [EVENTO_WEBINAR.tag, ...(/^[a-z0-9][a-z0-9-]{1,39}$/.test(variante) ? [`lp-${variante}`] : []), ...utmTags(p)];
   const pedir = (timezone?: string) =>
     fetch(`${GHL_BASE}/contacts/upsert`, {
       method: "POST",
