@@ -816,7 +816,7 @@ src="https://www.facebook.com/tr?id=775352058307323&ev=PageView&noscript=1"
     $("formCard").scrollIntoView({ behavior: "smooth", block: "center" });
     if (redirigir) {
       $("doneTxt").textContent = "Te estamos llevando al grupo de WhatsApp para que recibas el aviso y el acceso a la clase.";
-      setTimeout(() => { location.href = WHATSAPP_URL; }, 350);
+      setTimeout(() => { location.href = WHATSAPP_URL; }, 700);   // un poco más de tiempo para que salga el evento del pixel
       setTimeout(() => { if (document.visibilityState === "visible") $("doneHint").hidden = false; }, 2800);
     }
   }
@@ -865,6 +865,8 @@ src="https://www.facebook.com/tr?id=775352058307323&ev=PageView&noscript=1"
       // y reintentamos guardar sus datos la próxima vez que abra la página.
       try { localStorage.setItem(PENDIENTE_KEY, JSON.stringify(payload)); } catch (e2) {}
     }
+    // Meta Pixel: una persona acaba de registrarse. Es el evento "Lead" que Meta cuenta como resultado del anuncio.
+    try { if (typeof fbq === "function") fbq("track", "Lead", { content_name: "Webinar 21 oct", content_category: VARIANTE }); } catch (e3) {}
     mostrarListo(true);
   });
 
