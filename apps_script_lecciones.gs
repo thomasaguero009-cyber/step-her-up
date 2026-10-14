@@ -257,7 +257,7 @@ function addMetricas(body) {
 // completa numeros de "orden" vacios, agrega listas desplegables, da
 // formato a los encabezados y ordena/colorea las pestanas. Se puede correr
 // las veces que haga falta. Lo que no puede arreglar solo lo avisa al final.
-var SETTERS = ['Paula', 'Paola', 'Mia'];
+var SETTERS = ['Paula', 'Mia'];
 var COLOR_VINO = '#5a1626';
 var COLOR_ROSA = '#e88aa8';
 

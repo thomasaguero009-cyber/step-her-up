@@ -1141,7 +1141,7 @@ async function handleEtiquetasAdmin(request: Request, url: URL, env: Env, cors: 
 const SLACK_CANAL = "setters";
 const SLACK_EXCLUIDOS = /thomas|gianie/i;
 // Setters activas (por primer nombre). Solo a ellas se las menciona. Para sumar o sacar a alguien, cambiar esta lista.
-const SLACK_ACTIVAS = ["mia", "paula", "paola"];
+const SLACK_ACTIVAS = ["mia", "paula"];
 const PLANTILLA_NUMEROS = "Llamadas:\nNo contestaron:\nColgaron:\nLlamar más tarde:\nAgendé:\nCitas confirmadas:\nNo show:";
 
 async function slack(env: Env, metodo: string, params: Record<string, string> = {}, cuerpo?: unknown): Promise<any> {
