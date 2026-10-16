@@ -389,7 +389,7 @@ src="https://www.facebook.com/tr?id=775352058307323&ev=PageView&noscript=1"
         <h2>¡Listo, ya tienes tu lugar!</h2>
         <p id="doneTxt">Último paso: entra al grupo de WhatsApp para recibir el aviso y el acceso a la clase.</p>
         <a class="btn btn-solid btn-block" id="doneBtn" href="https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t">Entrar al grupo de WhatsApp</a>
-        <p class="done-hint" id="doneHint" hidden>Si WhatsApp no se abrió solo, toca el botón de arriba.</p>
+        <p class="done-hint" id="doneHint" hidden>Si no avanzó solo, toca el botón de arriba para entrar al grupo de WhatsApp.</p>
       </div>
     </div>
   </div>
@@ -699,6 +699,7 @@ src="https://www.facebook.com/tr?id=775352058307323&ev=PageView&noscript=1"
   // 21/10/2026, 7:00 PM hora de Puerto Rico (AST, UTC-4 todo el año).
   const EVENTO = new Date("2026-10-21T19:00:00-04:00");
   const WHATSAPP_URL = "https://chat.whatsapp.com/L0Mjb4eIL52FT966cokUxt?mode=gi_t";
+  const GRACIAS_URL = "https://shu.stepherup.com/clase-gracias/";   // página de gracias: video de Gianie + botón al grupo de WhatsApp
   const WORKER_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev";
   const LEAD_KEY = "shu_webinar_lead";
   const PENDIENTE_KEY = "shu_webinar_pendiente";
@@ -806,7 +807,7 @@ src="https://www.facebook.com/tr?id=775352058307323&ev=PageView&noscript=1"
     });
   }
 
-  // Al confirmar el lugar, la mandamos de inmediato al grupo de WhatsApp. La
+  // Al confirmar el lugar, la mandamos de inmediato a la página de gracias (video + botón al grupo de WhatsApp). La
   // tarjeta con el botón queda como respaldo: algunos navegadores (por ejemplo
   // el de Instagram) bloquean el salto automático, y ahí toca el botón.
   function mostrarListo(redirigir) {
@@ -815,8 +816,8 @@ src="https://www.facebook.com/tr?id=775352058307323&ev=PageView&noscript=1"
     $("doneBtn").href = WHATSAPP_URL;
     $("formCard").scrollIntoView({ behavior: "smooth", block: "center" });
     if (redirigir) {
-      $("doneTxt").textContent = "Te estamos llevando al grupo de WhatsApp para que recibas el aviso y el acceso a la clase.";
-      setTimeout(() => { location.href = WHATSAPP_URL; }, 700);   // un poco más de tiempo para que salga el evento del pixel
+      $("doneTxt").textContent = "Te estamos llevando al último paso para que recibas el aviso y el acceso a la clase.";
+      setTimeout(() => { location.href = GRACIAS_URL; }, 700);   // un poco más de tiempo para que salga el evento del pixel
       setTimeout(() => { if (document.visibilityState === "visible") $("doneHint").hidden = false; }, 2800);
     }
   }
