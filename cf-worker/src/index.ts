@@ -315,6 +315,7 @@ interface OpportunityGHL {
   pipelineStageId: string;
   lastStageChangeAt: string;
   monetaryValue?: number;
+  createdAt?: string;
   contact?: { tags?: string[] };
 }
 
@@ -343,6 +344,42 @@ async function traerOportunidadesDePipeline(env: Env, pipelineId: string): Promi
     startAfterId = String(body.meta.startAfterId);
   }
   return todas;
+}
+
+// ===== Resumen del webinar (pestaña "Webinar" del dashboard) — sale del pipeline
+// "STEP HER UP - WEBINAR": una oportunidad por inscripta, la etapa dice si asistió, no asistió o agendó, y
+// las etiquetas del contacto dicen por cuál landing (lp-) y de qué fuente (src-) llegó. =====
+async function handleWebinarResumen(env: Env, cors: HeadersInit): Promise<Response> {
+  const pw = await pipelineWebinar(env);
+  if (!pw) return json({ ok: false, error: "pipeline_not_found" }, 404, cors);
+  let ops: OpportunityGHL[];
+  try {
+    ops = await traerOportunidadesDePipeline(env, pw.id);
+  } catch (err) {
+    return json({ ok: false, error: "opportunities_failed", detail: String(err) }, 502, cors);
+  }
+  const nombreEtapa = new Map(pw.etapas.map((e) => [e.id, e.name]));
+  const etapas = pw.etapas.map((e) => ({ nombre: e.name, cantidad: 0 }));
+  const landings: Record<string, number> = {};
+  const porFuente: Record<string, number> = {};
+  const porDia: Record<string, number> = {};
+  const diaPR = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" });
+  for (const o of ops) {
+    const e = etapas.find((x) => x.nombre === nombreEtapa.get(o.pipelineStageId));
+    if (e) e.cantidad++;
+    const tags = o.contact?.tags || [];
+    const lp = tags.find((t) => t.startsWith("lp-"));
+    const clave = lp ? lp.slice(3) : "";
+    landings[clave] = (landings[clave] || 0) + 1;
+    const src = atribucionDeTags(tags).src;
+    porFuente[src] = (porFuente[src] || 0) + 1;
+    const creada = Date.parse(o.createdAt || "");
+    if (creada) {
+      const d = diaPR.format(new Date(creada));
+      porDia[d] = (porDia[d] || 0) + 1;
+    }
+  }
+  return json({ ok: true, total: ops.length, etapas, landings, porFuente, porDia }, 200, cors);
 }
 
 async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promise<Response> {
@@ -1374,6 +1411,9 @@ export default {
       }
       if (url.pathname === "/leads-summary" && request.method === "GET") {
         return await handleLeadsSummary(url, env, cors);
+      }
+      if (url.pathname === "/webinar-resumen" && request.method === "GET") {
+        return await handleWebinarResumen(env, cors);
       }
       if (url.pathname === "/geo" && request.method === "GET") {
         return handleGeo(request, cors);
