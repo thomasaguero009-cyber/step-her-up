@@ -27,4 +27,4 @@ id = "e4cf8c7402e5449592cb0c64c7fda7ef"
 
 # Etiquetas automáticas por columna y pipeline (ver etiquetasCalcular / etiquetasAplicar)
 [triggers]
-crons = ["*/10 * * * *", "30 14 * * *", "0 17 * * *", "0 0 * * *"]  # etiquetas cada 10 min · Slack (hora PR): metas 10:30 AM, números 1:00 PM, cierre 8:00 PM; el filtro lun-vie está en el código
+crons = ["*/10 * * * *", "30 14 * * *", "0 17 * * *", "0 0 * * *", "0 13 * * 1"]  # etiquetas cada 10 min · Slack (hora PR): metas 10:30 AM, números 1:00 PM, cierre 8:00 PM; el filtro lun-vie está en el código · lunes 9:00 AM resumen semanal a Thomas

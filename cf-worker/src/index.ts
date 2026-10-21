@@ -1222,6 +1222,81 @@ async function recordatorioProgramado(env: Env, tipo: "numeros" | "metas" | "cie
   catch (e) { await env.ESTRATEGIAS.delete(clave); throw e; }
 }
 
+
+// ===== Avisos y resumen semanal por Slack: llegan SOLO por mensaje directo a Thomas (U0C210N8PR8), no al equipo. =====
+const SLACK_THOMAS = "U0C210N8PR8";
+const META_INSCRIPTAS = 1000;
+
+async function avisarThomas(env: Env, texto: string): Promise<void> {
+  if (!env.SLACK_BOT_TOKEN) return;
+  const dm = await slack(env, "conversations.open", {}, { users: SLACK_THOMAS });
+  await slack(env, "chat.postMessage", {}, { channel: dm.channel.id, text: texto });
+}
+
+const fmtDinero = (n: number) => "$" + Math.round(n || 0).toLocaleString("en-US");
+function variacion(ahora: number, antes: number): string {
+  if (!antes) return ahora ? " (nuevo)" : "";
+  const p = Math.round(((ahora - antes) / antes) * 100);
+  return ` (${p >= 0 ? "+" : ""}${p}% vs la anterior)`;
+}
+
+// Lunes 9:00 AM de Puerto Rico: números de la semana que terminó contra la anterior.
+async function resumenSemanal(env: Env, cuando: number): Promise<void> {
+  const ini = cuando - 7 * 86400000, antes = ini - 7 * 86400000;
+  const pedir = async (a: number, b: number): Promise<Record<string, number>> => {
+    const r = await handleLeadsSummary(new URL(`https://x/leads-summary?start=${a}&end=${b}`), env, {});
+    const d = (await r.json()) as { totales?: Record<string, number> };
+    return d.totales || {};
+  };
+  const [t, ta] = await Promise.all([pedir(ini, cuando), pedir(antes, ini)]);
+  const w = (await (await handleWebinarResumen(env, {})).json()) as { total?: number; etapas?: { nombre: string; cantidad: number }[] };
+  const sinTilde = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const asistieron = (w.etapas || []).find((e) => sinTilde(e.nombre).startsWith("asisti"))?.cantidad || 0;
+  const dia = (ms: number) => new Date(ms - 4 * 3600 * 1000).toLocaleDateString("es-PR", { day: "numeric", month: "short", timeZone: "UTC" });
+  const linea = (nom: string, k: string) => `• ${nom}: *${t[k] || 0}*${variacion(t[k] || 0, ta[k] || 0)}`;
+  const texto = [
+    `📊 *Resumen de la semana* (${dia(ini)} al ${dia(cuando)})`,
+    linea("Llamadas", "llamadas"), linea("Agendadas", "agendadas"), linea("Shows", "shows"), linea("Cierres", "cierres"),
+    `• Cash cobrado: *${fmtDinero(t.ventas || 0)}*${variacion(t.ventas || 0, ta.ventas || 0)}`,
+    `• Webinar: *${w.total || 0}* inscritas en total, *${asistieron}* asistieron`,
+    "Más detalle en https://dash.stepherup.com",
+  ].join("\n");
+  await avisarThomas(env, texto);
+}
+
+async function resumenSemanalProgramado(env: Env, cuando: number): Promise<void> {
+  const dia = new Date(cuando - 4 * 3600 * 1000).toISOString().slice(0, 10);
+  const clave = `slack:semanal:${dia}`;
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1", { expirationTtl: 86400 });
+  try { await resumenSemanal(env, cuando); } catch (e) { await env.ESTRATEGIAS.delete(clave); throw e; }
+}
+
+// Avisos de lo que pide atención. Solo escribe cuando hay algo que decir.
+async function avisosParaThomas(env: Env): Promise<void> {
+  if (!env.SLACK_BOT_TOKEN) return;
+  if (!(await env.ESTRATEGIAS.get("avisos:activo"))) {
+    await env.ESTRATEGIAS.put("avisos:activo", "1");
+    await avisarThomas(env, "✅ *Avisos activados.* Te escribo por aquí, solo a ti, cuando una asistente al webinar no tenga responsable o se llegue a la meta de inscriptas.");
+  }
+  const pw = await pipelineWebinar(env);
+  if (!pw) return;
+  const sinTilde = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const asist = pw.etapas.find((e) => sinTilde(e.name).startsWith("asisti"));
+  const ops = (await traerOportunidadesDePipeline(env, pw.id)) as unknown as { pipelineStageId: string; assignedTo?: string; name?: string; contact?: { name?: string; phone?: string } }[];
+  if (asist) {
+    const sin = ops.filter((o) => o.pipelineStageId === asist.id && !o.assignedTo);
+    if (sin.length) {
+      const lista = sin.slice(0, 6).map((o) => `• ${o.contact?.name || o.name || "Sin nombre"}${o.contact?.phone ? " · " + o.contact.phone : ""}`).join("\n");
+      await avisarThomas(env, `⚠️ *${sin.length}* ${sin.length === 1 ? "asistente al webinar sigue" : "asistentes al webinar siguen"} sin responsable en la etapa Asistió:\n${lista}${sin.length > 6 ? `\n…y ${sin.length - 6} más` : ""}`);
+    }
+  }
+  if (ops.length >= META_INSCRIPTAS && !(await env.ESTRATEGIAS.get("avisos:meta-inscriptas"))) {
+    await env.ESTRATEGIAS.put("avisos:meta-inscriptas", "1");
+    await avisarThomas(env, `🎉 ¡Se llegó a la meta! Ya hay *${ops.length}* inscritas en el webinar (la meta era ${META_INSCRIPTAS}).`);
+  }
+}
+
 async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | "metas" | "cierre" = "numeros"): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
   if (!env.SLACK_BOT_TOKEN) throw new Error("falta SLACK_BOT_TOKEN");
   const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
@@ -1441,6 +1516,8 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     // Recordatorios de Slack (hora de Puerto Rico, UTC-4): 00:00 UTC = cierre 8:00 PM · 14:30 = metas 10:30 AM · 17:00 = números 1:00 PM.
     // Los crons corren todos los días; el filtro lunes-viernes y el candado anti-duplicado están en recordatorioProgramado.
+    if (event.cron.startsWith("0 13 ")) { ctx.waitUntil(resumenSemanalProgramado(env, event.scheduledTime).catch(() => undefined)); return; }
+    if (event.cron.startsWith("0 0 ") || event.cron.startsWith("0 17 ")) ctx.waitUntil(avisosParaThomas(env).catch(() => undefined));
     const tipo = event.cron.startsWith("0 0 ") ? "cierre" : event.cron.startsWith("30 14 ") ? "metas" : event.cron.startsWith("0 17 ") ? "numeros" : null;
     if (tipo) {
       ctx.waitUntil(recordatorioProgramado(env, tipo, event.scheduledTime).catch(() => undefined));
