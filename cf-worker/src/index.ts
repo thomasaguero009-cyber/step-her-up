@@ -14,6 +14,7 @@ export interface Env {
   SITE_KEY: string; // contraseña de la plataforma (para los recursos privados)
   OPENAI_MODEL: string;
   ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
+  EMAIL_HOOK_KEY?: string; // clave del webhook de eventos de email de GHL (secret)
   SLACK_BOT_TOKEN?: string; // bot de Slack para el recordatorio diario de #setters (secret)
 }
 
@@ -791,7 +792,7 @@ async function oportunidadWebinar(
   env: Env,
   contactId: string,
   nombre: string,
-  evento: "registro" | "agendo"
+  evento: "registro" | "agendo" | "ingreso"
 ): Promise<{ accion: string; detail?: string }> {
   try {
     const pipe = await pipelineWebinar(env);
@@ -799,7 +800,12 @@ async function oportunidadWebinar(
     const porNombre = (n: string) => pipe.etapas.find((e) => e.name.trim().toLowerCase() === n);
     const primera = pipe.etapas[0];
     const nuevoLead = porNombre("new lead") || primera;
-    const destino = evento === "registro" ? nuevoLead : porNombre("auto booked") || porNombre("agendó llamada");
+    const sinTilde = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    // "ingreso": entró a la página previa al Zoom. Pasa a la etapa "Asistió" (cualquier nombre que empiece con "asisti").
+    const destino =
+      evento === "registro" ? nuevoLead
+      : evento === "ingreso" ? pipe.etapas.find((e) => sinTilde(e.name).startsWith("asisti"))
+      : porNombre("auto booked") || porNombre("agendó llamada");
     if (!destino) return { accion: "sin_etapa_destino" };
 
     // Una oportunidad existente solo se mueve al reservar y solo si seguía en la primera etapa.
@@ -980,6 +986,16 @@ async function anotarDiagnostico(env: Env, evento: string, datos: Record<string,
   try {
     await env.ESTRATEGIAS.put(`dbg:${evento}:${Date.now()}`, JSON.stringify(datos), { expirationTtl: 172800 });
   } catch { /* nunca debe romper el flujo */ }
+}
+
+// Webhook de una automatización de GHL ("Email Events"). DESACTIVADO el 19-oct-2026: GHL solo manda los datos del
+// contacto (sin tipo de evento ni nombre del envío) y cada evento escribía en el KV, lo que agotó el límite diario
+// gratuito de escrituras. Ahora responde sin guardar nada.
+async function handleEmailEvento(request: Request, url: URL, env: Env): Promise<Response> {
+  if (!env.EMAIL_HOOK_KEY || url.searchParams.get("k") !== env.EMAIL_HOOK_KEY) {
+    return new Response("no autorizado", { status: 401 });
+  }
+  return new Response("ok", { status: 200 });
 }
 
 async function handleClickMatch(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
@@ -1301,6 +1317,45 @@ function atribucionDeTags(tags: string[] | undefined): { src: string; med: strin
   return out;
 }
 
+// ===== Ingreso al Zoom (página previa a la clase): la persona deja nombre, correo y teléfono antes de entrar.
+// Se le pone la etiqueta webinar-asistio y su oportunidad pasa a la etapa "Asistió" del pipeline del webinar,
+// para que las setters llamen primero a quienes sí entraron. Si no estaba registrada, queda con la etiqueta ingreso-sin-registro. =====
+async function handleWebinarIngreso(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  let p: Record<string, unknown>;
+  try {
+    p = await request.json();
+  } catch {
+    return json({ ok: false, error: "invalid_json" }, 400, cors);
+  }
+  if (p.website) return json({ ok: true }, 200, cors);
+
+  const nombre = String(p.nombre || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const email = String(p.email || "").trim().toLowerCase().slice(0, 120);
+  const telefono = String(p.telefono || "").replace(/[^\d+]/g, "").slice(0, 20);
+  if (nombre.length < 2) return json({ ok: false, error: "nombre_invalido" }, 400, cors);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ ok: false, error: "email_invalido" }, 400, cors);
+  if (telefono.replace(/\D/g, "").length < 7) return json({ ok: false, error: "telefono_invalido" }, 400, cors);
+
+  const partes = nombre.split(" ");
+  const res = await fetch(`${GHL_BASE}/contacts/upsert`, {
+    method: "POST",
+    headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+    body: JSON.stringify({ locationId: env.GHL_LOCATION_ID, firstName: partes[0], lastName: partes.slice(1).join(" "), email, phone: telefono }),
+  });
+  if (!res.ok) return json({ ok: false, error: "ghl_failed", detail: (await res.text()).slice(0, 300) }, 502, cors);
+  const body = (await res.json()) as { contact?: { id?: string } };
+  const id = body.contact?.id || null;
+  if (!id) return json({ ok: true, id: null, oportunidad: { accion: "sin_contacto" } }, 200, cors);
+
+  const cabeceras = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const yaRegistrada = await contactoTieneTag(env, id, EVENTO_WEBINAR.tag);
+  const tags = ["webinar-asistio", ...(yaRegistrada ? [] : ["ingreso-sin-registro"])];
+  const rt = await fetch(`${GHL_BASE}/contacts/${id}/tags`, { method: "POST", headers: cabeceras, body: JSON.stringify({ tags }) }).catch(() => null);
+  await etiquetarAtribucion(env, id, p).catch(() => "error");
+  const oportunidad = await oportunidadWebinar(env, id, nombre, "ingreso");
+  return json({ ok: true, id, registrada: yaRegistrada, etiquetas: rt?.ok ? "ok" : "error", oportunidad }, 200, cors);
+}
+
 async function handleWebinarRegistro(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   let p: Record<string, unknown>;
   try {
@@ -1415,6 +1470,9 @@ export default {
       if (url.pathname === "/webinar-resumen" && request.method === "GET") {
         return await handleWebinarResumen(env, cors);
       }
+      if (url.pathname === "/email-evento" && request.method === "POST") {
+        return await handleEmailEvento(request, url, env);
+      }
       if (url.pathname === "/geo" && request.method === "GET") {
         return handleGeo(request, cors);
       }
@@ -1466,6 +1524,9 @@ export default {
       }
       if (url.pathname === "/webinar-registro" && request.method === "POST") {
         return await handleWebinarRegistro(request, env, cors);
+      }
+      if (url.pathname === "/webinar-ingreso" && request.method === "POST") {
+        return await handleWebinarIngreso(request, env, cors);
       }
       if (url.pathname === "/estrategia/generar" && request.method === "POST") {
         return await handleEstrategiaGenerar(request, env, cors);
