@@ -12,6 +12,7 @@ export interface Env {
   OPENAI_API_KEY: string;
   ADMIN_KEY: string;
   SITE_KEY: string; // contraseña de la plataforma (para los recursos privados)
+  STRIPE_WEBHOOK_SECRET?: string; // clave de firma del webhook de Stripe (whsec_...)
   OPENAI_MODEL: string;
   ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
   EMAIL_HOOK_KEY?: string; // clave del webhook de eventos de email de GHL (secret)
@@ -1395,6 +1396,95 @@ function atribucionDeTags(tags: string[] | undefined): { src: string; med: strin
 // ===== Ingreso al Zoom (página previa a la clase): la persona deja nombre, correo y teléfono antes de entrar.
 // Se le pone la etiqueta webinar-asistio y su oportunidad pasa a la etapa "Asistió" del pipeline del webinar,
 // para que las setters llamen primero a quienes sí entraron. Si no estaba registrada, queda con la etiqueta ingreso-sin-registro. =====
+// Las personas que pagaron: su oportunidad del pipeline del webinar pasa a "Closed $997" (Won, con valor)
+// y se les pone la etiqueta compro-skool. Lo usan /webinar-compra (rutina que lee Skool) y /stripe-webhook.
+async function cerrarVentas(env: Env, emails: string[], valor: number, simular: boolean): Promise<{ error?: string; resultados: { email: string; accion: string; detail?: string }[] }> {
+  const pipe = await pipelineWebinar(env);
+  if (!pipe) return { error: "pipeline_no_encontrado", resultados: [] };
+  const cerrada = pipe.etapas.find((e) => /^closed\s*\$?\s*997/i.test(e.name.trim())) || pipe.etapas.find((e) => e.name.trim().toLowerCase() === "closed");
+  if (!cerrada) return { error: "sin_etapa_closed", resultados: [] };
+  const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const resultados: { email: string; accion: string; detail?: string }[] = [];
+  for (const email of emails) {
+    try {
+      const up = await fetch(`${GHL_BASE}/contacts/upsert`, { method: "POST", headers: cab, body: JSON.stringify({ locationId: env.GHL_LOCATION_ID, email }) });
+      if (!up.ok) { resultados.push({ email, accion: "error", detail: `contacto ${up.status}` }); continue; }
+      const id = ((await up.json()) as { contact?: { id?: string } }).contact?.id;
+      if (!id) { resultados.push({ email, accion: "sin_contacto" }); continue; }
+      const bus = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pipe.id}&contact_id=${id}`, { headers: ghlHeaders(env) });
+      const ops = bus.ok ? (((await bus.json()) as { opportunities?: { id: string; pipelineStageId: string; status?: string }[] }).opportunities || []) : [];
+      const op = ops[0];
+      if (op && op.pipelineStageId === cerrada.id && op.status === "won") { resultados.push({ email, accion: "ya_cerrada" }); continue; }
+      if (simular) { resultados.push({ email, accion: op ? "se_movería" : "se_crearía" }); continue; }
+      let r: Response;
+      if (op) {
+        r = await fetch(`${GHL_BASE}/opportunities/${op.id}`, { method: "PUT", headers: cab, body: JSON.stringify({ pipelineStageId: cerrada.id, status: "won", monetaryValue: valor }) });
+      } else {
+        r = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId: pipe.id, locationId: env.GHL_LOCATION_ID, pipelineStageId: cerrada.id, contactId: id, name: email.split("@")[0], status: "won", monetaryValue: valor, source: EVENTO_WEBINAR.fuente }) });
+      }
+      if (!r.ok) { resultados.push({ email, accion: "error", detail: `opp ${r.status}: ${(await r.text()).slice(0, 150)}` }); continue; }
+      await fetch(`${GHL_BASE}/contacts/${id}/tags`, { method: "POST", headers: cab, body: JSON.stringify({ tags: ["compro-skool"] }) }).catch(() => null);
+      resultados.push({ email, accion: op ? "movida" : "creada" });
+    } catch (err) {
+      resultados.push({ email, accion: "error", detail: String(err).slice(0, 150) });
+    }
+  }
+  return { resultados };
+}
+
+// POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
+async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
+  if (!igualesSeguro(request.headers.get("X-Site-Key") || "", env.SITE_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
+  let p: { emails?: unknown; valor?: unknown; simular?: unknown };
+  try {
+    p = await request.json();
+  } catch {
+    return json({ ok: false, error: "invalid_json" }, 400, cors);
+  }
+  const valor = Number(p.valor) > 0 ? Number(p.valor) : 997;
+  const emails = [...new Set((Array.isArray(p.emails) ? p.emails : []).map((e) => String(e).trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)))].slice(0, 40);
+  if (!emails.length) return json({ ok: false, error: "sin_emails" }, 400, cors);
+  const r = await cerrarVentas(env, emails, valor, p.simular === true);
+  if (r.error) return json({ ok: false, error: r.error }, 502, cors);
+  return json({ ok: true, simular: p.simular === true, valor, resultados: r.resultados }, 200, cors);
+}
+
+// Firma de Stripe: header "t=...,v1=..." con HMAC-SHA256 de "t.payload" (tolerancia de 5 minutos).
+async function firmaStripeValida(payload: string, header: string, secreto: string): Promise<boolean> {
+  const partes = header.split(",").map((x) => x.trim().split("="));
+  const t = partes.find((x) => x[0] === "t")?.[1] || "";
+  const v1 = partes.filter((x) => x[0] === "v1").map((x) => x[1] || "");
+  if (!t || !v1.length || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+  const clave = await crypto.subtle.importKey("raw", new TextEncoder().encode(secreto), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const firma = await crypto.subtle.sign("HMAC", clave, new TextEncoder().encode(`${t}.${payload}`));
+  const hex = [...new Uint8Array(firma)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return v1.some((v) => igualesSeguro(v, hex));
+}
+
+// POST /stripe-webhook. Stripe avisa cada pago ("checkout.session.completed"). Solo cuentan los links de la oferta
+// ($997 y la primera cuota de $397); cualquier otro monto se ignora.
+async function handleStripeWebhook(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.STRIPE_WEBHOOK_SECRET) return json({ ok: false, error: "not_configured" }, 503, cors);
+  const payload = await request.text();
+  if (!(await firmaStripeValida(payload, request.headers.get("Stripe-Signature") || "", env.STRIPE_WEBHOOK_SECRET))) return json({ ok: false, error: "firma_invalida" }, 400, cors);
+  let ev: { type?: string; data?: { object?: { payment_status?: string; amount_total?: number; customer_email?: string; customer_details?: { email?: string } } } };
+  try {
+    ev = JSON.parse(payload);
+  } catch {
+    return json({ ok: false, error: "invalid_json" }, 400, cors);
+  }
+  if (ev.type !== "checkout.session.completed") return json({ ok: true, ignorado: ev.type || "sin_tipo" }, 200, cors);
+  const s = ev.data?.object || {};
+  if (s.payment_status && s.payment_status !== "paid") return json({ ok: true, ignorado: "no_pagado" }, 200, cors);
+  const monto = (s.amount_total || 0) / 100;
+  if (monto !== 997 && monto !== 397) return json({ ok: true, ignorado: `monto_${monto}` }, 200, cors);
+  const email = String(s.customer_details?.email || s.customer_email || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ ok: true, ignorado: "sin_email" }, 200, cors);
+  const r = await cerrarVentas(env, [email], 997, false);
+  return json({ ok: !r.error, error: r.error, resultados: r.resultados }, r.error ? 502 : 200, cors);
+}
+
 async function handleWebinarIngreso(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   let p: Record<string, unknown>;
   try {
@@ -1604,6 +1694,12 @@ export default {
       }
       if (url.pathname === "/webinar-ingreso" && request.method === "POST") {
         return await handleWebinarIngreso(request, env, cors);
+      }
+      if (url.pathname === "/webinar-compra" && request.method === "POST") {
+        return await handleWebinarCompra(request, env, cors);
+      }
+      if (url.pathname === "/stripe-webhook" && request.method === "POST") {
+        return await handleStripeWebhook(request, env, cors);
       }
       if (url.pathname === "/estrategia/generar" && request.method === "POST") {
         return await handleEstrategiaGenerar(request, env, cors);
