@@ -1478,7 +1478,7 @@ async function handleStripeWebhook(request: Request, env: Env, cors: HeadersInit
   const s = ev.data?.object || {};
   if (s.payment_status && s.payment_status !== "paid") return json({ ok: true, ignorado: "no_pagado" }, 200, cors);
   const monto = (s.amount_total || 0) / 100;
-  if (monto !== 997 && monto !== 397) return json({ ok: true, ignorado: `monto_${monto}` }, 200, cors);
+  if (![997, 397, 250].includes(monto)) return json({ ok: true, ignorado: `monto_${monto}` }, 200, cors);
   const email = String(s.customer_details?.email || s.customer_email || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ ok: true, ignorado: "sin_email" }, 200, cors);
   const r = await cerrarVentas(env, [email], 997, false);
