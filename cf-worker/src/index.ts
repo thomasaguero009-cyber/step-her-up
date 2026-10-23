@@ -1601,6 +1601,311 @@ async function handleRecurso(request: Request, env: Env, id: string, cors: Heade
   });
 }
 
+// --- Auditoría de perfil de Instagram con IA (página /auditoria-perfil/) -----
+// La persona escribe su @ y sube capturas; la IA revisa los 40 puntos del
+// "Checklist de auditoría de perfil SHU" y devuelve el informe. Las imágenes
+// no se guardan: solo se anota el @ y el puntaje (90 días) para el equipo.
+const AUDIT_SECCIONES = [
+  "1. Foto de perfil",
+  "2. Nombre y username",
+  "3. Bio",
+  "4. Enlace y categoría",
+  "5. Historias destacadas",
+  "6. Las 3 publicaciones pineadas",
+];
+const AUDIT_ITEMS: { s: number; t: string }[] = [
+  { s: 0, t: "La cara ocupa del 60 al 70 % del círculo." },
+  { s: 0, t: "Se te ve la cara de frente, con buena luz y sin gafas oscuras." },
+  { s: 0, t: "El fondo es limpio y no compite con la cara." },
+  { s: 0, t: "La ropa y el estilo van con el nivel de lo que vendes (si cobras premium, se ve premium)." },
+  { s: 0, t: "Es una foto tuya, no un logo (si eres marca personal)." },
+  { s: 0, t: "Es la misma foto en Instagram, TikTok, Facebook, LinkedIn, WhatsApp Business y la cuenta de tu negocio." },
+  { s: 1, t: "Incluye tu nombre + la palabra clave que tu clienta escribiría en el buscador (ej. \"Dra. Rivera | Dermatóloga\", \"Ana | Bienes Raíces PR\")." },
+  { s: 1, t: "La palabra clave es lo que la gente busca, no un título rebuscado (\"Dermatóloga\" sí; \"Visionaria de la piel\" no)." },
+  { s: 1, t: "Si eres negocio local, incluye el pueblo o \"PR\"." },
+  { s: 1, t: "El username es fácil de deletrear y de decir en voz alta." },
+  { s: 1, t: "El username no tiene puntos, guiones bajos ni números de más." },
+  { s: 1, t: "Es el mismo @ en todas las plataformas." },
+  { s: 2, t: "La primera línea dice qué haces y para quién, en palabras literales (\"Dermatóloga experta en hiperpigmentación y acné\")." },
+  { s: 2, t: "Tiene un diferenciador concreto, no una frase bonita que podría decir cualquiera (nada de \"transformo vidas\" o \"hacemos cambios reales\")." },
+  { s: 2, t: "Tiene prueba: un número real (clientas, años, ventas, casos) o una autoridad verificable (título, medio, certificación)." },
+  { s: 2, t: "Termina con un llamado a la acción claro: qué hacer y dónde (\"Escríbeme CITA por DM\", \"Reserva abajo ↓\")." },
+  { s: 2, t: "No hay líneas que cierren la puerta sin dar alternativa (ej. \"Agenda cerrada\" sin lista de espera)." },
+  { s: 2, t: "Si tienes cuenta de negocio activa, está mencionada con @." },
+  { s: 2, t: "Se lee completa sin tocar \"más\" y cabe en 150 caracteres." },
+  { s: 3, t: "Hay un enlace en el perfil." },
+  { s: 3, t: "El enlace funciona y abre rápido desde el celular." },
+  { s: 3, t: "Lleva a una acción de venta: agendar, comprar, lista de espera o WhatsApp." },
+  { s: 3, t: "Si usas un árbol de enlaces, tiene 3 opciones o menos y la principal va primero." },
+  { s: 3, t: "La categoría del perfil es específica (ej. \"Dermatólogo\", \"Agente de bienes raíces\") o está oculta; nunca la genérica \"Emprendedor(a)\" o \"Figura pública\" si no te posiciona." },
+  { s: 4, t: "Hay una destacada de Resultados (testimonios, antes y después, reviews), y va de primera." },
+  { s: 4, t: "Hay una destacada de Ofertas o servicios: qué vendes, para quién y cómo se compra." },
+  { s: 4, t: "Si eres negocio local, hay una destacada de Cómo llegar: dirección, estacionamiento, foto de la entrada." },
+  { s: 4, t: "Si aplica, hay una destacada de Políticas: cancelaciones, depósitos, métodos de pago." },
+  { s: 4, t: "Hay una destacada de Preguntas frecuentes escritas para contestar objeciones reales (precio, tiempo, \"¿esto es para mí?\", ATH Móvil, estacionamiento)." },
+  { s: 4, t: "Hay una destacada de Sobre mí: tu historia y por qué haces lo que haces." },
+  { s: 4, t: "Los nombres de las destacadas se leen completos, sin cortarse (\"Resultados\", no \"Testimonios…\")." },
+  { s: 4, t: "Ninguna destacada está sin nombre o con un emoji solo." },
+  { s: 4, t: "Todas las portadas de las destacadas siguen el mismo estilo y colores de tu marca." },
+  { s: 4, t: "No hay destacadas viejas o que ya no van con lo que vendes hoy." },
+  { s: 5, t: "Hay 3 publicaciones fijadas arriba del perfil." },
+  { s: 5, t: "Una fijada es prueba: caso de éxito, cliente importante, intercambio o review que cuenta cómo fue la experiencia comprando o usando tu producto." },
+  { s: 5, t: "Una fijada es tu historia: quién eres, de dónde vienes y por qué haces esto." },
+  { s: 5, t: "Una fijada es la oferta: los servicios que vendes, o los productos si vendes productos, y cómo comprarlos." },
+  { s: 5, t: "Las tres fijadas tienen una portada que se entiende sin abrirlas (texto claro en la imagen)." },
+  { s: 5, t: "Ninguna fijada es un post viejo de una promoción vencida o de un evento que ya pasó." },
+];
+
+const AUDIT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["lectura", "items", "resumenes"],
+  properties: {
+    lectura: {
+      type: "object",
+      additionalProperties: false,
+      required: ["username", "nombre", "categoria", "bio", "enlace", "publicaciones_fijadas", "destacadas", "pagina_del_enlace"],
+      properties: {
+        username: { type: "string" },
+        nombre: { type: "string" },
+        categoria: { type: "string" },
+        bio: { type: "string" },
+        enlace: { type: "string" },
+        publicaciones_fijadas: { type: "string" },
+        destacadas: { type: "string" },
+        pagina_del_enlace: { type: "string" },
+      },
+    },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["n", "estado", "observacion"],
+        properties: {
+          n: { type: "integer" },
+          estado: { type: "string", enum: ["cumple", "no_cumple", "no_verificable"] },
+          observacion: { type: "string" },
+        },
+      },
+    },
+    resumenes: { type: "array", items: { type: "string" } },
+  },
+};
+
+function auditPrompt(usuario: string): string {
+  const lista = AUDIT_ITEMS.map((it, i) => `${i + 1}. [${AUDIT_SECCIONES[it.s]}] ${it.t}`).join("\n");
+  return `Eres la revisora de perfiles de Instagram del equipo de Step Her Up (Gianie Milet). Revisas el perfil de @${usuario} con el "Checklist de auditoría de perfil SHU", que tiene exactamente 40 puntos. Te llegan capturas del perfil: pueden ser la parte de arriba (foto, nombre, bio, enlace, categoría), las historias destacadas, las publicaciones fijadas y la página a la que lleva el enlace.
+
+PRIMERO LEE, DESPUÉS JUZGA
+Antes de calificar, llena "lectura" copiando lo que ves, letra por letra:
+- username: el texto de arriba del todo en el perfil (con sus puntos, guiones bajos y números).
+- nombre: el texto en negrita justo debajo de los números de publicaciones o del username (suele tener la forma "Nombre | palabra clave"). No lo confundas con el username.
+- categoria: la palabra gris encima de la bio (por ejemplo "Entrepreneur"). Si no hay, escribe "no se ve".
+- bio: el texto completo de la bio, línea por línea. Si se ve cortado con "más", dilo.
+- enlace: el enlace que sale en el perfil.
+- publicaciones_fijadas: recorre las publicaciones de la cuadrícula en orden y anota cuáles tienen el ícono de chincheta (pin) en la esquina y qué se ve en cada una (texto en la imagen, si es foto, video). Di cuántas fijadas hay. Si no hay captura de la cuadrícula, escribe "no se ve".
+- destacadas: si debajo de la bio hay una fila de círculos con nombres, anota cada nombre; si en la captura se ve el espacio debajo de la bio y no hay círculos, escribe "no hay destacadas". Si no se ve esa parte, escribe "no se ve".
+- pagina_del_enlace: qué es la página del enlace (página propia, árbol de enlaces, WhatsApp, agenda…), qué ofrece y qué botones tiene. Si no hay captura, escribe "no se ve".
+Los puntos se juzgan con lo que escribiste en "lectura", sin contradecirlo.
+
+REGLAS
+- Responde SOLO con lo que se ve en las capturas. No inventes nada: ni seguidores, ni textos, ni colores que no estén.
+- Para cada uno de los 40 puntos, en el orden de la lista, devuelve un estado:
+  "cumple" solo si se ve con claridad que cumple.
+  "no_cumple" si se ve con claridad que no cumple, o si la captura muestra el lugar donde debería estar y no está (por ejemplo, la fila de destacadas debajo de la bio está vacía: no hay destacadas).
+  "no_verificable" si las capturas no alcanzan para saberlo o si depende de algo que no se ve desde Instagram (misma foto o mismo @ en otras plataformas, si el enlace abre rápido, si la persona tiene negocio local o cuenta de negocio y no se puede deducir). En ese caso la observación empieza con "No se puede comprobar con las capturas:" y dice qué debe confirmar la persona.
+- Cuenta los caracteres de la bio si se ve completa. Cuenta cuántas publicaciones tienen el ícono de fijada (pin). Si no hay captura de la página del enlace, los puntos del enlace que dependen de ella (funciona, abre rápido, lleva a una acción de venta, árbol de enlaces) son "no_verificable".
+- La prueba (números de clientas, años, premios) NO es el diferenciador. El diferenciador dice qué te hace distinta o cómo trabajas diferente. Si la bio solo tiene frases genéricas ("construye y protege tu futuro"), el punto 14 es "no_cumple".
+- Punto 1: mira solo el círculo de la foto de perfil. Es "cumple" únicamente si es un primer plano: la cara (de la frente a la barbilla) ocupa más o menos la mitad o más de la altura del círculo y se ven hombros, como mucho. Si se ve el torso, la cintura o el cuerpo entero, o la cara es pequeña dentro del círculo, es "no_cumple".
+- Punto 2: es "no_cumple" solo si la foto está oscura, a contraluz, borrosa, de perfil o con gafas oscuras. Que la cara se vea pequeña o lejos ya se califica en el punto 1, no aquí.
+- Punto 39: solo es "cumple" si las tres fijadas existen y cada portada trae texto claro dentro de la imagen. Una foto sin texto, o menos de 3 fijadas, es "no_cumple".
+- Punto 21: si hay captura de la página del enlace y se ve cargada completa, es "cumple" (la observación dice que abre y se ve completa). No exijas medir la velocidad.
+- El ícono de fijada es una chincheta pequeña y es distinto del ícono de varias fotos (carrusel) y del de video (reel). Si la persona te dice cuántas fijadas tiene, usa ese número. Si no, cuenta solo las chinchetas que veas con claridad y ante la duda cuenta menos.
+- Punto 10: si el username tiene abreviaturas o letras difíciles de dictar, no_cumple. Punto 11: si tiene un punto, un guion bajo o un número, no_cumple.
+- Punto 23: si la página del enlace es una página propia y no una lista de enlaces tipo árbol, el punto es "cumple" y la observación dice que no usas árbol de enlaces. Solo es "no_cumple" si es un árbol con más de 3 opciones o con la principal no primero.
+- Puntos 25 al 34: si "lectura.destacadas" dice que no hay destacadas, TODOS son "no_cumple", incluso los de nombres, portadas y destacadas viejas, con la observación "No tienes destacadas." (más lo que corresponda). No marques "cumple" un punto solo porque no hay nada que revisar.
+- Puntos 35 al 40: usa el conteo de "lectura.publicaciones_fijadas". Si hay menos de 3 fijadas, los puntos 36 a 38 que no tengan su publicación son "no_cumple".
+- Los puntos de destacadas que solo aplican a cierto negocio (cómo llegar, políticas) son "no_verificable" si no se puede saber si aplican.
+- La observación habla de lo que se ve, en segunda persona (tuteo, español neutro con sabor de Puerto Rico, sin voseo): "Tu foto es de cuerpo entero…", "Tu bio dice…". Una o dos frases cortas, concretas, con lo que realmente se ve (cita textos reales entre comillas cuando ayude). No repitas la regla del checklist ni des consejos largos: los consejos ya están en el checklist. Sin guiones largos (—), sin emojis, sin frases como "es importante" o "potenciar".
+- Si un punto cumple, la observación dice qué se ve bien, también corta.
+- Además devuelve "resumenes": 6 textos, uno por sección en orden (foto, nombre y username, bio, enlace y categoría, destacadas, pineadas). Cada uno de 1 a 2 frases en segunda persona que resumen lo más importante de esa sección: qué está fuerte y qué falla. Si no hubo capturas suficientes de una sección, dilo con una frase.
+- No pongas puntajes ni juicios generales sobre la persona.
+
+LOS 40 PUNTOS
+${lista}`;
+}
+
+function auditBanda(p: number): { nombre: string; que_hacer: string } {
+  if (p >= 35) return { nombre: "Perfil que vende", que_hacer: "Mantenerlo al día cada mes." };
+  if (p >= 24) return { nombre: "Perfil que informa, pero no cierra", que_hacer: "Arreglar la prioridad alta esta semana." };
+  return { nombre: "Perfil que pierde clientas", que_hacer: "Rehacer bio, enlace y destacadas antes de publicar más contenido." };
+}
+
+async function handleAuditoriaIA(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  const origin = request.headers.get("Origin") || "";
+  const permitidos = env.ALLOWED_ORIGINS.split(",").map((o) => o.trim());
+  if (!permitidos.includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
+  let body: any;
+  try { body = await request.json(); } catch { return json({ ok: false, error: "bad_json" }, 400, cors); }
+  const usuario = String(body.usuario || "").trim().replace(/^@/, "");
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(usuario)) return json({ ok: false, error: "usuario_invalido" }, 400, cors);
+  const imgs: string[] = Array.isArray(body.imagenes) ? body.imagenes : [];
+  if (imgs.length < 1 || imgs.length > 4) return json({ ok: false, error: "imagenes_1_a_4" }, 400, cors);
+  for (const im of imgs) {
+    if (typeof im !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(im)) return json({ ok: false, error: "imagen_invalida" }, 400, cors);
+    if (im.length > 3_000_000) return json({ ok: false, error: "imagen_muy_grande" }, 413, cors);
+  }
+
+  // Límite de uso: 5 por persona al día y 300 en total al día (cuida el gasto de OpenAI).
+  const dia = new Date().toISOString().slice(0, 10);
+  const ip = request.headers.get("CF-Connecting-IP") || "sin-ip";
+  const kIp = `rl:auditoria:${dia}:${ip}`, kAll = `rl:auditoria:${dia}:total`;
+  const nIp = parseInt((await env.ESTRATEGIAS.get(kIp)) || "0", 10);
+  const nAll = parseInt((await env.ESTRATEGIAS.get(kAll)) || "0", 10);
+  if (nIp >= 5) return json({ ok: false, error: "limite_diario" }, 429, cors);
+  if (nAll >= 300) return json({ ok: false, error: "limite_total" }, 429, cors);
+  await env.ESTRATEGIAS.put(kIp, String(nIp + 1), { expirationTtl: 172800 });
+  await env.ESTRATEGIAS.put(kAll, String(nAll + 1), { expirationTtl: 172800 });
+
+  const fij = Number.isInteger(body.fijadas) && body.fijadas >= 0 && body.fijadas <= 3 ? body.fijadas : null;
+  const contenido: any[] = [{ type: "text", text: `Estas son las capturas del perfil @${usuario}. Haz la auditoría de los 40 puntos.` + (fij !== null ? ` La persona indica que tiene ${fij} publicaciones fijadas.` : "") }];
+  for (const im of imgs) contenido.push({ type: "image_url", image_url: { url: im, detail: "high" } });
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENAI_API_KEY },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL || "gpt-4.1",
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: auditPrompt(usuario) },
+        { role: "user", content: contenido },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "auditoria", strict: true, schema: AUDIT_SCHEMA } },
+    }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) return json({ ok: false, error: "openai_error", status: r.status, detail: data?.error?.message || "" }, 502, cors);
+  let out: any;
+  try { out = JSON.parse(data?.choices?.[0]?.message?.content || "{}"); } catch { return json({ ok: false, error: "respuesta_invalida" }, 502, cors); }
+
+  const porN: Record<number, { estado: string; observacion: string }> = {};
+  for (const it of out.items || []) if (it && Number.isInteger(it.n)) porN[it.n] = it;
+  const secciones = AUDIT_SECCIONES.map((titulo, s) => ({ titulo, resumen: String((out.resumenes || [])[s] || ""), items: [] as any[] }));
+  let puntos = 0;
+  AUDIT_ITEMS.forEach((it, i) => {
+    const x = porN[i + 1];
+    const estado = x && ["cumple", "no_cumple", "no_verificable"].includes(x.estado) ? x.estado : "no_verificable";
+    if (estado === "cumple") puntos++;
+    secciones[it.s].items.push({ n: i + 1, texto: it.t, estado, observacion: x?.observacion || "No se pudo revisar este punto con las capturas." });
+  });
+  try {
+    await env.ESTRATEGIAS.put(`auditoria-log:${Date.now()}`, JSON.stringify({ usuario, puntos }), { expirationTtl: 60 * 60 * 24 * 90 });
+  } catch { /* el registro es opcional */ }
+  return json({ ok: true, usuario, puntos, total: AUDIT_ITEMS.length, banda: auditBanda(puntos), lectura: out.lectura || null, secciones }, 200, cors);
+}
+
+// --- Generador de hooks a la medida (bono "Lista de hooks") -----------------
+const HOOKS_GRUPOS = [
+  { id: "tension", titulo: "Hooks con tensión", cuantos: 10, que: "Dos hooks por cada uno de los cinco principios de Gianie, en este orden: romper una creencia, generar incongruencia, hacer una comparación, formular una pregunta real, decir una frase disruptiva. El campo 'principio' dice cuál usa cada uno." },
+  { id: "atraer", titulo: "Para atraer gente nueva", cuantos: 5, que: "Hooks pensados para que te descubra quien todavía no te sigue." },
+  { id: "conectar", titulo: "Para conectar", cuantos: 5, que: "Hooks que cuentan algo personal o de bastidores y generan cercanía." },
+  { id: "vender", titulo: "Para vender", cuantos: 5, que: "Hooks que llevan al servicio o a una oferta, sin sonar a anuncio." },
+];
+const HOOKS_SCHEMA = {
+  type: "object", additionalProperties: false, required: ["grupos"],
+  properties: { grupos: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "hooks"],
+    properties: { id: { type: "string", enum: HOOKS_GRUPOS.map((g) => g.id) },
+      hooks: { type: "array", items: { type: "object", additionalProperties: false, required: ["hook", "principio", "en_pantalla"],
+        properties: { hook: { type: "string" }, principio: { type: "string" }, en_pantalla: { type: "string" } } } } } } } },
+};
+const HOOKS_CAMPOS: Record<string, number> = { profesion: 80, servicio: 160, clienta: 160, problema: 220, resultado: 160, extra: 300 };
+
+function hooksPrompt(d: Record<string, string>): string {
+  return `Eres la estratega de contenido de Step Her Up, la marca de Gianie Milet (Puerto Rico). Escribes los PRIMEROS segundos de videos cortos (reels) para una mujer profesional. Escribe como lo diría ella hablando a cámara.
+
+DATOS DE LA PERSONA
+- A qué se dedica: ${d.profesion}
+- Servicio principal: ${d.servicio}
+- A quién ayuda: ${d.clienta}
+- Problema que tiene su clienta antes de comprarle: ${d.problema}
+- Resultado que logra: ${d.resultado || "(no lo indicó)"}
+- Algo real que le ha pasado o que le han dicho (opcional): ${d.extra || "(no lo indicó)"}
+
+PRINCIPIOS DE GIANIE PARA UN HOOK
+- Detiene a la persona, la ubica rápido en el tema y abre una pregunta en su mente.
+- Cinco formas de crear tensión: romper una creencia (presentas una creencia conocida, tomas la postura contraria y prometes explicar por qué); generar incongruencia (unes dos ideas que parecen no encajar); hacer una comparación (dos situaciones con el mismo criterio para revelar una diferencia); formular una pregunta real (algo que la audiencia de verdad se pregunta); decir una frase disruptiva (postura firme, específica y defendible, no una exageración vacía).
+- El hook promete algo que el video realmente puede entregar.
+- En la etapa de atraer, mientras menos valor des en el hook y más te acerques a lo que ella siente, mejor.
+
+REGLAS
+1. Todo tiene que ser específico de ESTA profesión y de ESTA clienta: usa su vocabulario, sus situaciones y sus dolores. Si el hook podría servirle igual a cualquier otra profesión, está mal: reescríbelo.
+2. Máximo 18 palabras por hook. Una sola idea. Se entiende en un segundo.
+3. Español de Puerto Rico, tuteo, frases cortas, tono cálido y directo. Sin guiones largos (—), sin signos de exclamación seguidos, sin emojis.
+4. No uses estas frases quemadas: "el error que cometen casi todas", "nadie te dice esto", "no es X, es Y", "hoy te traigo", "en este video te voy a enseñar", "¿y si te dijera que…?", "el secreto de", "esto lo cambia todo", "guarda este video".
+5. NO inventes cifras, años de experiencia, resultados, nombres ni testimonios. Si un hook necesita un dato personal real (un número, una frase que dijo una clienta, un año), déjalo entre [corchetes] con una indicación corta, por ejemplo [número de clientas] o [frase que te dijo una clienta]. Usa corchetes en pocos hooks, solo cuando haga falta; el resto debe poder grabarse tal cual.
+   Tampoco inventes hechos personales de la persona: historias suyas ("a mí también me pasó", "yo era…"), citas de clientas ("me dijeron…"), frecuencias ("lo veo todos los días", "mil veces"), años de experiencia ni cómo trabaja si no lo dijo. Si el dato extra de arriba no trae una historia real, los hooks de "conectar" deben ser de bastidores o de opinión que cualquiera pueda grabar tal cual (lo que haces hoy, lo que piensas, lo que le dirías a ella), o llevar corchetes como [algo que te pasó con una clienta]. Solo puedes usar como hecho lo que ella escribió en los datos.
+6. No prometas resultados garantizados ni ingresos.
+7. 'en_pantalla' es el texto corto (máximo 6 palabras, en mayúsculas) que va escrito en el primer cuadro del video, para que se entienda también sin sonido.
+8. 'principio' en el grupo "tension" es el nombre del principio que usa (Romper una creencia, Generar incongruencia, Hacer una comparación, Formular una pregunta real, Frase disruptiva). En los demás grupos déjalo como una etiqueta de 2 a 3 palabras que diga el ángulo (por ejemplo "Historia personal", "Pregunta a tu clienta", "Bastidores").
+
+ENTREGA los grupos con esta cantidad exacta de hooks:
+${HOOKS_GRUPOS.map((g) => `- ${g.id}: ${g.cuantos}. ${g.que}`).join("\n")}`;
+}
+
+async function handleHooksIA(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  const origin = request.headers.get("Origin") || "";
+  const permitidos = env.ALLOWED_ORIGINS.split(",").map((o) => o.trim());
+  if (!permitidos.includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
+  let body: any;
+  try { body = await request.json(); } catch { return json({ ok: false, error: "bad_json" }, 400, cors); }
+  const d: Record<string, string> = {};
+  for (const [k, max] of Object.entries(HOOKS_CAMPOS)) d[k] = String(body[k] || "").replace(/\s+/g, " ").trim().slice(0, max);
+  for (const k of ["profesion", "servicio", "clienta", "problema"]) if (d[k].length < 3) return json({ ok: false, error: "faltan_datos", campo: k }, 400, cors);
+
+  // Límite de uso: 8 por persona al día y 400 en total al día (cuida el gasto de OpenAI).
+  const dia = new Date().toISOString().slice(0, 10);
+  const ip = request.headers.get("CF-Connecting-IP") || "sin-ip";
+  const kIp = `rl:hooks:${dia}:${ip}`, kAll = `rl:hooks:${dia}:total`;
+  const nIp = parseInt((await env.ESTRATEGIAS.get(kIp)) || "0", 10);
+  const nAll = parseInt((await env.ESTRATEGIAS.get(kAll)) || "0", 10);
+  if (nIp >= 8) return json({ ok: false, error: "limite_diario" }, 429, cors);
+  if (nAll >= 400) return json({ ok: false, error: "limite_total" }, 429, cors);
+  await env.ESTRATEGIAS.put(kIp, String(nIp + 1), { expirationTtl: 172800 });
+  await env.ESTRATEGIAS.put(kAll, String(nAll + 1), { expirationTtl: 172800 });
+
+  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + env.OPENAI_API_KEY },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL || "gpt-4.1",
+      temperature: 0.8,
+      messages: [
+        { role: "system", content: hooksPrompt(d) },
+        { role: "user", content: "Escribe los hooks." },
+      ],
+      response_format: { type: "json_schema", json_schema: { name: "hooks", strict: true, schema: HOOKS_SCHEMA } },
+    }),
+  });
+  const data: any = await r.json().catch(() => ({}));
+  if (!r.ok) return json({ ok: false, error: "openai_error", status: r.status, detail: data?.error?.message || "" }, 502, cors);
+  let out: any;
+  try { out = JSON.parse(data?.choices?.[0]?.message?.content || "{}"); } catch { return json({ ok: false, error: "respuesta_invalida" }, 502, cors); }
+  const grupos = HOOKS_GRUPOS.map((g) => {
+    const hallado = (out.grupos || []).find((x: any) => x?.id === g.id);
+    const hooks = ((hallado?.hooks || []) as any[])
+      .filter((h) => h && typeof h.hook === "string" && h.hook.trim())
+      .slice(0, g.cuantos)
+      .map((h) => ({ hook: h.hook.trim(), principio: String(h.principio || "").trim(), en_pantalla: String(h.en_pantalla || "").trim() }));
+    return { id: g.id, titulo: g.titulo, hooks };
+  }).filter((g) => g.hooks.length);
+  if (!grupos.length) return json({ ok: false, error: "respuesta_vacia" }, 502, cors);
+  try {
+    await env.ESTRATEGIAS.put(`hooks-log:${Date.now()}`, JSON.stringify({ profesion: d.profesion }), { expirationTtl: 60 * 60 * 24 * 90 });
+  } catch { /* el registro es opcional */ }
+  return json({ ok: true, grupos }, 200, cors);
+}
+
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -1700,6 +2005,12 @@ export default {
       }
       if (url.pathname === "/stripe-webhook" && request.method === "POST") {
         return await handleStripeWebhook(request, env, cors);
+      }
+      if (url.pathname === "/auditoria-ia" && request.method === "POST") {
+        return await handleAuditoriaIA(request, env, cors);
+      }
+      if (url.pathname === "/hooks-ia" && request.method === "POST") {
+        return await handleHooksIA(request, env, cors);
       }
       if (url.pathname === "/estrategia/generar" && request.method === "POST") {
         return await handleEstrategiaGenerar(request, env, cors);
