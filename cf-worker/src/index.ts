@@ -321,6 +321,15 @@ interface OpportunityGHL {
   contact?: { tags?: string[] };
 }
 
+// Monto de ajuste manual del webinar para el mes que empieza en `inicio` (ms). null = sin ajuste.
+async function ajusteWebinar(env: Env, inicio: number): Promise<number | null> {
+  const mes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(new Date(inicio)).slice(0, 7);
+  try {
+    const v = await env.ESTRATEGIAS.get(`ajuste:webinar:${mes}`, "json") as { ventas?: number } | null;
+    return v && typeof v.ventas === "number" ? v.ventas : null;
+  } catch { return null; }
+}
+
 // Trae TODAS las oportunidades de un pipeline (paginado, 100 por página) —
 // la API no deja filtrar por fecha server-side de forma confiable acá
 // (un lead puede haberse creado meses antes de cerrarse), así que se trae
@@ -475,7 +484,15 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
     }
   } catch { /* si falla el webinar, el resto del resumen sigue igual */ }
 
-  return json({ ok: true, totales, porFuente, utm, utmDiagnostico: { conTags, sinTags } }, 200, cors);
+  // Ajuste manual de lo cobrado en el webinar (KV "ajuste:webinar:AAAA-MM", {"ventas": número}). Se usa mientras GHL
+  // tenga montos que no coinciden con Stripe; si no existe la clave, manda lo que diga GHL.
+  const ajuste = await ajusteWebinar(env, start);
+  if (ajuste !== null) {
+    totales.ventasWebinar = ajuste;
+    if (porFuente["Webinar"]) porFuente["Webinar"].ventas = ajuste;
+  }
+
+  return json({ ok: true, totales, porFuente, utm, utmDiagnostico: { conTags, sinTags }, ajusteWebinar: ajuste !== null }, 200, cors);
 }
 
 // ===== Funnel día a día — mismo criterio que handleLeadsSummary (last
@@ -556,7 +573,20 @@ async function handleFunnelPorDia(url: URL, env: Env, cors: HeadersInit): Promis
     }
   } catch { /* si falla el webinar, el resto sigue igual */ }
 
-  return json({ ok: true, dias, totales, fuentes: PIPELINES_LEADS.map(p => p.fuente) }, 200, cors);
+  // Ajustes manuales por mes (ver ajusteWebinar) para las barras de facturación.
+  const ajustesWebinar: Record<string, number> = {};
+  try {
+    const d0 = new Date(start);
+    for (let k = 0; k < 8; k++) {
+      const ini = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + k, 1, 12);
+      if (ini >= end) break;
+      const mes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(new Date(ini)).slice(0, 7);
+      const v = await env.ESTRATEGIAS.get(`ajuste:webinar:${mes}`, "json") as { ventas?: number } | null;
+      if (v && typeof v.ventas === "number") ajustesWebinar[mes] = v.ventas;
+    }
+  } catch { /* sin ajustes */ }
+
+  return json({ ok: true, dias, totales, ajustesWebinar, fuentes: PIPELINES_LEADS.map(p => p.fuente) }, 200, cors);
 }
 
 // ===== Leads que llegan por día — se cuentan CONTACTOS nuevos (dateAdded),
@@ -1526,7 +1556,7 @@ async function handleStripeWebhook(request: Request, env: Env, cors: HeadersInit
   if (![997, 397, 250].includes(monto)) return json({ ok: true, ignorado: `monto_${monto}` }, 200, cors);
   const email = String(s.customer_details?.email || s.customer_email || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return json({ ok: true, ignorado: "sin_email" }, 200, cors);
-  const r = await cerrarVentas(env, [email], 997, false);
+  const r = await cerrarVentas(env, [email], monto, false); // monto real que cobró Stripe (997, 397 o 250), no siempre 997
   return json({ ok: !r.error, error: r.error, resultados: r.resultados }, r.error ? 502 : 200, cors);
 }
 
