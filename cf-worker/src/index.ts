@@ -400,7 +400,7 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
     for (const s of p.stages || []) nombreDeEtapa.set(s.id, s.name);
   }
 
-  const totales = { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0, noShows: 0, descartados: 0 };
+  const totales = { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0, noShows: 0, descartados: 0, cierresWebinar: 0, ventasWebinar: 0 };
   const porFuente: Record<string, { llamadas: number; agendadas: number; shows: number; cierres: number; ventas: number }> = {};
   // Desglose por UTM (etiquetas del contacto). "" = sin UTM.
   type FilaUtm = { llamadas: number; agendadas: number; shows: number; cierres: number; ventas: number };
@@ -450,6 +450,30 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
       if (categoria === 'descartado') totales.descartados++;
     }
   });
+
+  // Ventas del webinar ($997 y upsell): viven en el pipeline "STEP HER UP - WEBINAR", que no está en
+  // PIPELINES_LEADS. Solo se suman los cierres (etapas "Closed ..."), no llamadas ni agendadas, y se
+  // pide cada etapa Closed por separado para no paginar las ~900 oportunidades del pipeline.
+  try {
+    const pw = await pipelineWebinar(env);
+    if (pw) {
+      const fu = (porFuente["Webinar"] = { llamadas: 0, agendadas: 0, shows: 0, cierres: 0, ventas: 0 });
+      for (const etapa of pw.etapas.filter((e) => /^closed/i.test(e.name.trim()))) {
+        const res = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pw.id}&pipeline_stage_id=${etapa.id}&limit=100`, { headers: ghlHeaders(env) });
+        if (!res.ok) continue;
+        const lote = ((await res.json()) as { opportunities?: OpportunityGHL[] }).opportunities || [];
+        for (const o of lote) {
+          const cambio = Date.parse(o.lastStageChangeAt);
+          if (!cambio || cambio < start || cambio >= end) continue;
+          const monto = o.monetaryValue || 0;
+          const atr = atribucionDeTags(o.contact?.tags);
+          if (o.contact?.tags) conTags++; else sinTags++;
+          (["src", "med", "camp", "cont"] as const).forEach((d) => sumar(d, atr[d], { ll: false, ag: false, sh: false, ci: true, monto }));
+          totales.cierresWebinar++; fu.cierres++; totales.ventasWebinar += monto; fu.ventas += monto;
+        }
+      }
+    }
+  } catch { /* si falla el webinar, el resto del resumen sigue igual */ }
 
   return json({ ok: true, totales, porFuente, utm, utmDiagnostico: { conTags, sinTags } }, 200, cors);
 }
@@ -510,6 +534,27 @@ async function handleFunnelPorDia(url: URL, env: Env, cors: HeadersInit): Promis
       if (categoria === 'cerrado') { d.cierres++; f.cierres++; d.ventas += monto; f.ventas += monto; totales.cierres++; totales.ventas += monto; }
     }
   });
+
+  // Ventas del webinar (pipeline "STEP HER UP - WEBINAR", etapas Closed): van aparte para no mezclarse con las tasas de llamadas.
+  try {
+    const pw = await pipelineWebinar(env);
+    if (pw) {
+      for (const etapa of pw.etapas.filter((e) => /^closed/i.test(e.name.trim()))) {
+        const res = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pw.id}&pipeline_stage_id=${etapa.id}&limit=100`, { headers: ghlHeaders(env) });
+        if (!res.ok) continue;
+        const lote = ((await res.json()) as { opportunities?: OpportunityGHL[] }).opportunities || [];
+        for (const o of lote) {
+          const cambio = Date.parse(o.lastStageChangeAt);
+          if (!cambio || cambio < start || cambio >= end) continue;
+          const dia = diaPR.format(new Date(cambio));
+          if (!dias[dia]) dias[dia] = { ...filaVacia(), porFuente: {} };
+          const d = dias[dia] as any;
+          d.cierresWebinar = (d.cierresWebinar || 0) + 1;
+          d.ventasWebinar = (d.ventasWebinar || 0) + (o.monetaryValue || 0);
+        }
+      }
+    }
+  } catch { /* si falla el webinar, el resto sigue igual */ }
 
   return json({ ok: true, dias, totales, fuentes: PIPELINES_LEADS.map(p => p.fuente) }, 200, cors);
 }
@@ -1845,6 +1890,8 @@ REGLAS
 4. No uses estas frases quemadas: "el error que cometen casi todas", "nadie te dice esto", "no es X, es Y", "hoy te traigo", "en este video te voy a enseñar", "¿y si te dijera que…?", "el secreto de", "esto lo cambia todo", "guarda este video".
 5. NO inventes cifras, años de experiencia, resultados, nombres ni testimonios. Si un hook necesita un dato personal real (un número, una frase que dijo una clienta, un año), déjalo entre [corchetes] con una indicación corta, por ejemplo [número de clientas] o [frase que te dijo una clienta]. Usa corchetes en pocos hooks, solo cuando haga falta; el resto debe poder grabarse tal cual.
    Tampoco inventes hechos personales de la persona: historias suyas ("a mí también me pasó", "yo era…"), citas de clientas ("me dijeron…"), frecuencias ("lo veo todos los días", "mil veces"), años de experiencia ni cómo trabaja si no lo dijo. Si el dato extra de arriba no trae una historia real, los hooks de "conectar" deben ser de bastidores o de opinión que cualquiera pueda grabar tal cual (lo que haces hoy, lo que piensas, lo que le dirías a ella), o llevar corchetes como [algo que te pasó con una clienta]. Solo puedes usar como hecho lo que ella escribió en los datos.
+   En el grupo "conectar" está PROHIBIDO afirmar algo que ella hizo, comió, vivió o pensó hoy, ayer o alguna vez ("hoy saqué…", "esta semana me pasó…", "yo también…", "a veces yo…", "prefiero…"). Cada hook de ese grupo debe ser una de estas tres cosas: (a) una invitación o pregunta directa a la clienta ("Cuéntame qué es lo que más te cuesta de…"); (b) un adelanto de contenido que ella pueda cumplir grabando ("Te muestro cómo [lo que vas a mostrar]"); (c) un hook con un hueco [entre corchetes] para su dato real ("Hoy [lo que hiciste hoy] y esto fue lo que aprendí").
+9. Español natural de Puerto Rico: nada de frases traducidas o raras ("a las correas", "en tu mundo", "esclava de"). Si una frase no la diría una mujer boricua hablando a cámara, reescríbela.
 6. No prometas resultados garantizados ni ingresos.
 7. 'en_pantalla' es el texto corto (máximo 6 palabras, en mayúsculas) que va escrito en el primer cuadro del video, para que se entienda también sin sonido.
 8. 'principio' en el grupo "tension" es el nombre del principio que usa (Romper una creencia, Generar incongruencia, Hacer una comparación, Formular una pregunta real, Frase disruptiva). En los demás grupos déjalo como una etiqueta de 2 a 3 palabras que diga el ángulo (por ejemplo "Historia personal", "Pregunta a tu clienta", "Bastidores").
