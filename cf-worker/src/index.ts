@@ -1399,7 +1399,17 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
   // Números y cierre usan el formato de Paula; para el cierre solo cuentan los enviados desde las 5:00 PM.
   const cuenta = (t: string) => (tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
   const enviaron = new Set<string>(historial.filter((m: any) => m.user && cuenta(m.text || "")).map((m: any) => m.user));
-  const pendientes = equipo.filter((id) => !enviaron.has(id));
+  // Quien cargó sus números por Métricas (botón o autoguardado) ya los tiene en Slack publicados por el bot.
+  const porMetricas = new Set<string>();
+  if (tipo !== "metas") {
+    const diaKey = ahoraPR.toISOString().slice(0, 10);
+    for (const n of METRICAS_NOMBRES) {
+      let lista: number[] = [];
+      try { lista = JSON.parse((await env.ESTRATEGIAS.get(`metricas:enviado:${diaKey}:${n}`)) || "[]"); } catch { lista = []; }
+      if (lista.some((ts) => ts / 1000 >= desde)) porMetricas.add(n.toLowerCase());
+    }
+  }
+  const pendientes = equipo.filter((id) => !enviaron.has(id) && !porMetricas.has(primerNombre(info.get(id))));
   let publicado = false;
   if (enviar && tipo === "metas") {
     if (pendientes.length) {
@@ -1410,8 +1420,8 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
     const cierre = tipo === "cierre";
     const texto = pendientes.length
       ? (cierre
-          ? `🌙 *Cierre del día*: ¿cómo terminaron hoy? Envíen sus números finales en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: `
-          : `⏰ *Recordatorio de la 1:00 PM*: envíen sus números del día en este formato 👇\n\n${PLANTILLA_NUMEROS}\n\nFaltan: `) + pendientes.map((id) => `<@${id}>`).join(" ")
+          ? `🌙 *Cierre del día*: ¿cómo terminaron hoy? Carguen sus números finales en *Métricas* del dashboard: se guardan y se publican aquí solos, no hace falta escribirlos en Slack. Si no lo hacen, a las 8:30 PM se guarda lo que tengan contado.\n\nFaltan: `
+          : `⏰ *Recordatorio de la 1:00 PM*: carguen sus números del día en *Métricas* del dashboard: se guardan y se publican aquí solos, no hace falta escribirlos en Slack. Si no lo hacen, a la 1:30 PM se guarda lo que tengan contado.\n\nFaltan: `) + pendientes.map((id) => `<@${id}>`).join(" ")
       : cierre ? "✅ Todas enviaron su cierre de hoy. ¡Gracias, equipo!" : "✅ Todas enviaron sus números de hoy. ¡Gracias, equipo!";
     await slack(env, "chat.postMessage", {}, { channel: canal.id, text: texto });
     publicado = true;
@@ -1995,6 +2005,30 @@ const METRICAS_CAMPOS: Record<"setter" | "closer", [string, string][]> = {
 };
 type BorradorMetricas = { rol: "setter" | "closer"; fecha: string; valores: Record<string, number>; closerCerro: string; ts: number };
 
+// Mensaje de #setters con los números de una persona (los publica el bot en nombre de quien los cargó en Métricas).
+function mensajeMetricas(nombre: string, rol: "setter" | "closer", fecha: string, v: Record<string, number>, closerCerro: string, origen: string): string {
+  const filas = METRICAS_CAMPOS[rol].filter(([k]) => v[k] > 0 || k === "llamadas" || k === "agendadas" || k === "agendas")
+    .map(([k, et]) => `${et}: ${k === "ventas" ? fmtDinero(v[k] || 0) : v[k] || 0}${k === "cierres" && closerCerro && v[k] > 0 ? ` (cerró ${closerCerro})` : ""}`);
+  return `📊 *Números de ${nombre}* (${fecha}) · ${origen}\n${filas.join("\n")}`;
+}
+
+async function canalSetters(env: Env): Promise<string> {
+  const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
+  const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
+  if (!canal) throw new Error(`no encuentro #${SLACK_CANAL}`);
+  return canal.id as string;
+}
+
+// Anota que esta persona ya envió sus números por Métricas (así el recordatorio de Slack no se lo vuelve a pedir).
+async function registrarEnvioMetricas(env: Env, nombre: string, cuando: number): Promise<void> {
+  const dia = new Date(cuando - 4 * 3600 * 1000).toISOString().slice(0, 10);
+  const clave = `metricas:enviado:${dia}:${nombre}`;
+  let lista: number[] = [];
+  try { lista = JSON.parse((await env.ESTRATEGIAS.get(clave)) || "[]"); } catch { lista = []; }
+  lista.push(cuando);
+  await env.ESTRATEGIAS.put(clave, JSON.stringify(lista.slice(-20)), { expirationTtl: 2 * 86400 });
+}
+
 async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
   const origin = request.headers.get("Origin") || "";
   if (!env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
@@ -2012,7 +2046,24 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
   if (!METRICAS_NOMBRES.includes(nombre)) return json({ ok: false, error: "nombre" }, 400, cors);
   const marca = await leerMarca(nombre);
   const clave = `metricas:borrador:${nombre}`;
-  if (b.vaciar) { await env.ESTRATEGIAS.delete(clave); return json({ ok: true, ts: marca }, 200, cors); }
+  if (b.vaciar) {
+    await env.ESTRATEGIAS.delete(clave);
+    // Guardado con el botón: además se publica en #setters para que no tengan que escribirlo aparte en Slack.
+    let slackOk: boolean | undefined;
+    const pub = b.publicar;
+    if (pub && /^\d{2}\/\d{2}\/\d{4}$/.test(String(pub.fecha || ""))) {
+      const rolP: "setter" | "closer" = pub.rol === "closer" ? "closer" : "setter";
+      const vals: Record<string, number> = {};
+      for (const [k] of METRICAS_CAMPOS[rolP]) vals[k] = Math.min(1000000, Math.max(0, Math.round(Number(pub.valores?.[k]) || 0)));
+      const cerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(pub.closerCerro || "")) ? String(pub.closerCerro) : "";
+      try {
+        await slack(env, "chat.postMessage", {}, { channel: await canalSetters(env), text: mensajeMetricas(nombre, rolP, String(pub.fecha), vals, cerro, "enviado desde Métricas") });
+        await registrarEnvioMetricas(env, nombre, Date.now());
+        slackOk = true;
+      } catch { slackOk = false; }
+    }
+    return json({ ok: true, ts: marca, slack: slackOk }, 200, cors);
+  }
   // "inicio" = cuándo empezó el navegador a contar este bloque. Si el autoguardado corrió después, esos números ya están en el Sheet: que reinicie.
   if (marca > (Number(b.inicio) || 0)) return json({ ok: true, reset: true, ts: marca }, 200, cors);
   const rol: "setter" | "closer" = b.rol === "closer" ? "closer" : "setter";
@@ -2040,6 +2091,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre", cuando: n
     await env.ESTRATEGIAS.put(lock, "1", { expirationTtl: 86400 });
   }
   const guardados: string[] = [], vacios: string[] = [], errores: string[] = [], lineas: string[] = [], avisos: string[] = [];
+  const hora = slot === "tarde" ? "1:30 PM" : "8:30 PM";
   for (const nombre of METRICAS_NOMBRES) {
     let b: BorradorMetricas | null = null;
     try { b = JSON.parse((await env.ESTRATEGIAS.get(`metricas:borrador:${nombre}`)) || "null"); } catch { b = null; }
@@ -2049,7 +2101,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre", cuando: n
       ? { action: "addMetricas", rol: "closer", closer: nombre, fecha: b.fecha, agendas: v.agendas || 0, shows: v.shows || 0, noShows: v.noShows || 0, ventas: v.ventas || 0, cierres: v.cierres || 0 }
       : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: v.llamadas || 0, agendadas: v.agendadas || 0, noCalifica: v.noCalifica || 0, noAtendieron: v.noAtendieron || 0, infoWhatsapp: v.infoWhatsapp || 0, cortaron: v.cortaron || 0, shows: v.shows || 0, cierres: v.cierres || 0, ventas: v.ventas || 0 };
     const resumen = METRICAS_CAMPOS[b.rol].filter(([k]) => v[k] > 0).map(([k, et]) => `${et} ${k === "ventas" ? fmtDinero(v[k]) : v[k]}`).join(" · ");
-    if (!ejecutar) { guardados.push(`${nombre}: ${resumen}`); lineas.push(`• *${nombre}* (${b.fecha}): ${resumen}`); continue; }
+    if (!ejecutar) { guardados.push(`${nombre}: ${resumen}`); lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, v, b.closerCerro, `guardado automático ${hora}`)); continue; }
     try {
       await metricasAScript(cuerpo);
       if (b.rol === "setter" && v.cierres > 0) {
@@ -2059,17 +2111,15 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre", cuando: n
       await env.ESTRATEGIAS.delete(`metricas:borrador:${nombre}`);
       await env.ESTRATEGIAS.put(`metricas:auto:${nombre}`, JSON.stringify({ ts: Date.now(), fecha: b.fecha, slot }), { expirationTtl: 3 * 86400 });
       guardados.push(nombre);
-      lineas.push(`• *${nombre}*: ${resumen}`);
+      lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, v, b.closerCerro, `guardado automático ${hora}`));
+      await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined);
     } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
   }
-  const hora = slot === "tarde" ? "1:30 PM" : "8:30 PM";
-  const texto = lineas.length ? `💾 *Guardado automático de las ${hora}*: estos números no se habían enviado con el botón y ya quedaron en el Tracker 👇\n${lineas.join("\n")}` : "";
-  if (ejecutar && texto && env.SLACK_BOT_TOKEN) {
+  const texto = lineas.join("\n\n");
+  if (ejecutar && lineas.length && env.SLACK_BOT_TOKEN) {
     try {
-      const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
-      const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
-      if (canal) await slack(env, "chat.postMessage", {}, { channel: canal.id, text: texto });
-      else errores.push(`slack: no encuentro #${SLACK_CANAL}`);
+      const canal = await canalSetters(env);
+      for (const l of lineas) await slack(env, "chat.postMessage", {}, { channel: canal, text: l });
     } catch (e) { errores.push(`slack: ${String(e)}`); }
   }
   if (ejecutar && (errores.length || avisos.length)) await avisarThomas(env, `⚠️ *Autoguardado de métricas (${hora})*\n${[...errores, ...avisos].map((x) => "• " + x).join("\n")}`).catch(() => undefined);
