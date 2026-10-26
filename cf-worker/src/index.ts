@@ -2000,15 +2000,16 @@ async function handleHooksIA(request: Request, env: Env, cors: HeadersInit): Pro
 const METRICAS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPo2XCgJzs9vCt_FZJOPt2-07ERFKElBzfOmxOPaJfg4BkUWLV5nJKgxPT_lbCIge5/exec";
 const METRICAS_NOMBRES = ["Paula", "Mia", "Belen"];
 const METRICAS_CAMPOS: Record<"setter" | "closer", [string, string][]> = {
-  setter: [["llamadas", "Llamadas"], ["agendadas", "Agendadas"], ["noCalifica", "No califica"], ["noAtendieron", "No atendieron"], ["infoWhatsapp", "Info por WhatsApp"], ["cortaron", "Cortaron/colgaron"], ["shows", "Shows"], ["cierres", "Cierres"], ["ventas", "Cash"]],
-  closer: [["agendas", "Agendas"], ["shows", "Shows"], ["noShows", "No shows"], ["cierres", "Cierres"], ["ventas", "Cash"]],
+  // Mismo orden y nombres que el formulario de Métricas.
+  setter: [["llamadas", "Llamadas"], ["agendadas", "Agendadas"], ["noCalifica", "No califica"], ["noAtendieron", "No atendieron"], ["infoWhatsapp", "Info por WhatsApp"], ["cortaron", "Cortaron / colgaron"], ["shows", "Shows"], ["cierres", "Cierres"], ["ventas", "Cash collected"]],
+  closer: [["agendas", "Agendas"], ["shows", "Shows"], ["noShows", "No shows"], ["ventas", "Cash collected"], ["cierres", "Cierres"]],
 };
 type BorradorMetricas = { rol: "setter" | "closer"; fecha: string; valores: Record<string, number>; closerCerro: string; ts: number };
 
 // Mensaje de #setters con los números de una persona (los publica el bot en nombre de quien los cargó en Métricas).
 function mensajeMetricas(nombre: string, rol: "setter" | "closer", fecha: string, v: Record<string, number>, closerCerro: string, origen: string): string {
-  const filas = METRICAS_CAMPOS[rol].filter(([k]) => v[k] > 0 || k === "llamadas" || k === "agendadas" || k === "agendas")
-    .map(([k, et]) => `${et}: ${k === "ventas" ? fmtDinero(v[k] || 0) : v[k] || 0}${k === "cierres" && closerCerro && v[k] > 0 ? ` (cerró ${closerCerro})` : ""}`);
+  // Todos los números del formulario, también los que están en 0.
+  const filas = METRICAS_CAMPOS[rol].map(([k, et]) => `${et}: ${k === "ventas" ? fmtDinero(v[k] || 0) : v[k] || 0}${k === "cierres" && closerCerro && v[k] > 0 ? ` (cerró ${closerCerro})` : ""}`);
   return `📊 *Números de ${nombre}* (${fecha}) · ${origen}\n${filas.join("\n")}`;
 }
 
