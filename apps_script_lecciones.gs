@@ -170,7 +170,7 @@ function renumerar(sheet) {
 // ===== Metricas del dia (formulario "Metricas" del dashboard) ===========
 // El formulario manda un rol: "setter" o "closer".
 //  - Setter -> UNA fila en el tracker (pestana con las columnas Fecha y Setter);
-//    si le faltan las columnas "No califica" y "No respondio", se agregan solas.
+//    si le faltan las columnas "No califica", "No respondio", "No atendieron", "Info por WhatsApp" y "Cortaron / colgaron", se agregan solas.
 //  - Closer -> UNA fila en la pestana de closers (la que tiene Fecha y Closer,
 //    "Ranking"): Closer, Monto (= cash collected), Agendas, Shows, No shows y
 //    Cierres. Si a esa pestana le faltan las columnas Agendas / Shows /
@@ -233,7 +233,7 @@ function addMetricas(body) {
   } else {
     var sheet = encontrarPestana('tracker');
     repararEncabezados(sheet);
-    var h = asegurarColumnas(sheet, ['No califica', 'No respondi\u00f3']);
+    var h = asegurarColumnas(sheet, ['No califica', 'No respondi\u00f3', 'No atendieron', 'Info por WhatsApp', 'Cortaron / colgaron']);
     sheet.appendRow(filaPorEncabezado(h, {
       'fecha': fecha,
       'setter': nombre,
@@ -241,6 +241,9 @@ function addMetricas(body) {
       'agendadas|agendas|llamadas agendadas': Number(body.agendadas) || 0,
       'no califica|nocalifica': Number(body.noCalifica) || 0,
       'no respondi\u00f3|no respondio|norespondio': Number(body.noRespondio) || 0,
+      'no atendieron|noatendieron': Number(body.noAtendieron) || 0,
+      'info por whatsapp|infowhatsapp': Number(body.infoWhatsapp) || 0,
+      'cortaron / colgaron|cortaron|colgaron': Number(body.cortaron) || 0,
       'shows': Number(body.shows) || 0,
       'cierres': Number(body.cierres) || 0,
       'ventas': cash,
