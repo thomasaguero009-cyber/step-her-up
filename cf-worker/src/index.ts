@@ -2075,6 +2075,13 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
   const valores: Record<string, number> = {};
   for (const [k] of METRICAS_CAMPOS[rol]) valores[k] = Math.min(1000000, Math.max(0, Math.round(Number(b.valores?.[k]) || 0)));
   const closerCerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(b.closerCerro || "")) ? String(b.closerCerro) : "";
+  // Si había números sin guardar de otro día, se apartan para que el autoguardado los guarde con su fecha (no se pisan).
+  try {
+    const previo = JSON.parse((await env.ESTRATEGIAS.get(clave)) || "null") as BorradorMetricas | null;
+    if (previo && previo.fecha !== fecha && Object.values(previo.valores || {}).some((x) => x > 0)) {
+      await env.ESTRATEGIAS.put(`${clave}:${previo.fecha}`, JSON.stringify(previo), { expirationTtl: 3 * 86400 });
+    }
+  } catch { /* sin borrador previo */ }
   const borrador: BorradorMetricas = { rol, fecha, valores, closerCerro, ts: Date.now() };
   await env.ESTRATEGIAS.put(clave, JSON.stringify(borrador), { expirationTtl: 3 * 86400 });
   return json({ ok: true, ts: marca }, 200, cors);
@@ -2095,9 +2102,15 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre", cuando: n
   }
   const guardados: string[] = [], vacios: string[] = [], errores: string[] = [], lineas: string[] = [], avisos: string[] = [];
   const hora = slot === "tarde" ? "1:30 PM" : "8:30 PM";
+  const fPR = new Date(cuando - 4 * 3600 * 1000);
+  const fechaHoyPR = `${String(fPR.getUTCDate()).padStart(2, "0")}/${String(fPR.getUTCMonth() + 1).padStart(2, "0")}/${fPR.getUTCFullYear()}`;
   for (const nombre of METRICAS_NOMBRES) {
+    // El borrador de hoy y los de días anteriores que no alcanzaron a guardarse (se guardan con SU fecha).
+    const claves = (await env.ESTRATEGIAS.list({ prefix: `metricas:borrador:${nombre}` })).keys.map((k) => k.name);
+    if (!claves.length) vacios.push(nombre);
+    for (const claveB of claves) {
     let b: BorradorMetricas | null = null;
-    try { b = JSON.parse((await env.ESTRATEGIAS.get(`metricas:borrador:${nombre}`)) || "null"); } catch { b = null; }
+    try { b = JSON.parse((await env.ESTRATEGIAS.get(claveB)) || "null"); } catch { b = null; }
     if (!b || !Object.values(b.valores || {}).some((v) => v > 0)) { vacios.push(nombre); continue; }
     const v = b.valores;
     const cuerpo: Record<string, unknown> = b.rol === "closer"
@@ -2111,12 +2124,13 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre", cuando: n
         if (b.closerCerro) await metricasAScript({ action: "addMetricas", rol: "closer", closer: b.closerCerro, fecha: b.fecha, agendas: 0, shows: 0, noShows: 0, ventas: v.ventas || 0, cierres: v.cierres });
         else avisos.push(`${nombre} anotó ${v.cierres} cierre(s) sin elegir qué closer cerró la venta: no se cargó en el Ranking.`);
       }
-      await env.ESTRATEGIAS.delete(`metricas:borrador:${nombre}`);
+      await env.ESTRATEGIAS.delete(claveB);
       await env.ESTRATEGIAS.put(`metricas:auto:${nombre}`, JSON.stringify({ ts: Date.now(), fecha: b.fecha, slot }), { expirationTtl: 3 * 86400 });
       guardados.push(nombre);
       lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, v, b.closerCerro, `guardado automático ${hora}`));
-      await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined);
+      if (b.fecha === fechaHoyPR) await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined);
     } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
+    }
   }
   const texto = lineas.join("\n\n");
   if (ejecutar && lineas.length && env.SLACK_BOT_TOKEN) {
