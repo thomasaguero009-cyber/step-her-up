@@ -1397,7 +1397,9 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
   const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(desde), limit: "200" })).messages || [];
   // "numeros": mensaje con "llamadas" y "agend" (formato de Paula). "metas": cualquier mensaje de hoy que hable de "meta".
   // Números y cierre usan el formato de Paula; para el cierre solo cuentan los enviados desde las 5:00 PM.
-  const cuenta = (t: string) => (tipo === "metas" ? /meta/i.test(t) : /llamadas/i.test(t) && /agend/i.test(t));
+  // Los números ya NO se cuentan por texto de Slack: ahí las setters mandan sus metas ("Llamadas +100, Agendas 3"), que se parecen a un reporte.
+  // Para números y cierre solo vale lo cargado en Métricas (más abajo, porMetricas).
+  const cuenta = (t: string) => (tipo === "metas" ? /meta/i.test(t) : false);
   const enviaron = new Set<string>(historial.filter((m: any) => m.user && cuenta(m.text || "")).map((m: any) => m.user));
   // Quien cargó sus números por Métricas (botón o autoguardado) ya los tiene en Slack publicados por el bot.
   const porMetricas = new Set<string>();
