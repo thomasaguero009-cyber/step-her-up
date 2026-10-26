@@ -1983,6 +1983,99 @@ async function handleHooksIA(request: Request, env: Env, cors: HeadersInit): Pro
   return json({ ok: true, grupos }, 200, cors);
 }
 
+// ===== Autoguardado de métricas (setters/closers) =====
+// El formulario del dashboard sincroniza el contador de cada persona con el Worker mientras cuenta (KV, borrador).
+// A las 1:30 PM y a las 8:30 PM (hora de PR) lo que quedó sin enviar con el botón se guarda en el Sheet (mismo Apps Script
+// del botón) y se publica en #setters. Si la persona ya lo guardó con el botón, el borrador está vacío y no se hace nada.
+const METRICAS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPo2XCgJzs9vCt_FZJOPt2-07ERFKElBzfOmxOPaJfg4BkUWLV5nJKgxPT_lbCIge5/exec";
+const METRICAS_NOMBRES = ["Paula", "Mia", "Belen"];
+const METRICAS_CAMPOS: Record<"setter" | "closer", [string, string][]> = {
+  setter: [["llamadas", "Llamadas"], ["agendadas", "Agendadas"], ["noCalifica", "No califica"], ["noAtendieron", "No atendieron"], ["infoWhatsapp", "Info por WhatsApp"], ["cortaron", "Cortaron/colgaron"], ["shows", "Shows"], ["cierres", "Cierres"], ["ventas", "Cash"]],
+  closer: [["agendas", "Agendas"], ["shows", "Shows"], ["noShows", "No shows"], ["cierres", "Cierres"], ["ventas", "Cash"]],
+};
+type BorradorMetricas = { rol: "setter" | "closer"; fecha: string; valores: Record<string, number>; closerCerro: string; ts: number };
+
+async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const origin = request.headers.get("Origin") || "";
+  if (!env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
+  const leerMarca = async (nombre: string): Promise<number> => {
+    try { return Number(JSON.parse((await env.ESTRATEGIAS.get(`metricas:auto:${nombre}`)) || "{}").ts) || 0; } catch { return 0; }
+  };
+  if (request.method === "GET") {
+    const nombre = url.searchParams.get("nombre") || "";
+    if (!METRICAS_NOMBRES.includes(nombre)) return json({ ok: false, error: "nombre" }, 400, cors);
+    return json({ ok: true, ts: await leerMarca(nombre) }, 200, cors);
+  }
+  let b: any;
+  try { b = await request.json(); } catch { return json({ ok: false, error: "bad_json" }, 400, cors); }
+  const nombre = String(b.nombre || "");
+  if (!METRICAS_NOMBRES.includes(nombre)) return json({ ok: false, error: "nombre" }, 400, cors);
+  const marca = await leerMarca(nombre);
+  const clave = `metricas:borrador:${nombre}`;
+  if (b.vaciar) { await env.ESTRATEGIAS.delete(clave); return json({ ok: true, ts: marca }, 200, cors); }
+  // "inicio" = cuándo empezó el navegador a contar este bloque. Si el autoguardado corrió después, esos números ya están en el Sheet: que reinicie.
+  if (marca > (Number(b.inicio) || 0)) return json({ ok: true, reset: true, ts: marca }, 200, cors);
+  const rol: "setter" | "closer" = b.rol === "closer" ? "closer" : "setter";
+  const fecha = String(b.fecha || "");
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) return json({ ok: false, error: "fecha" }, 400, cors);
+  const valores: Record<string, number> = {};
+  for (const [k] of METRICAS_CAMPOS[rol]) valores[k] = Math.min(1000000, Math.max(0, Math.round(Number(b.valores?.[k]) || 0)));
+  const closerCerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(b.closerCerro || "")) ? String(b.closerCerro) : "";
+  const borrador: BorradorMetricas = { rol, fecha, valores, closerCerro, ts: Date.now() };
+  await env.ESTRATEGIAS.put(clave, JSON.stringify(borrador), { expirationTtl: 3 * 86400 });
+  return json({ ok: true, ts: marca }, 200, cors);
+}
+
+async function metricasAScript(body: Record<string, unknown>): Promise<void> {
+  const r = await fetch(METRICAS_SCRIPT_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(body), redirect: "follow" });
+  const d = (await r.json().catch(() => null)) as { status?: string; message?: string } | null;
+  if (!d || d.status !== "ok") throw new Error(d?.message || `apps script ${r.status}`);
+}
+
+async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre", cuando: number, ejecutar = true): Promise<{ guardados: string[]; vacios: string[]; errores: string[]; texto: string }> {
+  const diaPR = new Date(cuando - 4 * 3600 * 1000).toISOString().slice(0, 10);
+  const lock = `metricas:autolock:${slot}:${diaPR}`;
+  if (ejecutar) {
+    if (await env.ESTRATEGIAS.get(lock)) return { guardados: [], vacios: [], errores: ["ya_corrio"], texto: "" };
+    await env.ESTRATEGIAS.put(lock, "1", { expirationTtl: 86400 });
+  }
+  const guardados: string[] = [], vacios: string[] = [], errores: string[] = [], lineas: string[] = [], avisos: string[] = [];
+  for (const nombre of METRICAS_NOMBRES) {
+    let b: BorradorMetricas | null = null;
+    try { b = JSON.parse((await env.ESTRATEGIAS.get(`metricas:borrador:${nombre}`)) || "null"); } catch { b = null; }
+    if (!b || !Object.values(b.valores || {}).some((v) => v > 0)) { vacios.push(nombre); continue; }
+    const v = b.valores;
+    const cuerpo: Record<string, unknown> = b.rol === "closer"
+      ? { action: "addMetricas", rol: "closer", closer: nombre, fecha: b.fecha, agendas: v.agendas || 0, shows: v.shows || 0, noShows: v.noShows || 0, ventas: v.ventas || 0, cierres: v.cierres || 0 }
+      : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: v.llamadas || 0, agendadas: v.agendadas || 0, noCalifica: v.noCalifica || 0, noAtendieron: v.noAtendieron || 0, infoWhatsapp: v.infoWhatsapp || 0, cortaron: v.cortaron || 0, shows: v.shows || 0, cierres: v.cierres || 0, ventas: v.ventas || 0 };
+    const resumen = METRICAS_CAMPOS[b.rol].filter(([k]) => v[k] > 0).map(([k, et]) => `${et} ${k === "ventas" ? fmtDinero(v[k]) : v[k]}`).join(" · ");
+    if (!ejecutar) { guardados.push(`${nombre}: ${resumen}`); lineas.push(`• *${nombre}* (${b.fecha}): ${resumen}`); continue; }
+    try {
+      await metricasAScript(cuerpo);
+      if (b.rol === "setter" && v.cierres > 0) {
+        if (b.closerCerro) await metricasAScript({ action: "addMetricas", rol: "closer", closer: b.closerCerro, fecha: b.fecha, agendas: 0, shows: 0, noShows: 0, ventas: v.ventas || 0, cierres: v.cierres });
+        else avisos.push(`${nombre} anotó ${v.cierres} cierre(s) sin elegir qué closer cerró la venta: no se cargó en el Ranking.`);
+      }
+      await env.ESTRATEGIAS.delete(`metricas:borrador:${nombre}`);
+      await env.ESTRATEGIAS.put(`metricas:auto:${nombre}`, JSON.stringify({ ts: Date.now(), fecha: b.fecha, slot }), { expirationTtl: 3 * 86400 });
+      guardados.push(nombre);
+      lineas.push(`• *${nombre}*: ${resumen}`);
+    } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
+  }
+  const hora = slot === "tarde" ? "1:30 PM" : "8:30 PM";
+  const texto = lineas.length ? `💾 *Guardado automático de las ${hora}*: estos números no se habían enviado con el botón y ya quedaron en el Tracker 👇\n${lineas.join("\n")}` : "";
+  if (ejecutar && texto && env.SLACK_BOT_TOKEN) {
+    try {
+      const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
+      const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
+      if (canal) await slack(env, "chat.postMessage", {}, { channel: canal.id, text: texto });
+      else errores.push(`slack: no encuentro #${SLACK_CANAL}`);
+    } catch (e) { errores.push(`slack: ${String(e)}`); }
+  }
+  if (ejecutar && (errores.length || avisos.length)) await avisarThomas(env, `⚠️ *Autoguardado de métricas (${hora})*\n${[...errores, ...avisos].map((x) => "• " + x).join("\n")}`).catch(() => undefined);
+  return { guardados, vacios, errores, texto };
+}
+
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -1995,6 +2088,9 @@ export default {
       ctx.waitUntil(recordatorioProgramado(env, tipo, event.scheduledTime).catch(() => undefined));
       return;
     }
+    // Autoguardado de métricas: 1:30 PM (17:30 UTC) y 8:30 PM (00:30 UTC) de PR; se cuelga del cron de cada 10 minutos.
+    const hm = new Date(event.scheduledTime).getUTCHours() * 60 + new Date(event.scheduledTime).getUTCMinutes();
+    if (hm === 17 * 60 + 30 || hm === 30) ctx.waitUntil(guardarMetricasAuto(env, hm === 30 ? "cierre" : "tarde", event.scheduledTime).catch(() => undefined));
     const minuto = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((minuto % 30 < 10 ? etiquetasCalcular(env) : etiquetasAplicar(env)).then(() => undefined).catch(() => undefined));
   },
@@ -2047,6 +2143,14 @@ export default {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
         const r = await fetch(`${GHL_BASE}/workflows/?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
         return json({ ok: r.ok, status: r.status, body: r.ok ? await r.json() : (await r.text()).slice(0, 300) }, 200, cors);
+      }
+      if (url.pathname === "/metricas-borrador" && (request.method === "POST" || request.method === "GET")) {
+        return await handleMetricasBorrador(request, url, env, cors);
+      }
+      if (url.pathname === "/admin/metricas-auto" && request.method === "POST") {
+        if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
+        // Sin ?ejecutar=1 solo muestra los borradores que se guardarían (no escribe ni publica).
+        return json({ ok: true, ...(await guardarMetricasAuto(env, url.searchParams.get("slot") === "cierre" ? "cierre" : "tarde", Date.now(), url.searchParams.get("ejecutar") === "1")) }, 200, cors);
       }
       if (url.pathname === "/admin/slack-recordatorio" && request.method === "POST") {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
