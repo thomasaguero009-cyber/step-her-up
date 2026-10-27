@@ -2024,7 +2024,19 @@ const METRICAS_CAMPOS: Record<"setter" | "closer", [string, string][]> = {
   setter: [["llamadas", "Llamadas"], ["agendadas", "Agendadas"], ["noCalifica", "No califica"], ["noAtendieron", "No atendieron"], ["infoWhatsapp", "Info por WhatsApp"], ["cortaron", "Cortaron / colgaron"], ["shows", "Shows"], ["cierres", "Cierres"], ["ventas", "Cash collected"]],
   closer: [["agendas", "Agendas"], ["shows", "Shows"], ["noShows", "No shows"], ["ventas", "Cash collected"], ["cierres", "Cierres"]],
 };
-type BorradorMetricas = { rol: "setter" | "closer"; fecha: string; valores: Record<string, number>; closerCerro: string; ts: number };
+type BorradorMetricas = { rol: "setter" | "closer"; fecha: string; valores: Record<string, number>; closerCerro: string; ts: number; v?: number };
+
+// Versión 2 del formulario: la pantalla muestra el TOTAL DEL DÍA y nunca se pone en cero. Lo ya guardado en el Tracker se anota aparte
+// (metricas:guardado:<fecha>:<Nombre>) y cada guardado (botón u horario) solo manda la diferencia.
+type GuardadoMetricas = { valores: Record<string, number>; posteado?: string; reg?: boolean };
+const claveGuardado = (fecha: string, nombre: string) => `metricas:guardado:${fecha.replace(/\//g, "-")}:${nombre}`;
+async function leerGuardado(env: Env, fecha: string, nombre: string): Promise<GuardadoMetricas> {
+  try { const g = JSON.parse((await env.ESTRATEGIAS.get(claveGuardado(fecha, nombre))) || "null"); if (g && g.valores) return g as GuardadoMetricas; } catch { /* sin registro */ }
+  return { valores: {} };
+}
+async function guardarGuardado(env: Env, fecha: string, nombre: string, g: GuardadoMetricas): Promise<void> {
+  await env.ESTRATEGIAS.put(claveGuardado(fecha, nombre), JSON.stringify(g), { expirationTtl: 4 * 86400 });
+}
 
 // Mensaje de #setters con los números de una persona (los publica el bot en nombre de quien los cargó en Métricas).
 function mensajeMetricas(nombre: string, rol: "setter" | "closer", fecha: string, v: Record<string, number>, closerCerro: string, origen: string): string {
@@ -2075,7 +2087,9 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
     const nombre = url.searchParams.get("nombre") || "";
     if (!METRICAS_NOMBRES.includes(nombre)) return json({ ok: false, error: "nombre" }, 400, cors);
     const m = await leerMarcaCompleta(nombre);
-    return json({ ok: true, ts: m.ts, slot: m.slot }, 200, cors);
+    const fechaQ = url.searchParams.get("fecha") || "";
+    const gq = /^\d{2}\/\d{2}\/\d{4}$/.test(fechaQ) ? await leerGuardado(env, fechaQ, nombre) : { valores: {} };
+    return json({ ok: true, ts: m.ts, slot: m.slot, guardado: gq.valores }, 200, cors);
   }
   let b: any;
   try { b = await request.json(); } catch { return json({ ok: false, error: "bad_json" }, 400, cors); }
@@ -2084,6 +2098,26 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
   const marcaCompleta = await leerMarcaCompleta(nombre);
   const marca = marcaCompleta.ts;
   const clave = `metricas:borrador:${nombre}`;
+  if (b.vaciar && b.v === 2) {
+    // Botón "Guardar métricas" (versión 2): el formulario ya escribió en el Tracker la diferencia; aquí se anota y se publica el total del día.
+    const pub = b.publicar;
+    if (!pub || !/^\d{2}\/\d{2}\/\d{4}$/.test(String(pub.fecha || ""))) return json({ ok: false, error: "fecha" }, 400, cors);
+    const rolP: "setter" | "closer" = pub.rol === "closer" ? "closer" : "setter";
+    const vals: Record<string, number> = {};
+    for (const [k] of METRICAS_CAMPOS[rolP]) vals[k] = Math.min(1000000, Math.max(0, Math.round(Number(pub.valores?.[k]) || 0)));
+    const cerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(pub.closerCerro || "")) ? String(pub.closerCerro) : "";
+    const g = await leerGuardado(env, String(pub.fecha), nombre);
+    for (const k of Object.keys(vals)) g.valores[k] = Math.max(g.valores[k] || 0, vals[k]);
+    let slackOk = false;
+    try {
+      await slack(env, "chat.postMessage", {}, { channel: await canalSetters(env), text: mensajeMetricas(nombre, rolP, String(pub.fecha), vals, cerro, "enviado desde Métricas · total del día") });
+      g.posteado = JSON.stringify(vals); slackOk = true;
+    } catch { slackOk = false; }
+    await registrarEnvioMetricas(env, nombre, Date.now()).catch(() => undefined);
+    g.reg = true;
+    await guardarGuardado(env, String(pub.fecha), nombre, g);
+    return json({ ok: true, slack: slackOk, guardado: g.valores }, 200, cors);
+  }
   if (b.vaciar) {
     await env.ESTRATEGIAS.delete(clave);
     // Guardado con el botón: además se publica en #setters para que no tengan que escribirlo aparte en Slack.
@@ -2103,8 +2137,8 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
     }
     return json({ ok: true, ts: marca, slack: slackOk }, 200, cors);
   }
-  // "inicio" = cuándo empezó el navegador a contar este bloque. Si el autoguardado corrió después, esos números ya están en el Sheet: que reinicie.
-  if (marca > (Number(b.inicio) || 0)) return json({ ok: true, reset: true, ts: marca, slot: marcaCompleta.slot }, 200, cors);
+  // Formularios viejos (sin v:2): "inicio" = cuándo empezó el navegador a contar este bloque. Si el autoguardado corrió después, esos números ya están en el Sheet: que reinicie.
+  if (b.v !== 2 && marca > (Number(b.inicio) || 0)) return json({ ok: true, reset: true, ts: marca, slot: marcaCompleta.slot }, 200, cors);
   const rol: "setter" | "closer" = b.rol === "closer" ? "closer" : "setter";
   const fecha = String(b.fecha || "");
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) return json({ ok: false, error: "fecha" }, 400, cors);
@@ -2118,8 +2152,9 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
       await env.ESTRATEGIAS.put(`${clave}:${previo.fecha}`, JSON.stringify(previo), { expirationTtl: 3 * 86400 });
     }
   } catch { /* sin borrador previo */ }
-  const borrador: BorradorMetricas = { rol, fecha, valores, closerCerro, ts: Date.now() };
+  const borrador: BorradorMetricas = { rol, fecha, valores, closerCerro, ts: Date.now(), ...(b.v === 2 ? { v: 2 } : {}) };
   await env.ESTRATEGIAS.put(clave, JSON.stringify(borrador), { expirationTtl: 3 * 86400 });
+  if (b.v === 2) return json({ ok: true, ts: marca, guardado: (await leerGuardado(env, fecha, nombre)).valores }, 200, cors);
   return json({ ok: true, ts: marca }, 200, cors);
 }
 
@@ -2150,6 +2185,33 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
     let b: BorradorMetricas | null = null;
     try { b = JSON.parse((await env.ESTRATEGIAS.get(claveB)) || "null"); } catch { b = null; }
     if (!b || !Object.values(b.valores || {}).some((v) => v > 0)) { vacios.push(nombre); continue; }
+    if (b.v === 2) {
+      // Total del día en pantalla: se guarda solo la diferencia con lo ya guardado y el borrador se queda (la pantalla no se pone en cero).
+      const tot = b.valores;
+      const g = await leerGuardado(env, b.fecha, nombre);
+      const delta: Record<string, number> = {};
+      let hay = false;
+      for (const [k] of METRICAS_CAMPOS[b.rol]) { delta[k] = Math.max(0, (tot[k] || 0) - (g.valores[k] || 0)); if (delta[k] > 0) hay = true; }
+      const cuerpoD: Record<string, unknown> = b.rol === "closer"
+        ? { action: "addMetricas", rol: "closer", closer: nombre, fecha: b.fecha, agendas: delta.agendas || 0, shows: delta.shows || 0, noShows: delta.noShows || 0, ventas: delta.ventas || 0, cierres: delta.cierres || 0 }
+        : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: delta.llamadas || 0, agendadas: delta.agendadas || 0, noCalifica: delta.noCalifica || 0, noAtendieron: delta.noAtendieron || 0, infoWhatsapp: delta.infoWhatsapp || 0, cortaron: delta.cortaron || 0, shows: delta.shows || 0, cierres: delta.cierres || 0, ventas: delta.ventas || 0 };
+      if (!ejecutar) { guardados.push(`${nombre}: ${hay ? "guardaría la diferencia" : "sin cambios"}`); lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, `guardado automático ${hora} · total del día`)); continue; }
+      try {
+        if (hay) {
+          await metricasAScript(cuerpoD);
+          if (b.rol === "setter" && delta.cierres > 0) {
+            if (b.closerCerro) await metricasAScript({ action: "addMetricas", rol: "closer", closer: b.closerCerro, fecha: b.fecha, agendas: 0, shows: 0, noShows: 0, ventas: delta.ventas || 0, cierres: delta.cierres });
+            else avisos.push(`${nombre} anotó ${delta.cierres} cierre(s) sin elegir qué closer cerró la venta: no se cargó en el Ranking.`);
+          }
+          for (const k of Object.keys(delta)) g.valores[k] = Math.max(g.valores[k] || 0, tot[k] || 0);
+        }
+        if (b.fecha === fechaHoyPR && !g.reg) { await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined); g.reg = true; }
+        if (publica && JSON.stringify(tot) !== g.posteado) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, `guardado automático ${hora} · total del día`)); g.posteado = JSON.stringify(tot); }
+        await guardarGuardado(env, b.fecha, nombre, g);
+        guardados.push(nombre);
+      } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
+      continue;
+    }
     const v = b.valores;
     const cuerpo: Record<string, unknown> = b.rol === "closer"
       ? { action: "addMetricas", rol: "closer", closer: nombre, fecha: b.fecha, agendas: v.agendas || 0, shows: v.shows || 0, noShows: v.noShows || 0, ventas: v.ventas || 0, cierres: v.cierres || 0 }
