@@ -41,6 +41,10 @@ function doPost(e) {
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
+  if (p.action === 'showsDesglose') {
+    try { return responder(showsDesglose(p.mes)); }
+    catch (err) { return responder({ status: 'error', message: String(err && err.message || err) }); }
+  }
   if (p.action === 'ventasDesglose') {
     try { return responder(ventasDesglose(p.mes)); }
     catch (err) { return responder({ status: 'error', message: String(err && err.message || err) }); }
@@ -110,6 +114,37 @@ function ventasDesglose(mes) {
     });
   }
   return { mes: etiqueta, hoja: 'Ventas', ventas: ventas };
+}
+
+// Shows (llamadas a las que la lead SI se presento) del mes, desde la pestana "Shows" de ESTE Sheet. SOLO LECTURA.
+// Columnas: Fecha, Nombre de la lead, Agendo (setter), Cerro (closer), Resultado (Cierre / Seguimiento / No cierra),
+// Cash collected, Fuente, Notas. Nombre abreviado y sin datos de contacto (la URL del script es publica).
+function showsDesglose(mes) {
+  var q = /^(\d{4})-(\d{2})$/.exec(String(mes || ''));
+  var ahora = new Date(Date.now() - 4 * 3600 * 1000);
+  var anio = q ? Number(q[1]) : ahora.getUTCFullYear();
+  var num = q ? Number(q[2]) : ahora.getUTCMonth() + 1;
+  var etiqueta = anio + '-' + ('0' + num).slice(-2);
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Shows');
+  if (!hoja) return { mes: etiqueta, hoja: null, shows: [], message: 'Falta la pestana "Shows" en el Sheet' };
+  var valores = hoja.getDataRange().getValues();
+  var norm = function (h) { return String(h).trim().toLowerCase().replace(/\s+/g, ' '); };
+  var cab = valores[0].map(norm);
+  var col = function (prefijo) { for (var i = 0; i < cab.length; i++) { if (cab[i].indexOf(prefijo) === 0) return i; } return -1; };
+  var ix = { fecha: col('fecha'), lead: col('nombre'), agendo: col('agend'), cerro: col('cerr'), resultado: col('resultado'), cash: col('cash'), fuente: col('fuente'), notas: col('notas') };
+  if (ix.fecha < 0 || ix.lead < 0) throw new Error('La pestana "Shows" necesita las columnas Fecha y Nombre de la lead');
+  var shows = [];
+  for (var i = 1; i < valores.length; i++) {
+    var r = valores[i];
+    var f = fechaDeCelda(r[ix.fecha]);
+    if (!f || f.m !== num || f.a !== anio || !String(r[ix.lead] || '').trim()) continue;
+    var cel = function (k) { return ix[k] > -1 ? String(r[ix[k]] || '').trim() : ''; };
+    shows.push({
+      fila: i + 1, fecha: f.texto, lead: nombreCorto(r[ix.lead]), agendo: cel('agendo'), cerro: cel('cerro'),
+      resultado: cel('resultado') || 'Seguimiento', cash: ix.cash > -1 ? dineroDeCelda(r[ix.cash]) : 0, fuente: cel('fuente'),
+    });
+  }
+  return { mes: etiqueta, hoja: 'Shows', shows: shows };
 }
 
 function responder(data) {
