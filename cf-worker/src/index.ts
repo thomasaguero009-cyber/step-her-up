@@ -2060,10 +2060,36 @@ async function acumularDia(env: Env, nombre: string, rol: "setter" | "closer", f
 }
 
 async function canalSetters(env: Env): Promise<string> {
+  // El id del canal se guarda en KV: pedir la lista de canales en cada publicación fallaba cuando varias personas guardaban a la vez (límite de Slack).
+  const guardado = await env.ESTRATEGIAS.get(`slack:canal:${SLACK_CANAL}`);
+  if (guardado) return guardado;
   const canales = await slack(env, "conversations.list", { types: "public_channel,private_channel", limit: "500", exclude_archived: "true" });
   const canal = (canales.channels || []).find((c: { name: string }) => c.name === SLACK_CANAL);
   if (!canal) throw new Error(`no encuentro #${SLACK_CANAL}`);
+  await env.ESTRATEGIAS.put(`slack:canal:${SLACK_CANAL}`, canal.id as string, { expirationTtl: 30 * 86400 }).catch(() => undefined);
   return canal.id as string;
+}
+
+// Publica en #setters con un reintento; si igual falla, le avisa a Thomas con el texto para que no se pierda.
+async function publicarEnSetters(env: Env, texto: string): Promise<boolean> {
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      await slack(env, "chat.postMessage", {}, { channel: await canalSetters(env), text: texto });
+      return true;
+    } catch {
+      if (intento === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  await avisarThomas(env, `⚠️ No pude publicar en #setters. Texto pendiente:\n${texto}`).catch(() => undefined);
+  return false;
+}
+
+// Candado corto para que un doble clic (o dos pantallas abiertas) no publique el mismo mensaje dos veces.
+async function yaPublicadoReciente(env: Env, clave: string, segundos = 90): Promise<boolean> {
+  const k = `metricas:postlock:${clave}`;
+  if (await env.ESTRATEGIAS.get(k)) return true;
+  await env.ESTRATEGIAS.put(k, "1", { expirationTtl: Math.max(60, segundos) });
+  return false;
 }
 
 // Anota que esta persona ya envió sus números por Métricas (así el recordatorio de Slack no se lo vuelve a pedir).
@@ -2109,10 +2135,13 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
     const g = await leerGuardado(env, String(pub.fecha), nombre);
     for (const k of Object.keys(vals)) g.valores[k] = Math.max(g.valores[k] || 0, vals[k]);
     let slackOk = false;
-    try {
-      await slack(env, "chat.postMessage", {}, { channel: await canalSetters(env), text: mensajeMetricas(nombre, rolP, String(pub.fecha), vals, cerro, "enviado desde Métricas · total del día") });
-      g.posteado = JSON.stringify(vals); slackOk = true;
-    } catch { slackOk = false; }
+    const huella = JSON.stringify(vals);
+    if (huella === g.posteado || await yaPublicadoReciente(env, `${nombre}:${String(pub.fecha).replace(/\//g, "-")}:${huella}`)) {
+      slackOk = true; // ya estaba publicado con estos mismos números (doble clic o pantalla repetida): no se repite el mensaje
+    } else {
+      slackOk = await publicarEnSetters(env, mensajeMetricas(nombre, rolP, String(pub.fecha), vals, cerro, "enviado desde Métricas · total del día"));
+      if (slackOk) g.posteado = huella;
+    }
     await registrarEnvioMetricas(env, nombre, Date.now()).catch(() => undefined);
     g.reg = true;
     await guardarGuardado(env, String(pub.fecha), nombre, g);
@@ -2129,10 +2158,13 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
       for (const [k] of METRICAS_CAMPOS[rolP]) vals[k] = Math.min(1000000, Math.max(0, Math.round(Number(pub.valores?.[k]) || 0)));
       const cerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(pub.closerCerro || "")) ? String(pub.closerCerro) : "";
       try {
-        const tot = await acumularDia(env, nombre, rolP, String(pub.fecha), vals, cerro);
-        await slack(env, "chat.postMessage", {}, { channel: await canalSetters(env), text: mensajeMetricas(nombre, rolP, String(pub.fecha), tot.valores, tot.closerCerro, "enviado desde Métricas · total del día") });
-        await registrarEnvioMetricas(env, nombre, Date.now());
-        slackOk = true;
+        // Una pantalla vieja (sin v:2) que manda lo mismo dos veces seguidas: la segunda vez no se suma ni se publica.
+        if (await yaPublicadoReciente(env, `v1:${nombre}:${String(pub.fecha).replace(/\//g, "-")}:${JSON.stringify(vals)}`, 120)) { slackOk = true; }
+        else {
+          const tot = await acumularDia(env, nombre, rolP, String(pub.fecha), vals, cerro);
+          slackOk = await publicarEnSetters(env, mensajeMetricas(nombre, rolP, String(pub.fecha), tot.valores, tot.closerCerro, "enviado desde Métricas · total del día"));
+          await registrarEnvioMetricas(env, nombre, Date.now());
+        }
       } catch { slackOk = false; }
     }
     return json({ ok: true, ts: marca, slack: slackOk }, 200, cors);
@@ -2235,10 +2267,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
   }
   const texto = lineas.join("\n\n");
   if (ejecutar && lineas.length && env.SLACK_BOT_TOKEN) {
-    try {
-      const canal = await canalSetters(env);
-      for (const l of lineas) await slack(env, "chat.postMessage", {}, { channel: canal, text: l });
-    } catch (e) { errores.push(`slack: ${String(e)}`); }
+    for (const l of lineas) { if (!(await publicarEnSetters(env, l))) errores.push("slack: no se pudo publicar un mensaje (ya se le avisó a Thomas)"); }
   }
   if (ejecutar && (errores.length || avisos.length)) await avisarThomas(env, `⚠️ *Guardado de métricas (${hora})*\n${[...errores, ...avisos].map((x) => "• " + x).join("\n")}`).catch(() => undefined);
   return { guardados, vacios, errores, texto };
