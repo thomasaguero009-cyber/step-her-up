@@ -2117,7 +2117,7 @@ const METRICAS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxPo2XCgJzs
 const METRICAS_NOMBRES = ["Paula", "Mia", "Belen"];
 const METRICAS_CAMPOS: Record<"setter" | "closer", [string, string][]> = {
   // Mismo orden y nombres que el formulario de Métricas.
-  setter: [["llamadas", "Llamadas"], ["agendadas", "Agendadas"], ["noCalifica", "No califica"], ["noAtendieron", "No atendieron"], ["infoWhatsapp", "Info por WhatsApp"], ["cortaron", "Cortaron / colgaron"], ["shows", "Shows"], ["cierres", "Cierres"], ["ventas", "Cash collected"]],
+  setter: [["llamadas", "Llamadas"], ["agendadas", "Agendadas"], ["noCalifica", "No califica"], ["noAtendieron", "No atendieron"], ["infoWhatsapp", "Info por WhatsApp"], ["cortaron", "Cortaron / colgaron"], ["llamarMasTarde", "Llamar más tarde"], ["shows", "Shows"], ["cierres", "Cierres"], ["ventas", "Cash collected"]],
   closer: [["agendas", "Agendas"], ["shows", "Shows"], ["noShows", "No shows"], ["ventas", "Cash collected"], ["cierres", "Cierres"]],
 };
 type BorradorMetricas = { rol: "setter" | "closer"; fecha: string; valores: Record<string, number>; closerCerro: string; ts: number; v?: number };
@@ -2312,7 +2312,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
       for (const [k] of METRICAS_CAMPOS[b.rol]) { delta[k] = Math.max(0, (tot[k] || 0) - (g.valores[k] || 0)); if (delta[k] > 0) hay = true; }
       const cuerpoD: Record<string, unknown> = b.rol === "closer"
         ? { action: "addMetricas", rol: "closer", closer: nombre, fecha: b.fecha, agendas: delta.agendas || 0, shows: delta.shows || 0, noShows: delta.noShows || 0, ventas: delta.ventas || 0, cierres: delta.cierres || 0 }
-        : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: delta.llamadas || 0, agendadas: delta.agendadas || 0, noCalifica: delta.noCalifica || 0, noAtendieron: delta.noAtendieron || 0, infoWhatsapp: delta.infoWhatsapp || 0, cortaron: delta.cortaron || 0, shows: delta.shows || 0, cierres: delta.cierres || 0, ventas: delta.ventas || 0 };
+        : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: delta.llamadas || 0, agendadas: delta.agendadas || 0, noCalifica: delta.noCalifica || 0, noAtendieron: delta.noAtendieron || 0, infoWhatsapp: delta.infoWhatsapp || 0, cortaron: delta.cortaron || 0, llamarMasTarde: delta.llamarMasTarde || 0, shows: delta.shows || 0, cierres: delta.cierres || 0, ventas: delta.ventas || 0 };
       if (!ejecutar) { guardados.push(`${nombre}: ${hay ? "guardaría la diferencia" : "sin cambios"}`); lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, `guardado automático ${hora} · total del día`)); continue; }
       try {
         if (hay) {
@@ -2335,7 +2335,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
     const v = b.valores;
     const cuerpo: Record<string, unknown> = b.rol === "closer"
       ? { action: "addMetricas", rol: "closer", closer: nombre, fecha: b.fecha, agendas: v.agendas || 0, shows: v.shows || 0, noShows: v.noShows || 0, ventas: v.ventas || 0, cierres: v.cierres || 0 }
-      : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: v.llamadas || 0, agendadas: v.agendadas || 0, noCalifica: v.noCalifica || 0, noAtendieron: v.noAtendieron || 0, infoWhatsapp: v.infoWhatsapp || 0, cortaron: v.cortaron || 0, shows: v.shows || 0, cierres: v.cierres || 0, ventas: v.ventas || 0 };
+      : { action: "addMetricas", rol: "setter", setter: nombre, fecha: b.fecha, llamadas: v.llamadas || 0, agendadas: v.agendadas || 0, noCalifica: v.noCalifica || 0, noAtendieron: v.noAtendieron || 0, infoWhatsapp: v.infoWhatsapp || 0, cortaron: v.cortaron || 0, llamarMasTarde: v.llamarMasTarde || 0, shows: v.shows || 0, cierres: v.cierres || 0, ventas: v.ventas || 0 };
     const resumen = METRICAS_CAMPOS[b.rol].filter(([k]) => v[k] > 0).map(([k, et]) => `${et} ${k === "ventas" ? fmtDinero(v[k]) : v[k]}`).join(" · ");
     if (!ejecutar) { guardados.push(`${nombre}: ${resumen}`); lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, v, b.closerCerro, `guardado automático ${hora}`)); continue; }
     try {
