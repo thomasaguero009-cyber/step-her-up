@@ -1419,8 +1419,11 @@ async function avisosParaThomas(env: Env): Promise<void> {
   }
 }
 
-// ===== Agente vigilante de GHL: revisa los 4 pipelines de leads y le escribe a Thomas SOLO si encuentra algo. Sin IA: son chequeos medibles. =====
-async function vigilanteGhl(env: Env, enviar: boolean, cuando = Date.now()): Promise<{ hallazgos: string[]; texto: string; enviado: boolean }> {
+// ===== Agente vigilante de GHL: revisa los 4 pipelines de leads y le manda a Thomas el reporte COMPLETO (también cuando todo está bien). Sin IA: son chequeos medibles. =====
+type ChequeoAgente = { id: string; titulo: string; cantidad: number; ok: boolean; detalle: string };
+type CorridaAgente = { ts: number; slot: string; checks: ChequeoAgente[]; resumen: { oportunidades: number; movidas24h: number; porEtapa: Record<string, number> }; error?: string };
+
+async function vigilanteGhl(env: Env, enviar: boolean, cuando = Date.now(), slot = "manual"): Promise<{ corrida: CorridaAgente; texto: string; enviado: boolean }> {
   const DIA = 86400000;
   const pipeRes = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
   if (!pipeRes.ok) throw new Error(`pipelines_failed ${pipeRes.status}`);
@@ -1429,44 +1432,52 @@ async function vigilanteGhl(env: Env, enviar: boolean, cuando = Date.now()): Pro
   for (const p of pipeBody.pipelines || []) for (const e of p.stages || []) nombreDeEtapa.set(e.id, e.name);
   const lotes = await Promise.all(PIPELINES_LEADS.map((p) => traerOportunidadesDePipeline(env, p.id)));
   const ops = lotes.flat();
-  const etiqueta = (o: OpportunityGHL) => `${o.name || "Sin nombre"}`;
+  const nombre = (o: OpportunityGHL) => o.name || "Sin nombre";
   let vencidas = 0, vencidasViejas = 0, sinTocar = 0, sinResponsable = 0, movidas24h = 0;
   const ejVencidas: string[] = [], ejSinTocar: string[] = [];
+  const porEtapa: Record<string, number> = { llamado: 0, agendada: 0, show_sin_cierre: 0, cerrado: 0, no_show: 0 };
   for (const o of ops) {
     const cat = clasificarEtapa(nombreDeEtapa.get(o.pipelineStageId) || "");
     const cambio = Date.parse(o.lastStageChangeAt) || 0;
     const creada = Date.parse(o.createdAt || "") || 0;
-    if (cuando - cambio < DIA) movidas24h++;
+    if (cuando - cambio < DIA) { movidas24h++; if (cat in porEtapa) porEtapa[cat]++; }
     // Citas que ya pasaron y siguen en "Appointment Set" (falta marcar si se presentó, no se presentó o cerró).
     if (cat === "agendada" && cuando - cambio > 2 * DIA) {
-      if (cuando - cambio <= 30 * DIA) { vencidas++; if (ejVencidas.length < 5) ejVencidas.push(etiqueta(o)); } else vencidasViejas++;
+      if (cuando - cambio <= 30 * DIA) { vencidas++; if (ejVencidas.length < 5) ejVencidas.push(nombre(o)); } else vencidasViejas++;
     }
     // Leads nuevos de los últimos 3 días que nadie tocó en más de 24 h.
-    if (cat === "sin_contactar" && creada && cuando - creada < 3 * DIA && cuando - cambio > DIA) { sinTocar++; if (ejSinTocar.length < 5) ejSinTocar.push(etiqueta(o)); }
+    if (cat === "sin_contactar" && creada && cuando - creada < 3 * DIA && cuando - cambio > DIA) { sinTocar++; if (ejSinTocar.length < 5) ejSinTocar.push(nombre(o)); }
     // Agendadas o llamadas recientes sin responsable asignado.
     if ((cat === "agendada" || cat === "llamado") && !o.assignedTo && cuando - cambio <= 30 * DIA) sinResponsable++;
   }
-  const hallazgos: string[] = [];
-  if (vencidas) hallazgos.push(`📅 *${vencidas}* ${vencidas === 1 ? "cita agendada hace más de 2 días sigue" : "citas agendadas hace más de 2 días siguen"} en "Appointment Set" (falta marcar si se presentó o no): ${ejVencidas.join(", ")}${vencidas > ejVencidas.length ? "…" : ""}${vencidasViejas ? ` (más ${vencidasViejas} de hace más de 30 días)` : ""}`);
-  if (sinTocar) hallazgos.push(`📥 *${sinTocar}* ${sinTocar === 1 ? "lead nuevo de los últimos 3 días lleva" : "leads nuevos de los últimos 3 días llevan"} más de 24 h sin moverse de "New Lead": ${ejSinTocar.join(", ")}${sinTocar > ejSinTocar.length ? "…" : ""}`);
-  if (sinResponsable) hallazgos.push(`👤 *${sinResponsable}* ${sinResponsable === 1 ? "oportunidad reciente" : "oportunidades recientes"} (agendadas o en llamada) sin responsable asignado.`);
   const diaSemana = new Date(cuando - 4 * 3600 * 1000).getUTCDay();
-  if (movidas24h === 0 && diaSemana >= 2 && diaSemana <= 6) hallazgos.push("🧊 Nadie movió ninguna tarjeta de lead en las últimas 24 horas (los números de GHL no se están actualizando).");
-  const texto = hallazgos.length ? `🔎 *Revisión de GHL*\n${hallazgos.map((h) => "• " + h).join("\n")}` : "";
+  const laborable = diaSemana >= 2 && diaSemana <= 6; // el día anterior fue lunes a viernes
+  const checks: ChequeoAgente[] = [
+    { id: "citas", titulo: "Citas vencidas", cantidad: vencidas, ok: vencidas === 0, detalle: vencidas ? `${ejVencidas.join(", ")}${vencidas > ejVencidas.length ? "…" : ""}${vencidasViejas ? ` (y ${vencidasViejas} de hace más de 30 días)` : ""}` : "ninguna cita pendiente de marcar" },
+    { id: "sinTocar", titulo: "Leads sin tocar", cantidad: sinTocar, ok: sinTocar === 0, detalle: sinTocar ? `${ejSinTocar.join(", ")}${sinTocar > ejSinTocar.length ? "…" : ""}` : "todos los leads nuevos se movieron" },
+    { id: "sinResponsable", titulo: "Sin responsable", cantidad: sinResponsable, ok: sinResponsable === 0, detalle: sinResponsable ? "agendadas o en llamada sin asignar" : "todas tienen responsable" },
+    { id: "movimiento", titulo: "Tarjetas movidas en 24 h", cantidad: movidas24h, ok: movidas24h > 0 || !laborable, detalle: movidas24h ? `llamadas ${porEtapa.llamado}, agendadas ${porEtapa.agendada}, shows ${porEtapa.show_sin_cierre}, cierres ${porEtapa.cerrado}, no shows ${porEtapa.no_show}` : "nadie movió ninguna tarjeta" },
+  ];
+  const corrida: CorridaAgente = { ts: cuando, slot, checks, resumen: { oportunidades: ops.length, movidas24h, porEtapa } };
+  const lineas = checks.map((c) => `${c.ok ? "✅" : "⚠️"} *${c.titulo}:* ${c.cantidad} · ${c.detalle}`);
+  const texto = `🔎 *Revisión de GHL* (${slot === "manual" ? "prueba" : slot})\n${lineas.map((l) => "• " + l).join("\n")}`;
   let enviado = false;
-  if (enviar && texto) { await avisarThomas(env, texto); enviado = true; }
-  return { hallazgos, texto, enviado };
+  if (enviar) { await avisarThomas(env, texto); enviado = true; }
+  return { corrida, texto, enviado };
 }
 
-async function vigilanteGhlProgramado(env: Env, cuando: number): Promise<void> {
+async function vigilanteGhlProgramado(env: Env, cuando: number, slot: string): Promise<void> {
   const dia = new Date(cuando - 4 * 3600 * 1000).toISOString().slice(0, 10);
-  const clave = `vigilante:ghl:${dia}`;
+  const clave = `vigilante:ghl:${dia}:${slot}`;
   if (await env.ESTRATEGIAS.get(clave)) return;
   await env.ESTRATEGIAS.put(clave, "1", { expirationTtl: 86400 });
-  try {
-    const r = await vigilanteGhl(env, true, cuando);
-    await env.ESTRATEGIAS.put("vigilante:ghl:ultimo", JSON.stringify({ ts: cuando, hallazgos: r.hallazgos }), { expirationTtl: 7 * 86400 });
-  } catch (e) { await env.ESTRATEGIAS.delete(clave); throw e; }
+  let corrida: CorridaAgente;
+  try { corrida = (await vigilanteGhl(env, true, cuando, slot)).corrida; }
+  catch (e) { corrida = { ts: cuando, slot, checks: [], resumen: { oportunidades: 0, movidas24h: 0, porEtapa: {} }, error: String(e).slice(0, 200) }; await env.ESTRATEGIAS.delete(clave); }
+  let hist: CorridaAgente[] = [];
+  try { hist = JSON.parse((await env.ESTRATEGIAS.get("vigilante:ghl:historial")) || "[]"); } catch { hist = []; }
+  hist.unshift(corrida);
+  await env.ESTRATEGIAS.put("vigilante:ghl:historial", JSON.stringify(hist.slice(0, 30)), { expirationTtl: 14 * 86400 });
 }
 
 async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | "metas" | "cierre" = "numeros", despues = false): Promise<{ canal: string; pendientes: string[]; enviaron: string[]; publicado: boolean }> {
@@ -2364,7 +2375,7 @@ export default {
     // Hora de Puerto Rico (UTC-4). Cada hora, a las :30, lo contado se guarda en el Tracker en silencio. A la 1:00 PM (17:00 UTC) y a las 8:00 PM
     // (00:00 UTC) se guarda y se publica en #setters cuánto lleva cada una, y solo después se le recuerda a quien no cargó nada.
     if (event.cron.startsWith("0 13 ")) { ctx.waitUntil(resumenSemanalProgramado(env, event.scheduledTime).catch(() => undefined)); return; }
-    if (event.cron.startsWith("0 14 ")) { ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime).catch(() => undefined)); return; }
+    if (event.cron.startsWith("0 14 ")) { ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "10:00 AM").catch(() => undefined)); return; }
     if (event.cron.startsWith("0 0 ") || event.cron.startsWith("0 17 ")) {
       ctx.waitUntil(avisosParaThomas(env).catch(() => undefined));
       const slotP = event.cron.startsWith("0 0 ") ? "cierre" : "tarde";
@@ -2375,6 +2386,9 @@ export default {
     }
     const hm = new Date(event.scheduledTime).getUTCHours() * 60 + new Date(event.scheduledTime).getUTCMinutes();
     if (hm % 60 === 30) ctx.waitUntil(guardarMetricasAuto(env, "hora", event.scheduledTime).catch(() => undefined));
+    // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
+    if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
+    if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
     const minuto = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((minuto % 30 < 10 ? etiquetasCalcular(env) : etiquetasAplicar(env)).then(() => undefined).catch(() => undefined));
   },
@@ -2436,10 +2450,19 @@ export default {
         // Sin ?ejecutar=1 solo muestra los borradores que se guardarían (no escribe ni publica).
         return json({ ok: true, ...(await guardarMetricasAuto(env, url.searchParams.get("slot") === "cierre" ? "cierre" : url.searchParams.get("slot") === "hora" ? "hora" : "tarde", Date.now(), url.searchParams.get("ejecutar") === "1")) }, 200, cors);
       }
+      if (url.pathname === "/agentes-estado" && request.method === "GET") {
+        const origin = request.headers.get("Origin") || "";
+        if (!env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
+        let hist: CorridaAgente[] = [];
+        try { hist = JSON.parse((await env.ESTRATEGIAS.get("vigilante:ghl:historial")) || "[]"); } catch { hist = []; }
+        // Solo cantidades: los nombres de las leads van únicamente en el mensaje directo a Thomas.
+        const limpio = hist.map((c) => ({ ...c, checks: c.checks.map((k) => ({ ...k, detalle: k.id === "movimiento" ? k.detalle : "" })) }));
+        return json({ ok: true, ghl: { historial: limpio } }, 200, { ...cors, "Cache-Control": "no-store" });
+      }
       if (url.pathname === "/admin/vigilante-ghl" && request.method === "POST") {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
         // Sin ?enviar=1 solo muestra lo que encontraría (no escribe a nadie).
-        try { return json({ ok: true, ...(await vigilanteGhl(env, url.searchParams.get("enviar") === "1")) }, 200, cors); }
+        try { const r = await vigilanteGhl(env, url.searchParams.get("enviar") === "1"); return json({ ok: true, ...r }, 200, cors); }
         catch (e) { return json({ ok: false, error: String(e) }, 502, cors); }
       }
       if (url.pathname === "/admin/slack-recordatorio" && request.method === "POST") {
