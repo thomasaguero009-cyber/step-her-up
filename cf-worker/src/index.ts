@@ -1633,6 +1633,49 @@ async function cerrarVentas(env: Env, emails: string[], valor: number, simular: 
   return { resultados };
 }
 
+// ===== Alta de alumnas en un pipeline de entrega: crea UNA oportunidad nueva en el pipeline elegido para cada persona (por correo, teléfono o nombre).
+// Nunca mueve ni borra oportunidades de otros pipelines. Si la persona ya tiene una oportunidad en ESE pipeline, no crea otra. Por defecto solo simula. =====
+async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: string, items: string[], simular: boolean): Promise<{ error?: string; pipeline?: string; etapa?: string; resultados: { item: string; accion: string; detalle?: string }[] }> {
+  const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const pr = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
+  if (!pr.ok) return { error: `pipelines_${pr.status}`, resultados: [] };
+  const pipes = ((await pr.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+  const pipe = pipes.find((x) => norm(x.name) === norm(pipelineNombre));
+  if (!pipe) return { error: `no encuentro el pipeline "${pipelineNombre}". Los que existen: ${pipes.map((x) => x.name).join(" | ")}`, resultados: [] };
+  const etapa = (pipe.stages || []).find((e) => norm(e.name) === norm(etapaNombre));
+  if (!etapa) return { error: `no encuentro la etapa "${etapaNombre}" en ese pipeline. Etapas: ${(pipe.stages || []).map((e) => e.name).join(" | ")}`, resultados: [] };
+  const resultados: { item: string; accion: string; detalle?: string }[] = [];
+  for (const item of items) {
+    try {
+      let contacto: { id?: string; contactName?: string; firstName?: string; lastName?: string } | null = null;
+      if (item.includes("@")) {
+        const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&email=${encodeURIComponent(item.trim())}`, { headers: cab });
+        contacto = r.ok ? (((await r.json()) as { contact?: typeof contacto }).contact || null) : null;
+      } else if (/^[+\d\s().-]{7,}$/.test(item)) {
+        const d = item.replace(/\D/g, "");
+        const tel = d.length === 10 ? `+1${d}` : d.startsWith("+") ? d : `+${d}`;
+        const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&number=${encodeURIComponent(tel)}`, { headers: cab });
+        contacto = r.ok ? (((await r.json()) as { contact?: typeof contacto }).contact || null) : null;
+      } else {
+        const r = await fetch(`${GHL_BASE}/contacts/?locationId=${env.GHL_LOCATION_ID}&query=${encodeURIComponent(item.trim())}&limit=5`, { headers: cab });
+        const lista = r.ok ? (((await r.json()) as { contacts?: NonNullable<typeof contacto>[] }).contacts || []) : [];
+        if (lista.length > 1) { resultados.push({ item, accion: "ambiguo", detalle: `${lista.length} contactos con ese nombre; usa el correo o el teléfono` }); continue; }
+        contacto = lista[0] || null;
+      }
+      if (!contacto || !contacto.id) { resultados.push({ item, accion: "sin_contacto" }); continue; }
+      const bus = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pipe.id}&contact_id=${contacto.id}`, { headers: cab });
+      const ya = bus.ok ? (((await bus.json()) as { opportunities?: unknown[] }).opportunities || []) : [];
+      const nombre = contacto.contactName || `${contacto.firstName || ""} ${contacto.lastName || ""}`.trim() || item;
+      if (ya.length) { resultados.push({ item, accion: "ya_existe", detalle: nombre }); continue; }
+      if (simular) { resultados.push({ item, accion: "se_crearía", detalle: nombre }); continue; }
+      const c = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId: pipe.id, locationId: env.GHL_LOCATION_ID, pipelineStageId: etapa.id, contactId: contacto.id, name: nombre, status: "open" }) });
+      resultados.push(c.ok ? { item, accion: "creada", detalle: nombre } : { item, accion: "error", detalle: `${c.status}: ${(await c.text()).slice(0, 120)}` });
+    } catch (e) { resultados.push({ item, accion: "error", detalle: String(e).slice(0, 120) }); }
+  }
+  return { pipeline: pipe.name, etapa: etapa.name, resultados };
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2460,6 +2503,17 @@ export default {
         // Solo cantidades: los nombres de las leads van únicamente en el mensaje directo a Thomas.
         const limpio = hist.map((c) => ({ ...c, checks: c.checks.map((k) => ({ ...k, detalle: k.id === "movimiento" ? k.detalle : "" })) }));
         return json({ ok: true, ghl: { historial: limpio } }, 200, { ...cors, "Cache-Control": "no-store" });
+      }
+      if (url.pathname === "/admin/alta-pipeline" && request.method === "POST") {
+        if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
+        let b: { pipeline?: string; etapa?: string; items?: unknown; crear?: boolean } = {};
+        try { b = await request.json(); } catch { return json({ ok: false, error: "bad_json" }, 400, cors); }
+        const items = Array.isArray(b.items) ? b.items.map((x) => String(x).trim()).filter(Boolean) : [];
+        // Máximo 14 por llamada: cada persona usa 3 consultas a GHL y el Worker tiene un tope de consultas por ejecución.
+        if (!b.pipeline || !b.etapa || !items.length || items.length > 14) return json({ ok: false, error: "pide pipeline, etapa y entre 1 y 14 items (correos, teléfonos o nombres)" }, 400, cors);
+        // Sin "crear": true solo simula, no escribe nada en GHL.
+        const r = await altaEnPipeline(env, String(b.pipeline), String(b.etapa), items, b.crear !== true);
+        return json({ ok: !r.error, simulacion: b.crear !== true, ...r }, r.error ? 400 : 200, cors);
       }
       if (url.pathname === "/admin/vigilante-ghl" && request.method === "POST") {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
