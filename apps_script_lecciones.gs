@@ -40,7 +40,76 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  var p = (e && e.parameter) || {};
+  if (p.action === 'ventasDesglose') {
+    try { return responder(ventasDesglose(p.mes)); }
+    catch (err) { return responder({ status: 'error', message: String(err && err.message || err) }); }
+  }
   return responder({ status: 'ok', message: 'Lecciones API viva' });
+}
+
+// ---------------------------------------------------------------------------
+// Desglose de ventas por vendedora (SOLO LECTURA). Lee la pestana "Ventas" de
+// ESTE Sheet (Fecha, Nombre de clienta, Tipo de producto, Tipo de pago, CASH
+// COLLECTED, Closer, Setter / Chatter, Source) y devuelve los cobros del mes.
+// Como la URL del script es publica, no se devuelven telefonos ni correos y el
+// nombre de la clienta va abreviado ("Marycel C.").
+function dineroDeCelda(v) {
+  if (typeof v === 'number') return v;
+  var n = parseFloat(String(v || '').replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+function nombreCorto(v) {
+  var partes = String(v || '').trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return '';
+  if (partes.length === 1) return partes[0];
+  return partes[0] + ' ' + partes[partes.length - 1].charAt(0).toUpperCase() + '.';
+}
+
+// "21/10/2026" (texto) o una fecha real de Sheets -> { d, m, a, texto } o null
+function fechaDeCelda(v) {
+  if (v instanceof Date) {
+    var tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+    var s = Utilities.formatDate(v, tz, 'dd/MM/yyyy');
+    return { d: +s.slice(0, 2), m: +s.slice(3, 5), a: +s.slice(6), texto: s };
+  }
+  var x = /^\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\s*$/.exec(String(v || ''));
+  return x ? { d: +x[1], m: +x[2], a: +x[3], texto: String(v).trim() } : null;
+}
+
+function ventasDesglose(mes) {
+  // mes = "AAAA-MM" (por defecto, el mes actual en hora de Puerto Rico)
+  var q = /^(\d{4})-(\d{2})$/.exec(String(mes || ''));
+  var ahora = new Date(Date.now() - 4 * 3600 * 1000);
+  var anio = q ? Number(q[1]) : ahora.getUTCFullYear();
+  var num = q ? Number(q[2]) : ahora.getUTCMonth() + 1;
+  var etiqueta = anio + '-' + ('0' + num).slice(-2);
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Ventas');
+  if (!hoja) return { mes: etiqueta, hoja: null, ventas: [], message: 'Falta la pestana "Ventas" en el Sheet' };
+  var valores = hoja.getDataRange().getValues();
+  var cab = valores[0].map(function (h) { return String(h).trim().toLowerCase().replace(/\s+/g, ' '); });
+  var col = function (nombre) { return cab.indexOf(nombre); };
+  var ix = {
+    fecha: col('fecha'), nombre: col('nombre de clienta'), producto: col('tipo de producto'),
+    pago: col('tipo de pago'), cash: col('cash collected'), source: col('source'),
+    closer: col('closer'), setter: col('setter / chatter'),
+  };
+  if (ix.fecha < 0 || ix.nombre < 0 || ix.cash < 0) throw new Error('La pestana "Ventas" necesita las columnas Fecha, Nombre de clienta y CASH COLLECTED');
+  var ventas = [];
+  for (var i = 1; i < valores.length; i++) {
+    var r = valores[i];
+    var f = fechaDeCelda(r[ix.fecha]);
+    var cash = dineroDeCelda(r[ix.cash]);
+    if (!f || f.m !== num || f.a !== anio) continue;
+    if (!String(r[ix.nombre] || '').trim() || !cash) continue;
+    var cel = function (k) { return ix[k] > -1 ? String(r[ix[k]] || '').trim() : ''; };
+    ventas.push({
+      fila: i + 1, fecha: f.texto, clienta: nombreCorto(r[ix.nombre]), producto: cel('producto'),
+      pago: cel('pago'), cash: cash, source: cel('source'), closer: cel('closer'), setter: cel('setter'),
+    });
+  }
+  return { mes: etiqueta, hoja: 'Ventas', ventas: ventas };
 }
 
 function responder(data) {
