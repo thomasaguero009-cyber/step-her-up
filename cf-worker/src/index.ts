@@ -1643,8 +1643,9 @@ async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: str
   const pipes = ((await pr.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
   const pipe = pipes.find((x) => norm(x.name) === norm(pipelineNombre));
   if (!pipe) return { error: `no encuentro el pipeline "${pipelineNombre}". Los que existen: ${pipes.map((x) => x.name).join(" | ")}`, resultados: [] };
-  const etapa = (pipe.stages || []).find((e) => norm(e.name) === norm(etapaNombre));
-  if (!etapa) return { error: `no encuentro la etapa "${etapaNombre}" en ese pipeline. Etapas: ${(pipe.stages || []).map((e) => e.name).join(" | ")}`, resultados: [] };
+  const encontrada = (pipe.stages || []).find((e) => norm(e.name) === norm(etapaNombre));
+  const etapa = encontrada || (pipe.stages || [])[0];
+  if (!etapa) return { error: `el pipeline "${pipe.name}" no tiene etapas`, resultados: [] };
   const resultados: { item: string; accion: string; detalle?: string }[] = [];
   for (const item of items) {
     try {
@@ -1673,19 +1674,19 @@ async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: str
       resultados.push(c.ok ? { item, accion: "creada", detalle: nombre } : { item, accion: "error", detalle: `${c.status}: ${(await c.text()).slice(0, 120)}` });
     } catch (e) { resultados.push({ item, accion: "error", detalle: String(e).slice(0, 120) }); }
   }
-  return { pipeline: pipe.name, etapa: etapa.name, resultados };
+  return { pipeline: pipe.name, etapa: encontrada ? etapa.name : `${etapa.name} (la primera del pipeline; no encontré "${etapaNombre}")`, resultados };
 }
 
 // ===== Tarea única: dar de alta a las alumnas actuales en los pipelines de entrega. Corre sola desde el ciclo de 10 minutos, una lista por vez, y le escribe el resultado a Thomas.
 // ALTA_MODO "simular" solo informa lo que haría; "crear" crea las oportunidades (una sola vez por lista). Nunca mueve ni borra oportunidades de otros pipelines. =====
 const ALTA_MODO: "simular" | "crear" = "simular";
 const ALTA_LISTAS: { clave: string; pipeline: string; etapa: string; items: string[] }[] = [
-  { clave: "programa", pipeline: "SHU - El Programa", etapa: "Por firmar contrato", items: ["tananievesperez@gmail.com", "manii-m297@hotmail.com", "chanyotero@gmail.com", "joanelly05@gmail.com", "po033931@gmail.com", "andrea.afs2021@gmail.com", "cristie_1296@hotmail.com", "keyburgos23@gmail.com", "johatlysdavila@gmail.com", "glamsessionspr@gmail.com", "shaddia077@gmail.com", "neish.jj@icloud.com", "lemishka.rodriguez30@gmail.com", "7879806943"] },
-  { clave: "highticket", pipeline: "SHU - High Ticket", etapa: "Por firmar contrato", items: ["Jualyanet Aldea", "9393682761", "7876790587", "Monica Oliveras", "cristie_1296@hotmail.com", "nylivette@gmail.com", "layr3.cintron@hotmail.com"] },
+  { clave: "programa", pipeline: "fulfillment - Low ticket", etapa: "Por firmar contrato", items: ["tananievesperez@gmail.com", "manii-m297@hotmail.com", "chanyotero@gmail.com", "joanelly05@gmail.com", "po033931@gmail.com", "andrea.afs2021@gmail.com", "cristie_1296@hotmail.com", "keyburgos23@gmail.com", "johatlysdavila@gmail.com", "glamsessionspr@gmail.com", "shaddia077@gmail.com", "neish.jj@icloud.com", "lemishka.rodriguez30@gmail.com", "7879806943"] },
+  { clave: "highticket", pipeline: "fulfillment - High ticket", etapa: "Por firmar contrato", items: ["Jualyanet Aldea", "9393682761", "7876790587", "Monica Oliveras", "cristie_1296@hotmail.com", "nylivette@gmail.com", "layr3.cintron@hotmail.com"] },
 ];
 async function altaUnica(env: Env): Promise<void> {
   for (const l of ALTA_LISTAS) {
-    const clave = `alta:hecho:${ALTA_MODO}:${l.clave}`;
+    const clave = `alta:hecho:v2:${ALTA_MODO}:${l.clave}`;
     if (await env.ESTRATEGIAS.get(clave)) continue;
     await env.ESTRATEGIAS.put(clave, "1");
     try {
