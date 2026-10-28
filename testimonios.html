@@ -226,7 +226,8 @@
      controles de volumen/velocidad/pantalla completa a propósito: son
      clips cortos, no el VSL principal. */
   .vtest-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:26px; max-width:1100px; margin:0 auto; }
-  @media (max-width:900px){ .vtest-grid{ grid-template-columns:1fr; max-width:420px; } }
+  .vtest-card:last-child:nth-child(3n+1){ grid-column:2; }
+  @media (max-width:900px){ .vtest-grid{ grid-template-columns:1fr; max-width:420px; } .vtest-card:last-child:nth-child(3n+1){ grid-column:auto; } }
   .vtest-card{ background:var(--card); border:1px solid var(--border); border-radius:18px; overflow:hidden; }
   .vtest-video{
     aspect-ratio:9/16; position:relative; cursor:pointer;
@@ -328,6 +329,18 @@
             <p class="vtest-quote">"Lo que me trajo a Step Her Up es ganas de organizar y maximizar ideas que ya tenía corriendo en mi negocio y en mi vida... me llevo mucho aprendizaje y ganas de seguir con verdad con mi negocio, y seguir echando hacia adelante."</p>
             <div class="vtest-name">Fabiola Morales</div>
             <div class="vtest-role">Manicurista — Alumna Step Her Up</div>
+          </div>
+        </div>
+
+        <div class="vtest-card">
+          <div class="vtest-video" data-src="https://step-her-up-calendar.thomasaguero009.workers.dev/videos/testimonio-gabriela.mp4">
+            <video playsinline preload="none" poster="assets/testimonio-video-gabriela-poster.jpg" controlsList="nodownload noremoteplayback"></video>
+            <div class="vtest-play">▶<span class="vtest-play-label">Ver testimonio</span></div>
+          </div>
+          <div class="vtest-info">
+            <p class="vtest-quote">"Este programa realmente me ha cambiado la vida, me ha ayudado muchísimo... de verdad no me arrepiento en lo absoluto. Así que dense la oportunidad y hagan que eso cambie."</p>
+            <div class="vtest-name">Gabriela</div>
+            <div class="vtest-role">Estética médica — Alumna Step Her Up</div>
           </div>
         </div>
       </div>
