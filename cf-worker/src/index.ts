@@ -393,6 +393,39 @@ async function handleWebinarResumen(env: Env, cors: HeadersInit): Promise<Respon
   return json({ ok: true, total: ops.length, etapas, landings, porFuente, porDia }, 200, cors);
 }
 
+// Copia reciente de las consultas pesadas a GHL (recorrer todas las oportunidades tarda ~8 s). Si la copia tiene menos de `frescoSeg` se
+// devuelve tal cual; si es más vieja se devuelve igual al instante y se renueva por detrás, así la pantalla nunca espera y los datos
+// se retrasan como mucho ~1 minuto. Solo si la copia tiene más de 15 minutos (o no existe) se espera a la consulta nueva.
+const consultasEnVuelo = new Map<string, Promise<string | null>>();
+async function conCopiaReciente(env: Env, ctx: ExecutionContext, clave: string, frescoSeg: number, generar: () => Promise<Response>, cors: HeadersInit): Promise<Response> {
+  const k = `cache:ghl:${clave}`;
+  let c: { t: number; body: string } | null = null;
+  try { c = JSON.parse((await env.ESTRATEGIAS.get(k)) || "null"); } catch { c = null; }
+  const edad = c ? (Date.now() - c.t) / 1000 : Infinity;
+  const responder = (body: string, estado: string) => new Response(body, { status: 200, headers: { ...cors, "Content-Type": "application/json; charset=utf-8", "X-Copia": estado, "Cache-Control": "no-store" } });
+  if (c && edad < frescoSeg) return responder(c.body, "fresca");
+  const renovar = (): Promise<string | null> => {
+    let p = consultasEnVuelo.get(k);
+    if (!p) {
+      p = (async () => {
+        try {
+          const r = await generar();
+          if (!r.ok) return null;
+          const body = await r.text();
+          await env.ESTRATEGIAS.put(k, JSON.stringify({ t: Date.now(), body }), { expirationTtl: 3600 }).catch(() => undefined);
+          return body;
+        } catch { return null; } finally { consultasEnVuelo.delete(k); }
+      })();
+      consultasEnVuelo.set(k, p);
+    }
+    return p;
+  };
+  if (c && edad < 900) { ctx.waitUntil(renovar()); return responder(c.body, "vieja, renovando"); }
+  const nuevo = await renovar();
+  if (nuevo) return responder(nuevo, "nueva");
+  return c ? responder(c.body, "vieja, GHL no respondió") : json({ ok: false, error: "ghl_no_responde" }, 502, cors);
+}
+
 async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promise<Response> {
   const start = parseInt(url.searchParams.get("start") || "", 10);
   const end = parseInt(url.searchParams.get("end") || "", 10);
@@ -2298,7 +2331,7 @@ export default {
     const minuto = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((minuto % 30 < 10 ? etiquetasCalcular(env) : etiquetasAplicar(env)).then(() => undefined).catch(() => undefined));
   },
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const cors = corsHeaders(request.headers.get("Origin"), env);
 
@@ -2314,7 +2347,7 @@ export default {
         return await handleBook(request, env, cors);
       }
       if (url.pathname === "/leads-summary" && request.method === "GET") {
-        return await handleLeadsSummary(url, env, cors);
+        return await conCopiaReciente(env, ctx, `summary:${url.searchParams.get("start")}:${url.searchParams.get("end")}`, 30, () => handleLeadsSummary(url, env, {}), cors);
       }
       if (url.pathname === "/webinar-resumen" && request.method === "GET") {
         return await handleWebinarResumen(env, cors);
@@ -2326,10 +2359,10 @@ export default {
         return handleGeo(request, cors);
       }
       if (url.pathname === "/leads-por-dia" && request.method === "GET") {
-        return await handleLeadsPorDia(url, env, cors);
+        return await conCopiaReciente(env, ctx, `leadsdia:${url.searchParams.get("start")}:${url.searchParams.get("end")}`, 60, () => handleLeadsPorDia(url, env, {}), cors);
       }
       if (url.pathname === "/funnel-por-dia" && request.method === "GET") {
-        return await handleFunnelPorDia(url, env, cors);
+        return await conCopiaReciente(env, ctx, `funnel:${url.searchParams.get("start")}:${url.searchParams.get("end")}`, 30, () => handleFunnelPorDia(url, env, {}), cors);
       }
       if (url.pathname.startsWith("/recursos/") && request.method === "GET") {
         return await handleRecurso(request, env, decodeURIComponent(url.pathname.slice("/recursos/".length)), cors);
