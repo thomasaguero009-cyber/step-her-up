@@ -1676,6 +1676,33 @@ async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: str
   return { pipeline: pipe.name, etapa: etapa.name, resultados };
 }
 
+// ===== Tarea única: dar de alta a las alumnas actuales en los pipelines de entrega. Corre sola desde el ciclo de 10 minutos, una lista por vez, y le escribe el resultado a Thomas.
+// ALTA_MODO "simular" solo informa lo que haría; "crear" crea las oportunidades (una sola vez por lista). Nunca mueve ni borra oportunidades de otros pipelines. =====
+const ALTA_MODO: "simular" | "crear" = "simular";
+const ALTA_LISTAS: { clave: string; pipeline: string; etapa: string; items: string[] }[] = [
+  { clave: "programa", pipeline: "SHU - El Programa", etapa: "Por firmar contrato", items: ["tananievesperez@gmail.com", "manii-m297@hotmail.com", "chanyotero@gmail.com", "joanelly05@gmail.com", "po033931@gmail.com", "andrea.afs2021@gmail.com", "cristie_1296@hotmail.com", "keyburgos23@gmail.com", "johatlysdavila@gmail.com", "glamsessionspr@gmail.com", "shaddia077@gmail.com", "neish.jj@icloud.com", "lemishka.rodriguez30@gmail.com", "7879806943"] },
+  { clave: "highticket", pipeline: "SHU - High Ticket", etapa: "Por firmar contrato", items: ["Jualyanet Aldea", "9393682761", "7876790587", "Monica Oliveras", "cristie_1296@hotmail.com", "nylivette@gmail.com", "layr3.cintron@hotmail.com"] },
+];
+async function altaUnica(env: Env): Promise<void> {
+  for (const l of ALTA_LISTAS) {
+    const clave = `alta:hecho:${ALTA_MODO}:${l.clave}`;
+    if (await env.ESTRATEGIAS.get(clave)) continue;
+    await env.ESTRATEGIAS.put(clave, "1");
+    try {
+      const r = await altaEnPipeline(env, l.pipeline, l.etapa, l.items, ALTA_MODO !== "crear");
+      const cuenta: Record<string, number> = {};
+      r.resultados.forEach((x) => { cuenta[x.accion] = (cuenta[x.accion] || 0) + 1; });
+      const resumen = Object.entries(cuenta).map(([k, n]) => `${k}: ${n}`).join(" · ");
+      const aparte = r.resultados.filter((x) => !["se_crearía", "creada", "ya_existe"].includes(x.accion)).map((x) => `${x.item} → ${x.accion}${x.detalle ? " (" + x.detalle + ")" : ""}`);
+      const texto = r.error
+        ? `⚠️ *Alta en ${l.pipeline}* (${ALTA_MODO}): ${r.error}`
+        : `📋 *Alta en ${r.pipeline}* · etapa ${r.etapa} · ${ALTA_MODO === "crear" ? "CREADAS" : "simulación, no se creó nada"}\n${resumen}${aparte.length ? "\nRevisar:\n" + aparte.map((a) => "• " + a).join("\n") : ""}`;
+      await avisarThomas(env, texto);
+    } catch (e) { await avisarThomas(env, `⚠️ Alta en ${l.pipeline}: ${String(e).slice(0, 200)}`).catch(() => undefined); }
+    return; // una lista por ciclo, para no pasar el tope de consultas por ejecución
+  }
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2431,6 +2458,8 @@ export default {
     }
     const hm = new Date(event.scheduledTime).getUTCHours() * 60 + new Date(event.scheduledTime).getUTCMinutes();
     if (hm % 60 === 30) ctx.waitUntil(guardarMetricasAuto(env, "hora", event.scheduledTime).catch(() => undefined));
+    // Tarea única de alta de alumnas en los pipelines de entrega (se apaga sola cuando termina cada lista).
+    ctx.waitUntil(altaUnica(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
