@@ -2325,7 +2325,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
         }
         if (b.fecha === fechaHoyPR && !g.reg) { await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined); g.reg = true; }
         // Slack solo recibe el total de HOY; un borrador de otro día se guarda en el Tracker y se descarta (ya no se republica).
-        if (publica && b.fecha === fechaHoyPR) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, `cuánto lleva a la ${hora} · total del día`)); conLinea.add(nombre); g.posteado = JSON.stringify(tot); }
+        if (publica && b.fecha === fechaHoyPR) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, "total del día")); conLinea.add(nombre); g.posteado = JSON.stringify(tot); }
         await guardarGuardado(env, b.fecha, nombre, g);
         if (b.fecha !== fechaHoyPR) await env.ESTRATEGIAS.delete(claveB);
         guardados.push(nombre);
@@ -2348,7 +2348,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
       await env.ESTRATEGIAS.put(`metricas:auto:${nombre}`, JSON.stringify({ ts: Date.now(), fecha: b.fecha, slot }), { expirationTtl: 3 * 86400 });
       guardados.push(nombre);
       const tot = await acumularDia(env, nombre, b.rol, b.fecha, v, b.closerCerro);
-      if (publica && b.fecha === fechaHoyPR) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot.valores, tot.closerCerro, `cuánto lleva a la ${hora} · total del día`)); conLinea.add(nombre); }
+      if (publica && b.fecha === fechaHoyPR) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot.valores, tot.closerCerro, "total del día")); conLinea.add(nombre); }
       if (b.fecha === fechaHoyPR) await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined);
     } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
     }
@@ -2360,7 +2360,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
       if (!Object.values(g.valores).some((x) => x > 0)) continue;
       const vals: Record<string, number> = {};
       for (const [k] of METRICAS_CAMPOS.setter) vals[k] = g.valores[k] || 0;
-      lineas.push(mensajeMetricas(nombre, "setter", fechaHoyPR, vals, "", `cuánto lleva a la ${hora} · total del día`));
+      lineas.push(mensajeMetricas(nombre, "setter", fechaHoyPR, vals, "", "total del día"));
     }
   }
   const texto = lineas.join("\n\n");
