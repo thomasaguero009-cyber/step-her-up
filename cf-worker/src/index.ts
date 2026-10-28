@@ -1437,7 +1437,7 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
   const ahoraPR = new Date(Date.now() - 4 * 3600000);
   const inicioDia = Date.UTC(ahoraPR.getUTCFullYear(), ahoraPR.getUTCMonth(), ahoraPR.getUTCDate()) / 1000 + 4 * 3600;
   // Para el cierre solo cuentan los mensajes desde las 5:00 PM de hoy (el reporte de fin de día).
-  const desde = tipo === "cierre" ? inicioDia + 17 * 3600 : inicioDia;
+  const desde = inicioDia;
   const historial = (await slack(env, "conversations.history", { channel: canal.id, oldest: String(desde), limit: "200" })).messages || [];
   // "numeros": mensaje con "llamadas" y "agend" (formato de Paula). "metas": cualquier mensaje de hoy que hable de "meta".
   // Números y cierre usan el formato de Paula; para el cierre solo cuentan los enviados desde las 5:00 PM.
@@ -1465,8 +1465,8 @@ async function recordatorioSetters(env: Env, enviar: boolean, tipo: "numeros" | 
   } else if (enviar && despues) {
     // Después del guardado de las 1:30 PM / 8:30 PM: solo se le avisa a quien sigue sin nada cargado (si todas cargaron, no se escribe nada).
     if (pendientes.length) {
-      const hora = tipo === "cierre" ? "8:30 PM" : "1:30 PM";
-      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `🔔 *Todavía faltan números*: ya pasó el guardado de las ${hora} y no hay nada cargado hoy de ${pendientes.map((id) => `<@${id}>`).join(" ")}. Cárguenlos cuando puedan en *Métricas* del dashboard: se guardan y se publican aquí solos.` });
+      const hora = tipo === "cierre" ? "8:00 PM" : "1:00 PM";
+      await slack(env, "chat.postMessage", {}, { channel: canal.id, text: `🔔 *Todavía faltan números*: ya pasó el resumen de las ${hora} y no hay nada cargado hoy de ${pendientes.map((id) => `<@${id}>`).join(" ")}. Cárguenlos cuando puedan en *Métricas* del dashboard: se guardan solos.` });
       publicado = true;
     }
   } else if (enviar) {
@@ -2065,6 +2065,8 @@ type GuardadoMetricas = { valores: Record<string, number>; posteado?: string; re
 const claveGuardado = (fecha: string, nombre: string) => `metricas:guardado:${fecha.replace(/\//g, "-")}:${nombre}`;
 async function leerGuardado(env: Env, fecha: string, nombre: string): Promise<GuardadoMetricas> {
   try { const g = JSON.parse((await env.ESTRATEGIAS.get(claveGuardado(fecha, nombre))) || "null"); if (g && g.valores) return g as GuardadoMetricas; } catch { /* sin registro */ }
+  // Sin registro nuevo: lo que la versión vieja de la página ya mandó al Tracker hoy (se sumó en metricas:dia).
+  try { const d = JSON.parse((await env.ESTRATEGIAS.get(`metricas:dia:${fecha.replace(/\//g, "-")}:${nombre}`)) || "null"); if (d && d.valores) return { valores: d.valores as Record<string, number> }; } catch { /* sin registro */ }
   return { valores: {} };
 }
 async function guardarGuardado(env: Env, fecha: string, nombre: string, g: GuardadoMetricas): Promise<void> {
@@ -2148,7 +2150,9 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
     const m = await leerMarcaCompleta(nombre);
     const fechaQ = url.searchParams.get("fecha") || "";
     const gq = /^\d{2}\/\d{2}\/\d{4}$/.test(fechaQ) ? await leerGuardado(env, fechaQ, nombre) : { valores: {} };
-    return json({ ok: true, ts: m.ts, slot: m.slot, guardado: gq.valores }, 200, cors);
+    let bor: Record<string, number> = {};
+    try { const bb = JSON.parse((await env.ESTRATEGIAS.get(`metricas:borrador:${nombre}`)) || "null"); if (bb && bb.fecha === fechaQ && bb.valores) bor = bb.valores; } catch { bor = {}; }
+    return json({ ok: true, ts: m.ts, slot: m.slot, guardado: gq.valores, borrador: bor }, 200, cors);
   }
   let b: any;
   try { b = await request.json(); } catch { return json({ ok: false, error: "bad_json" }, 400, cors); }
@@ -2167,40 +2171,24 @@ async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors
     const cerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(pub.closerCerro || "")) ? String(pub.closerCerro) : "";
     const g = await leerGuardado(env, String(pub.fecha), nombre);
     for (const k of Object.keys(vals)) g.valores[k] = Math.max(g.valores[k] || 0, vals[k]);
-    let slackOk = false;
-    const huella = JSON.stringify(vals);
-    if (huella === g.posteado || await yaPublicadoReciente(env, `${nombre}:${String(pub.fecha).replace(/\//g, "-")}:${huella}`)) {
-      slackOk = true; // ya estaba publicado con estos mismos números (doble clic o pantalla repetida): no se repite el mensaje
-    } else {
-      slackOk = await publicarEnSetters(env, mensajeMetricas(nombre, rolP, String(pub.fecha), vals, cerro, "enviado desde Métricas · total del día"));
-      if (slackOk) g.posteado = huella;
-    }
+    // El botón solo guarda: Slack recibe cuánto va cada una a la 1:00 PM y a las 8:00 PM (guardarMetricasAuto), no antes.
     await registrarEnvioMetricas(env, nombre, Date.now()).catch(() => undefined);
     g.reg = true;
     await guardarGuardado(env, String(pub.fecha), nombre, g);
-    return json({ ok: true, slack: slackOk, guardado: g.valores }, 200, cors);
+    return json({ ok: true, guardado: g.valores }, 200, cors);
   }
   if (b.vaciar) {
     await env.ESTRATEGIAS.delete(clave);
-    // Guardado con el botón: además se publica en #setters para que no tengan que escribirlo aparte en Slack.
-    let slackOk: boolean | undefined;
+    // Páginas viejas: solo se borra el borrador; Slack recibe el total a la 1:00 PM y a las 8:00 PM.
     const pub = b.publicar;
     if (pub && /^\d{2}\/\d{2}\/\d{4}$/.test(String(pub.fecha || ""))) {
       const rolP: "setter" | "closer" = pub.rol === "closer" ? "closer" : "setter";
       const vals: Record<string, number> = {};
       for (const [k] of METRICAS_CAMPOS[rolP]) vals[k] = Math.min(1000000, Math.max(0, Math.round(Number(pub.valores?.[k]) || 0)));
       const cerro = METRICAS_NOMBRES.concat(["Gianie"]).includes(String(pub.closerCerro || "")) ? String(pub.closerCerro) : "";
-      try {
-        // Una pantalla vieja (sin v:2) que manda lo mismo dos veces seguidas: la segunda vez no se suma ni se publica.
-        if (await yaPublicadoReciente(env, `v1:${nombre}:${String(pub.fecha).replace(/\//g, "-")}:${JSON.stringify(vals)}`, 120)) { slackOk = true; }
-        else {
-          const tot = await acumularDia(env, nombre, rolP, String(pub.fecha), vals, cerro);
-          slackOk = await publicarEnSetters(env, mensajeMetricas(nombre, rolP, String(pub.fecha), tot.valores, tot.closerCerro, "enviado desde Métricas · total del día"));
-          await registrarEnvioMetricas(env, nombre, Date.now());
-        }
-      } catch { slackOk = false; }
+      try { await acumularDia(env, nombre, rolP, String(pub.fecha), vals, cerro); await registrarEnvioMetricas(env, nombre, Date.now()); } catch { /* sin registro */ }
     }
-    return json({ ok: true, ts: marca, slack: slackOk }, 200, cors);
+    return json({ ok: true, ts: marca }, 200, cors);
   }
   // Formularios viejos (sin v:2): "inicio" = cuándo empezó el navegador a contar este bloque. Si el autoguardado corrió después, esos números ya están en el Sheet: que reinicie.
   if (b.v !== 2 && marca > (Number(b.inicio) || 0)) return json({ ok: true, reset: true, ts: marca, slot: marcaCompleta.slot }, 200, cors);
@@ -2238,8 +2226,9 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
     await env.ESTRATEGIAS.put(lock, "1", { expirationTtl: 86400 });
   }
   const guardados: string[] = [], vacios: string[] = [], errores: string[] = [], lineas: string[] = [], avisos: string[] = [];
+  const conLinea = new Set<string>();
   const fPR = new Date(cuando - 4 * 3600 * 1000);
-  const hora = slot === "tarde" ? "1:30 PM" : slot === "cierre" ? "8:30 PM" : `${((fPR.getUTCHours() + 11) % 12) + 1}:30 ${fPR.getUTCHours() >= 12 ? "PM" : "AM"}`;
+  const hora = slot === "tarde" ? "1:00 PM" : slot === "cierre" ? "8:00 PM" : `${((fPR.getUTCHours() + 11) % 12) + 1}:30 ${fPR.getUTCHours() >= 12 ? "PM" : "AM"}`;
   const publica = slot !== "hora";
   const fechaHoyPR = `${String(fPR.getUTCDate()).padStart(2, "0")}/${String(fPR.getUTCMonth() + 1).padStart(2, "0")}/${fPR.getUTCFullYear()}`;
   for (const nombre of METRICAS_NOMBRES) {
@@ -2252,8 +2241,9 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
     if (!b || !Object.values(b.valores || {}).some((v) => v > 0)) { vacios.push(nombre); continue; }
     if (b.v === 2) {
       // Total del día en pantalla: se guarda solo la diferencia con lo ya guardado y el borrador se queda (la pantalla no se pone en cero).
-      const tot = b.valores;
       const g = await leerGuardado(env, b.fecha, nombre);
+      const tot: Record<string, number> = {};
+      for (const [k] of METRICAS_CAMPOS[b.rol]) tot[k] = Math.max(Number(b.valores[k]) || 0, g.valores[k] || 0);
       const delta: Record<string, number> = {};
       let hay = false;
       for (const [k] of METRICAS_CAMPOS[b.rol]) { delta[k] = Math.max(0, (tot[k] || 0) - (g.valores[k] || 0)); if (delta[k] > 0) hay = true; }
@@ -2271,7 +2261,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
           for (const k of Object.keys(delta)) g.valores[k] = Math.max(g.valores[k] || 0, tot[k] || 0);
         }
         if (b.fecha === fechaHoyPR && !g.reg) { await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined); g.reg = true; }
-        if (publica && JSON.stringify(tot) !== g.posteado) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, `guardado automático ${hora} · total del día`)); g.posteado = JSON.stringify(tot); }
+        if (publica) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot, b.closerCerro, `cuánto lleva a la ${hora} · total del día`)); conLinea.add(nombre); g.posteado = JSON.stringify(tot); }
         await guardarGuardado(env, b.fecha, nombre, g);
         guardados.push(nombre);
       } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
@@ -2293,9 +2283,19 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
       await env.ESTRATEGIAS.put(`metricas:auto:${nombre}`, JSON.stringify({ ts: Date.now(), fecha: b.fecha, slot }), { expirationTtl: 3 * 86400 });
       guardados.push(nombre);
       const tot = await acumularDia(env, nombre, b.rol, b.fecha, v, b.closerCerro);
-      if (publica) lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot.valores, tot.closerCerro, `guardado automático ${hora} · total del día`));
+      if (publica) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot.valores, tot.closerCerro, `cuánto lleva a la ${hora} · total del día`)); conLinea.add(nombre); }
       if (b.fecha === fechaHoyPR) await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined);
     } catch (e) { errores.push(`${nombre}: ${String(e)}`); }
+    }
+  }
+  if (publica) {
+    for (const nombre of METRICAS_NOMBRES) {
+      if (conLinea.has(nombre)) continue;
+      const g = await leerGuardado(env, fechaHoyPR, nombre);
+      if (!Object.values(g.valores).some((x) => x > 0)) continue;
+      const vals: Record<string, number> = {};
+      for (const [k] of METRICAS_CAMPOS.setter) vals[k] = g.valores[k] || 0;
+      lineas.push(mensajeMetricas(nombre, "setter", fechaHoyPR, vals, "", `cuánto lleva a la ${hora} · total del día`));
     }
   }
   const texto = lineas.join("\n\n");
@@ -2309,25 +2309,19 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
 export default {
   // Cron: cada 10 min. A los :00 y :30 recalcula qué etiqueta le toca a cada contacto; el resto de las veces aplica cambios.
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    // Recordatorios de Slack (hora de Puerto Rico, UTC-4): 00:00 UTC = cierre 8:00 PM · 14:30 = metas 10:30 AM · 17:00 = números 1:00 PM.
-    // Los crons corren todos los días; el filtro lunes-viernes y el candado anti-duplicado están en recordatorioProgramado.
+    // Hora de Puerto Rico (UTC-4). Cada hora, a las :30, lo contado se guarda en el Tracker en silencio. A la 1:00 PM (17:00 UTC) y a las 8:00 PM
+    // (00:00 UTC) se guarda y se publica en #setters cuánto lleva cada una, y solo después se le recuerda a quien no cargó nada.
     if (event.cron.startsWith("0 13 ")) { ctx.waitUntil(resumenSemanalProgramado(env, event.scheduledTime).catch(() => undefined)); return; }
-    if (event.cron.startsWith("0 0 ") || event.cron.startsWith("0 17 ")) ctx.waitUntil(avisosParaThomas(env).catch(() => undefined));
-    const tipo = event.cron.startsWith("0 0 ") ? "cierre" : event.cron.startsWith("30 14 ") ? "metas" : event.cron.startsWith("0 17 ") ? "numeros" : null;
-    if (tipo) {
-      ctx.waitUntil(recordatorioProgramado(env, tipo, event.scheduledTime).catch(() => undefined));
+    if (event.cron.startsWith("0 0 ") || event.cron.startsWith("0 17 ")) {
+      ctx.waitUntil(avisosParaThomas(env).catch(() => undefined));
+      const slotP = event.cron.startsWith("0 0 ") ? "cierre" : "tarde";
+      ctx.waitUntil(guardarMetricasAuto(env, slotP, event.scheduledTime)
+        .then(() => recordatorioDespues(env, slotP === "cierre" ? "cierre" : "numeros", event.scheduledTime))
+        .catch(() => undefined));
       return;
     }
-    // Autoguardado de métricas: 1:30 PM (17:30 UTC) y 8:30 PM (00:30 UTC) de PR; se cuelga del cron de cada 10 minutos.
     const hm = new Date(event.scheduledTime).getUTCHours() * 60 + new Date(event.scheduledTime).getUTCMinutes();
-    // Cada hora en punto y media (:30) se guarda lo contado, en silencio; a la 1:30 PM y 8:30 PM además se publica en #setters
-    // y, después, se le recuerda a quien sigue sin cargar nada.
-    if (hm % 60 === 30) {
-      const slotM = hm === 17 * 60 + 30 ? "tarde" : hm === 30 ? "cierre" : "hora";
-      ctx.waitUntil(guardarMetricasAuto(env, slotM, event.scheduledTime)
-        .then(() => (slotM === "hora" ? undefined : recordatorioDespues(env, slotM === "cierre" ? "cierre" : "numeros", event.scheduledTime)))
-        .catch(() => undefined));
-    }
+    if (hm % 60 === 30) ctx.waitUntil(guardarMetricasAuto(env, "hora", event.scheduledTime).catch(() => undefined));
     const minuto = new Date(event.scheduledTime).getUTCMinutes();
     ctx.waitUntil((minuto % 30 < 10 ? etiquetasCalcular(env) : etiquetasAplicar(env)).then(() => undefined).catch(() => undefined));
   },
