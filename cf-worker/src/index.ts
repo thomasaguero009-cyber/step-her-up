@@ -1962,6 +1962,29 @@ async function diagGhlUnicaV6(env: Env): Promise<void> {
   await env.ESTRATEGIAS.put("diag:ghl:v6:out", lineas.join("\n"));
 }
 
+async function diagGhlUnicaV8(env: Env): Promise<void> {
+  const clave = "diag:ghl:v8";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const lineas: string[] = [];
+  try {
+    const r = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+    if (!r.ok) lineas.push(`❌ Pipelines (${r.status})`);
+    else {
+      const pipes = ((await r.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+      lineas.push("Pipelines: " + pipes.map((p) => p.name).join(" | "));
+      for (const p of pipes.filter((x) => /delivery|done for you|fulfill|psic|sesi|vencid|1:1/i.test(x.name))) {
+        const o = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${p.id}&limit=100`, { headers: ghlHeaders(env) });
+        const d: any = o.ok ? await o.json() : {};
+        const ops: any[] = d.opportunities || [];
+        const porEtapa: Record<string, number> = {}; ops.forEach((x) => { porEtapa[x.pipelineStageId] = (porEtapa[x.pipelineStageId] || 0) + 1; });
+        lineas.push(`• ${p.name} (${ops.length} oportunidades): ` + (p.stages || []).map((e) => `${e.name}=${porEtapa[e.id] || 0}`).join(" → "));
+      }
+    }
+  } catch (e) { lineas.push(`⚠️ ${String(e).slice(0, 120)}`); }
+  await env.ESTRATEGIAS.put("diag:ghl:v8:out", lineas.join("\n"));
+}
+
 // Vencimiento automático de la entrega: a los 3 meses de empezar, lo que no llegó a "Done" pasa a "Vencido".
 // Empieza a contar desde KV `fulf:inicio:<id de la oportunidad>` (YYYY-MM-DD) y, si no existe, desde que se creó la oportunidad.
 const PIPELINES_ENTREGA = ["Fulfillment · Step Her Up", "Delivery · Sesiones con la psicóloga"];
@@ -2857,6 +2880,7 @@ export default {
     ctx.waitUntil(diagGhlUnicaV6(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV7(env).catch(() => undefined));
     ctx.waitUntil(copiarEntrega(env).catch(() => undefined));
+    ctx.waitUntil(diagGhlUnicaV8(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
