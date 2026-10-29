@@ -1985,6 +1985,29 @@ async function diagGhlUnicaV8(env: Env): Promise<void> {
   await env.ESTRATEGIAS.put("diag:ghl:v8:out", lineas.join("\n"));
 }
 
+async function diagGhlUnicaV9(env: Env): Promise<void> {
+  const clave = "diag:ghl:v9";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const lineas: string[] = [];
+  try {
+    const r = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+    if (!r.ok) lineas.push(`❌ Pipelines (${r.status})`);
+    else {
+      const pipes = ((await r.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+      lineas.push("Pipelines: " + pipes.map((p) => p.name).join(" | "));
+      for (const p of pipes.filter((x) => /delivery|done for you|fulfill|psic|sesi|vencid|1:1/i.test(x.name))) {
+        const o = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${p.id}&limit=100`, { headers: ghlHeaders(env) });
+        const d: any = o.ok ? await o.json() : {};
+        const ops: any[] = d.opportunities || [];
+        const porEtapa: Record<string, number> = {}; ops.forEach((x) => { porEtapa[x.pipelineStageId] = (porEtapa[x.pipelineStageId] || 0) + 1; });
+        lineas.push(`• ${p.name} (${ops.length} oportunidades): ` + (p.stages || []).map((e) => `${e.name}=${porEtapa[e.id] || 0}`).join(" → "));
+      }
+    }
+  } catch (e) { lineas.push(`⚠️ ${String(e).slice(0, 120)}`); }
+  await env.ESTRATEGIAS.put("diag:ghl:v9:out", lineas.join("\n"));
+}
+
 // Vencimiento automático de la entrega: a los 3 meses de empezar, lo que no llegó a "Done" pasa a "Vencido".
 // Empieza a contar desde KV `fulf:inicio:<id de la oportunidad>` (YYYY-MM-DD) y, si no existe, desde que se creó la oportunidad.
 const PIPELINES_ENTREGA = ["Fulfillment · Step Her Up", "Delivery · Sesiones con la psicóloga"];
@@ -2208,6 +2231,47 @@ async function recrearFulfillment(env: Env): Promise<void> {
     await env.ESTRATEGIAS.put("fulf:recrear:v1", "1");
     await avisarThomas(env, `Alumnas en Fulfillment · Enviar contrato: ${acum.creada} creadas, ${acum.ya_existe} ya estaban, ${acum.sin_contacto} sin contacto en GHL (necesito su correo o teléfono).`).catch(() => undefined);
   }
+}
+
+// ===== Cierre de las alumnas que faltaban: lista privada en KV `alta:faltantes` ([{nombre, email?, tel?, inicio}]). Busca el contacto por teléfono y luego por correo;
+// si no existe lo crea, y deja su tarjeta en "Fulfillment · Step Her Up" (Enviar contrato) con su fecha real de inicio. Repetible; guarda el reporte en `alta:faltantes:out`. =====
+async function altaFaltantes(env: Env): Promise<void> {
+  if (await env.ESTRATEGIAS.get("alta:faltantes:v1")) return;
+  const lista = JSON.parse((await env.ESTRATEGIAS.get("alta:faltantes")) || "[]") as { nombre: string; email?: string; tel?: string; inicio: string }[];
+  if (!lista.length) return;
+  await env.ESTRATEGIAS.put("alta:faltantes:v1", "1");
+  const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const out: string[] = [];
+  try {
+    const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
+    const pf = (((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || []).find((x) => x.name === "Fulfillment · Step Her Up");
+    const etapa = pf?.stages?.find((e) => e.name === "Enviar contrato");
+    if (!pf || !etapa) { await env.ESTRATEGIAS.put("alta:faltantes:out", "no encuentro el pipeline Fulfillment"); return; }
+    for (const a of lista) {
+      try {
+        let c: any = null, origen = "";
+        if (a.tel) { const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&number=${encodeURIComponent("+1" + a.tel.replace(/\D/g, "").slice(-10))}`, { headers: cab }); c = r.ok ? ((await r.json()) as any).contact : null; if (c) origen = "teléfono"; }
+        if (!c && a.email) { const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&email=${encodeURIComponent(a.email)}`, { headers: cab }); c = r.ok ? ((await r.json()) as any).contact : null; if (c) origen = "correo"; }
+        if (!c) {
+          const cuerpo: Record<string, unknown> = { locationId: env.GHL_LOCATION_ID, name: a.nombre, tags: ["alumna-entrega"] };
+          if (a.email) cuerpo.email = a.email;
+          if (a.tel) cuerpo.phone = "+1" + a.tel.replace(/\D/g, "").slice(-10);
+          const u = await fetch(`${GHL_BASE}/contacts/upsert`, { method: "POST", headers: cab, body: JSON.stringify(cuerpo) });
+          c = u.ok ? ((await u.json()) as any).contact : null; origen = "creado";
+        }
+        if (!c?.id) { out.push(`${a.nombre}: ERROR no se pudo crear el contacto`); continue; }
+        const ya = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pf.id}&contact_id=${c.id}`, { headers: cab });
+        if (ya.ok && (((await ya.json()) as any).opportunities || []).length) { out.push(`${a.nombre}: ya tenía tarjeta (contacto ${origen})`); continue; }
+        const o = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId: pf.id, locationId: env.GHL_LOCATION_ID, pipelineStageId: etapa.id, contactId: c.id, name: a.nombre, status: "open" }) });
+        if (!o.ok) { out.push(`${a.nombre}: ERROR al crear la tarjeta (${o.status})`); continue; }
+        const nueva = ((await o.json()) as any).opportunity || {};
+        if (nueva.id) await env.ESTRATEGIAS.put(`fulf:inicio:${nueva.id}`, a.inicio);
+        out.push(`${a.nombre}: tarjeta creada en Enviar contrato (contacto ${origen}), inicio ${a.inicio}`);
+      } catch (e) { out.push(`${a.nombre}: ERROR ${String(e).slice(0, 80)}`); }
+    }
+  } catch (e) { out.push(`ERROR general ${String(e).slice(0, 100)}`); }
+  await env.ESTRATEGIAS.put("alta:faltantes:out", out.join("\n"));
+  await avisarThomas(env, "Alumnas que faltaban:\n" + out.join("\n")).catch(() => undefined);
 }
 
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
@@ -2983,6 +3047,8 @@ export default {
     ctx.waitUntil(webinarAFulfillment(env).catch(() => undefined));
     ctx.waitUntil(corregirPsicologa(env).catch(() => undefined));
     ctx.waitUntil(recrearFulfillment(env).catch(() => undefined));
+    ctx.waitUntil(altaFaltantes(env).catch(() => undefined));
+    ctx.waitUntil(diagGhlUnicaV9(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV8(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
