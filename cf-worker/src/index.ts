@@ -1700,6 +1700,8 @@ async function altaUnica(env: Env): Promise<void> {
     await env.ESTRATEGIAS.put(kInt, String(intentos + 1));
     try {
       const r = await altaEnPipeline(env, l.pipeline, l.etapa, l.items, ALTA_MODO !== "crear");
+      // se marca como hecha ANTES de avisar: avisar usa consultas y, si ya se acabó el cupo de la ejecución, antes se quedaba sin marcar y se repetía
+      if (!r.error && !r.resultados.some((x) => x.accion === "error")) await env.ESTRATEGIAS.put(clave, "1");
       const cuenta: Record<string, number> = {};
       r.resultados.forEach((x) => { cuenta[x.accion] = (cuenta[x.accion] || 0) + 1; });
       const resumen = Object.entries(cuenta).map(([k, n]) => `${k}: ${n}`).join(" · ");
@@ -1709,7 +1711,6 @@ async function altaUnica(env: Env): Promise<void> {
         : `📋 *Alta en ${r.pipeline}* · etapa ${r.etapa} · ${ALTA_MODO === "crear" ? "CREADAS" : "simulación, no se creó nada"}\n${resumen}${aparte.length ? "\nRevisar:\n" + aparte.map((a) => "• " + a).join("\n") : ""}`;
       await env.ESTRATEGIAS.put(`alta:out:${ALTA_MODO}:${l.clave}`, texto);
       await avisarThomas(env, texto);
-      if (!r.error && !r.resultados.some((x) => x.accion === "error")) await env.ESTRATEGIAS.put(clave, "1");
     } catch (e) { await avisarThomas(env, `⚠️ Alta en ${l.pipeline}: ${String(e).slice(0, 200)}`).catch(() => undefined); }
     return; // una lista por ciclo, para no pasar el tope de consultas por ejecución
   }
@@ -1720,7 +1721,11 @@ async function altaContactoFaltante(env: Env): Promise<void> {
   const clave = "alta:contacto:v1";
   if (await env.ESTRATEGIAS.get(clave)) return;
   const listas = await leerAltaListas(env);
-  for (const l of listas) if (!(await env.ESTRATEGIAS.get(`alta:hecho:v2:crear:${l.clave}`))) return;
+  for (const l of listas) {
+    const hecha = await env.ESTRATEGIAS.get(`alta:hecho:v2:crear:${l.clave}`);
+    const intentos = parseInt((await env.ESTRATEGIAS.get(`alta:intentos:crear:${l.clave}`)) || "0", 10);
+    if (!hecha && intentos < 3) return;
+  }
   const l = listas.find((x) => x.clave === "programa"); if (!l) return;
   await env.ESTRATEGIAS.put(clave, "1");
   const r = await altaEnPipeline(env, l.pipeline, l.etapa, l.items, false, true);
