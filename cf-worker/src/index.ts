@@ -2043,7 +2043,7 @@ async function copiarEntrega(env: Env): Promise<void> {
   const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
   const hoy = Date.now(), tresMeses = new Date(); tresMeses.setMonth(tresMeses.getMonth() - 3);
   let copiadas = 0, yaEstaban = 0, errores = 0, pendientes = 0, viejas = 0;
-  let presupuesto = 16; // 50 subrequests por ejecución: cada copia gasta 2 (crear + guardar fecha)
+  let presupuesto = 34; // 50 subrequests por ejecución: cada copia gasta 2 (crear + guardar fecha)
   for (const m of COPIA_ENTREGA) {
     const po = pipes.find((x) => x.name === m.origen), pd = pipes.find((x) => x.name === m.destino);
     if (!po || !pd) { errores++; continue; }
