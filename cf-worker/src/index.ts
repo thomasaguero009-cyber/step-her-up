@@ -1962,6 +1962,38 @@ async function diagGhlUnicaV6(env: Env): Promise<void> {
   await env.ESTRATEGIAS.put("diag:ghl:v6:out", lineas.join("\n"));
 }
 
+// Vencimiento automático de la entrega: a los 3 meses de empezar, lo que no llegó a "Done" pasa a "Vencido".
+// Empieza a contar desde KV `fulf:inicio:<id de la oportunidad>` (YYYY-MM-DD) y, si no existe, desde que se creó la oportunidad.
+const PIPELINES_ENTREGA = ["Fulfillment · Step Her Up", "Delivery · Sesiones con la psicóloga"];
+async function vencimientoDelivery(env: Env): Promise<void> {
+  const cab = ghlHeaders(env);
+  const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
+  if (!rp.ok) return;
+  const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+  const limite = new Date(); limite.setMonth(limite.getMonth() - 3);
+  const vencidas: string[] = [];
+  let movidas = 0;
+  for (const nombre of PIPELINES_ENTREGA) {
+    const pipe = pipes.find((x) => x.name === nombre); if (!pipe) continue;
+    const done = (pipe.stages || []).find((e) => e.name === "Done");
+    const venc = (pipe.stages || []).find((e) => e.name === "Vencido");
+    if (!done || !venc) continue;
+    const r = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pipe.id}&limit=100`, { headers: cab });
+    if (!r.ok) continue;
+    const ops: any[] = ((await r.json()) as any).opportunities || [];
+    for (const op of ops) {
+      if (movidas >= 20) break;
+      if (op.pipelineStageId === done.id || op.pipelineStageId === venc.id) continue;
+      const inicioKv = await env.ESTRATEGIAS.get(`fulf:inicio:${op.id}`);
+      const inicio = new Date(inicioKv || op.createdAt || "");
+      if (isNaN(+inicio) || inicio > limite) continue;
+      const u = await fetch(`${GHL_BASE}/opportunities/${op.id}`, { method: "PUT", headers: { ...(cab as Record<string, string>), "Content-Type": "application/json" }, body: JSON.stringify({ pipelineStageId: venc.id }) });
+      if (u.ok) { movidas++; vencidas.push(`${op.name || op.contact?.name || op.id} (${nombre})`); }
+    }
+  }
+  if (vencidas.length) await avisarThomas(env, `Pasaron a Vencido (3 meses sin llegar a Done): ${vencidas.join(", ")}.`).catch(() => undefined);
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2706,7 +2738,11 @@ export default {
     // Hora de Puerto Rico (UTC-4). Cada hora, a las :30, lo contado se guarda en el Tracker en silencio. A la 1:00 PM (17:00 UTC) y a las 8:00 PM
     // (00:00 UTC) se guarda y se publica en #setters cuánto lleva cada una, y solo después se le recuerda a quien no cargó nada.
     if (event.cron.startsWith("0 13 ")) { ctx.waitUntil(resumenSemanalProgramado(env, event.scheduledTime).catch(() => undefined)); return; }
-    if (event.cron.startsWith("0 14 ")) { ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "10:00 AM").catch(() => undefined)); return; }
+    if (event.cron.startsWith("0 14 ")) {
+      ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "10:00 AM").catch(() => undefined));
+      ctx.waitUntil(vencimientoDelivery(env).catch(() => undefined));
+      return;
+    }
     if (event.cron.startsWith("0 0 ") || event.cron.startsWith("0 17 ")) {
       ctx.waitUntil(avisosParaThomas(env).catch(() => undefined));
       const slotP = event.cron.startsWith("0 0 ") ? "cierre" : "tarde";
