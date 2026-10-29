@@ -1994,6 +1994,37 @@ async function vencimientoDelivery(env: Env): Promise<void> {
   if (vencidas.length) await avisarThomas(env, `Pasaron a Vencido (3 meses sin llegar a Done): ${vencidas.join(", ")}.`).catch(() => undefined);
 }
 
+// Lectura única (solo lectura): nombre de cada alumna de las listas de alta, para pasarlas a la hoja de sesiones con la psicóloga.
+async function diagGhlUnicaV7(env: Env): Promise<void> {
+  const clave = "diag:ghl:v7";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const cab = ghlHeaders(env);
+  const lineas: string[] = [];
+  try {
+    for (const l of await leerAltaListas(env)) {
+      for (const item of l.items) {
+        let c: any = null;
+        if (item.includes("@")) {
+          const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&email=${encodeURIComponent(item.trim())}`, { headers: cab });
+          c = r.ok ? ((await r.json()) as any).contact : null;
+        } else if (/^[+\d\s().-]{7,}$/.test(item)) {
+          const d = item.replace(/\D/g, "");
+          const tel = d.length === 10 ? `+1${d}` : d.startsWith("+") ? d : `+${d}`;
+          const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&number=${encodeURIComponent(tel)}`, { headers: cab });
+          c = r.ok ? ((await r.json()) as any).contact : null;
+        } else {
+          const r = await fetch(`${GHL_BASE}/contacts/?locationId=${env.GHL_LOCATION_ID}&query=${encodeURIComponent(item.trim())}&limit=2`, { headers: cab });
+          const ls = r.ok ? (((await r.json()) as any).contacts || []) : [];
+          c = ls.length === 1 ? ls[0] : null;
+        }
+        lineas.push(`${l.clave}\t${item}\t${c ? (c.contactName || [c.firstName, c.lastName].filter(Boolean).join(" ") || "(sin nombre)") : "NO ENCONTRADA"}`);
+      }
+    }
+  } catch (e) { lineas.push(`⚠️ ${String(e).slice(0, 120)}`); }
+  await env.ESTRATEGIAS.put("diag:ghl:v7:out", lineas.join("\n"));
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2762,6 +2793,7 @@ export default {
     ctx.waitUntil(diagGhlUnicaV4(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV5(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV6(env).catch(() => undefined));
+    ctx.waitUntil(diagGhlUnicaV7(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
