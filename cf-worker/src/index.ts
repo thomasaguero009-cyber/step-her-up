@@ -1636,7 +1636,7 @@ async function cerrarVentas(env: Env, emails: string[], valor: number, simular: 
 
 // ===== Alta de alumnas en un pipeline de entrega: crea UNA oportunidad nueva en el pipeline elegido para cada persona (por correo, teléfono o nombre).
 // Nunca mueve ni borra oportunidades de otros pipelines. Si la persona ya tiene una oportunidad en ESE pipeline, no crea otra. Por defecto solo simula. =====
-async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: string, items: string[], simular: boolean): Promise<{ error?: string; pipeline?: string; etapa?: string; resultados: { item: string; accion: string; detalle?: string }[] }> {
+async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: string, items: string[], simular: boolean, crearContactos = false): Promise<{ error?: string; pipeline?: string; etapa?: string; resultados: { item: string; accion: string; detalle?: string }[] }> {
   const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
   const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
   const pr = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
@@ -1654,6 +1654,11 @@ async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: str
       if (item.includes("@")) {
         const r = await fetch(`${GHL_BASE}/contacts/search/duplicate?locationId=${env.GHL_LOCATION_ID}&email=${encodeURIComponent(item.trim())}`, { headers: cab });
         contacto = r.ok ? (((await r.json()) as { contact?: typeof contacto }).contact || null) : null;
+        if (!contacto && crearContactos && !simular) {
+          const u = await fetch(`${GHL_BASE}/contacts/upsert`, { method: "POST", headers: cab, body: JSON.stringify({ locationId: env.GHL_LOCATION_ID, email: item.trim(), tags: ["alumna-entrega"] }) });
+          const ud = u.ok ? ((await u.json()) as { contact?: { id?: string } }) : null;
+          if (ud?.contact?.id) contacto = { id: ud.contact.id, contactName: item.trim() };
+        }
       } else if (/^[+\d\s().-]{7,}$/.test(item)) {
         const d = item.replace(/\D/g, "");
         const tel = d.length === 10 ? `+1${d}` : d.startsWith("+") ? d : `+${d}`;
@@ -1681,12 +1686,11 @@ async function altaEnPipeline(env: Env, pipelineNombre: string, etapaNombre: str
 // ===== Tarea única: dar de alta a las alumnas actuales en los pipelines de entrega. Corre sola desde el ciclo de 10 minutos, una lista por vez, y le escribe el resultado a Thomas.
 // ALTA_MODO "simular" solo informa lo que haría; "crear" crea las oportunidades (una sola vez por lista). Nunca mueve ni borra oportunidades de otros pipelines. =====
 const ALTA_MODO: "simular" | "crear" = "crear";
-const ALTA_LISTAS: { clave: string; pipeline: string; etapa: string; items: string[] }[] = [
-  { clave: "programa", pipeline: "fulfillment - Low ticket", etapa: "Por firmar contrato", items: ["tananievesperez@gmail.com", "manii-m297@hotmail.com", "chanyotero@gmail.com", "joanelly05@gmail.com", "po033931@gmail.com", "andrea.afs2021@gmail.com", "cristie_1296@hotmail.com", "keyburgos23@gmail.com", "johatlysdavila@gmail.com", "glamsessionspr@gmail.com", "shaddia077@gmail.com", "neish.jj@icloud.com", "lemishka.rodriguez30@gmail.com", "7879806943"] },
-  { clave: "highticket", pipeline: "fulfillment - High ticket", etapa: "Por firmar contrato", items: ["Jualyanet Aldea", "9393682761", "7876790587", "Monica Oliveras", "cristie_1296@hotmail.com", "nylivette@gmail.com", "layr3.cintron@hotmail.com"] },
-];
+// Las listas de alumnas (correos, teléfonos, nombres) viven en el KV privado (clave "alta:listas"), NUNCA en el código: este repo es público.
+type AltaLista = { clave: string; pipeline: string; etapa: string; items: string[] };
+async function leerAltaListas(env: Env): Promise<AltaLista[]> { try { return JSON.parse((await env.ESTRATEGIAS.get("alta:listas")) || "[]") as AltaLista[]; } catch { return []; } }
 async function altaUnica(env: Env): Promise<void> {
-  for (const l of ALTA_LISTAS) {
+  for (const l of await leerAltaListas(env)) {
     const clave = `alta:hecho:v2:${ALTA_MODO}:${l.clave}`;
     if (await env.ESTRATEGIAS.get(clave)) continue;
     // hasta 3 intentos si algo falla a mitad (la carga es repetible: lo que ya existe se salta)
@@ -1709,6 +1713,22 @@ async function altaUnica(env: Env): Promise<void> {
     } catch (e) { await avisarThomas(env, `⚠️ Alta en ${l.pipeline}: ${String(e).slice(0, 200)}`).catch(() => undefined); }
     return; // una lista por ciclo, para no pasar el tope de consultas por ejecución
   }
+}
+
+// Tarea única: crea en GHL el contacto de la alumna de Low ticket que no existía y la pone en su pipeline. Corre cuando las dos listas ya terminaron.
+async function altaContactoFaltante(env: Env): Promise<void> {
+  const clave = "alta:contacto:v1";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  const listas = await leerAltaListas(env);
+  for (const l of listas) if (!(await env.ESTRATEGIAS.get(`alta:hecho:v2:crear:${l.clave}`))) return;
+  const l = listas.find((x) => x.clave === "programa"); if (!l) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const r = await altaEnPipeline(env, l.pipeline, l.etapa, l.items, false, true);
+  const cuenta: Record<string, number> = {};
+  r.resultados.forEach((x) => { cuenta[x.accion] = (cuenta[x.accion] || 0) + 1; });
+  const texto = r.error ? `⚠️ Contacto faltante: ${r.error}` : `📋 *Contacto faltante (${r.pipeline})*\n${Object.entries(cuenta).map(([k, n]) => `${k}: ${n}`).join(" · ")}`;
+  await env.ESTRATEGIAS.put("alta:out:contacto", texto);
+  await avisarThomas(env, texto);
 }
 
 // ===== Diagnóstico único (solo lectura): qué datos de emails masivos y de llamadas deja ver el token de GHL.
@@ -2648,6 +2668,7 @@ export default {
     if (hm % 60 === 30) ctx.waitUntil(guardarMetricasAuto(env, "hora", event.scheduledTime).catch(() => undefined));
     // Tarea única de alta de alumnas en los pipelines de entrega (se apaga sola cuando termina cada lista).
     ctx.waitUntil(altaUnica(env).catch(() => undefined));
+    ctx.waitUntil(altaContactoFaltante(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnica(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV2(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV3(env).catch(() => undefined));
