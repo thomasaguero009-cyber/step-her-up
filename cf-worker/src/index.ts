@@ -1745,6 +1745,40 @@ async function diagGhlUnica(env: Env): Promise<void> {
   await avisarThomas(env, "🔎 *Prueba de lectura de GHL (emails masivos y llamadas)*\nSolo lectura, sin cambios. Resultado:\n" + lineas.join("\n"));
 }
 
+// ===== Diagnóstico único v2 (solo lectura): estado de las citas (shows / no shows por closer) y estado de los emails del 17-oct.
+// Solo cuenta estados e ids de usuario (nunca nombres ni correos). Guarda el resultado en el KV y avisa a Thomas por Slack. =====
+function contar(arr: any[], campo: (x: any) => unknown): string {
+  const c: Record<string, number> = {};
+  arr.forEach((x) => { const v = campo(x); const k = v == null || v === "" ? "(vacío)" : String(v).slice(0, 70); c[k] = (c[k] || 0) + 1; });
+  return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${k}=${n}`).join(", ") || "(nada)";
+}
+async function diagGhlUnicaV2(env: Env): Promise<void> {
+  const clave = "diag:ghl:v2";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const loc = env.GHL_LOCATION_ID, ahora = Date.now(), lineas: string[] = [];
+  const pedir = async (url: string) => { const r = await fetch(url, { headers: ghlHeaders(env) }); const t = await r.text(); let d: any = null; try { d = JSON.parse(t); } catch { /* texto */ } return { ok: r.ok, status: r.status, d, t }; };
+  try {
+    const r = await pedir(`${GHL_BASE}/calendars/events?locationId=${loc}&calendarId=${env.GHL_CALENDAR_ID}&startTime=${ahora - 21 * 86400000}&endTime=${ahora + 7 * 86400000}`);
+    if (r.ok) { const ev: any[] = r.d?.events || []; lineas.push(`✅ Citas del calendario (21 días atrás a 7 adelante): ${ev.length}`, `  estado de la cita: ${contar(ev, (x) => x.appointmentStatus)}`, `  status: ${contar(ev, (x) => x.status)}`, `  asignadas a (ids): ${contar(ev, (x) => x.assignedUserId)}`, `  campos: ${Object.keys(ev[0] || {}).slice(0, 18).join(", ")}`); }
+    else lineas.push(`❌ Citas del calendario (${r.status}): ${r.t.replace(/\s+/g, " ").slice(0, 160)}`);
+  } catch (e) { lineas.push(`⚠️ Citas: ${String(e).slice(0, 120)}`); }
+  try {
+    let cursor = "", total = 0; const todos: any[] = []; let paginas = 0;
+    const ini = encodeURIComponent("2026-10-17T00:00:00-04:00"), fin = encodeURIComponent("2026-10-18T06:00:00-04:00");
+    for (; paginas < 12; paginas++) {
+      const r = await pedir(`${GHL_BASE}/conversations/messages/export?locationId=${loc}&channel=Email&startDate=${ini}&endDate=${fin}&limit=100${cursor ? "&cursor=" + encodeURIComponent(cursor) : ""}`);
+      if (!r.ok) { lineas.push(`❌ Emails 17-oct (${r.status}): ${r.t.replace(/\s+/g, " ").slice(0, 160)}`); break; }
+      const m: any[] = r.d?.messages || []; todos.push(...m); total += m.length;
+      cursor = r.d?.nextCursor || r.d?.cursor || ""; if (!cursor || !m.length) break;
+    }
+    if (todos.length) lineas.push(`✅ Emails del 17-oct leídos: ${total} (en ${paginas + 1} páginas)`, `  status: ${contar(todos, (x) => x.status)}`, `  dirección: ${contar(todos, (x) => x.direction)}`, `  tipo: ${contar(todos, (x) => x.messageType || x.type)}`, `  asunto (los más comunes): ${contar(todos, (x) => x.subject || x.meta?.email?.subject)}`, `  error: ${contar(todos.filter((x) => /fail|bounce|error/i.test(String(x.status))), (x) => x.error || x.meta?.email?.error || x.meta?.email?.events?.[0]?.type)}`, `  campos: ${Object.keys(todos[0] || {}).slice(0, 18).join(", ")}`);
+  } catch (e) { lineas.push(`⚠️ Emails: ${String(e).slice(0, 120)}`); }
+  const texto = lineas.join("\n");
+  await env.ESTRATEGIAS.put("diag:ghl:v2:out", texto);
+  await avisarThomas(env, "🔎 *Segunda prueba de lectura de GHL (citas y emails del 17-oct)*\nSolo lectura. Claude ya la leyó; no hace falta que respondas.\n" + texto.slice(0, 1800));
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2503,6 +2537,7 @@ export default {
     // Tarea única de alta de alumnas en los pipelines de entrega (se apaga sola cuando termina cada lista).
     ctx.waitUntil(altaUnica(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnica(env).catch(() => undefined));
+    ctx.waitUntil(diagGhlUnicaV2(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
