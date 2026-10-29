@@ -1857,6 +1857,34 @@ async function handleAyuda(request: Request, env: Env, cors: HeadersInit): Promi
   return json({ ok: true, accion, destino, mensaje: String(acc.mensaje || "No pude armar una respuesta. Prueba con otras palabras.").slice(0, 900) }, 200, cors);
 }
 
+// ===== Diagnóstico único v4 (solo lectura): etapas de los pipelines de entrega y cuántas oportunidades tiene cada una. Solo nombres de etapas y conteos. =====
+async function diagGhlUnicaV4(env: Env): Promise<void> {
+  const clave = "diag:ghl:v4";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const lineas: string[] = [];
+  try {
+    const r = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+    if (!r.ok) lineas.push(`❌ Pipelines (${r.status})`);
+    else {
+      const pipes = ((await r.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+      lineas.push("Pipelines: " + pipes.map((p) => p.name).join(" | "));
+      for (const p of pipes.filter((x) => /fulfill|psic|entrega|alumn/i.test(x.name))) {
+        const o = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${p.id}&limit=100`, { headers: ghlHeaders(env) });
+        const d: any = o.ok ? await o.json() : {};
+        const ops: any[] = d.opportunities || [];
+        const porEtapa: Record<string, number> = {}; ops.forEach((x) => { porEtapa[x.pipelineStageId] = (porEtapa[x.pipelineStageId] || 0) + 1; });
+        lineas.push(`• ${p.name} (${ops.length} oportunidades): ` + (p.stages || []).map((e) => `${e.name}=${porEtapa[e.id] || 0}`).join(" → "));
+      }
+    }
+  } catch (e) { lineas.push(`⚠️ ${String(e).slice(0, 120)}`); }
+  const ya = ["programa", "highticket"].map((c) => `alta:hecho:v2:simular:${c}`);
+  const flags = await Promise.all(ya.map((k) => env.ESTRATEGIAS.get(k)));
+  const crear = await Promise.all(["programa", "highticket"].map((c) => env.ESTRATEGIAS.get(`alta:hecho:v2:crear:${c}`)));
+  lineas.push(`Simulación de alta hecha: programa=${flags[0] ? "sí" : "no"}, highticket=${flags[1] ? "sí" : "no"} · alta real hecha: programa=${crear[0] ? "sí" : "no"}, highticket=${crear[1] ? "sí" : "no"}`);
+  await env.ESTRATEGIAS.put("diag:ghl:v4:out", lineas.join("\n"));
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2617,6 +2645,7 @@ export default {
     ctx.waitUntil(diagGhlUnica(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV2(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV3(env).catch(() => undefined));
+    ctx.waitUntil(diagGhlUnicaV4(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
