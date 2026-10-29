@@ -2274,6 +2274,32 @@ async function altaFaltantes(env: Env): Promise<void> {
   await avisarThomas(env, "Alumnas que faltaban:\n" + out.join("\n")).catch(() => undefined);
 }
 
+// ===== Las alumnas de las listas privadas (webinar y premium) entran en "Delivery · Sesiones con la psicóloga" · "Por agendar". Repetible: salta a quien ya tiene tarjeta ahí.
+// Hasta 14 por ejecución; avisa a Thomas cuando termina. No toca las tarjetas que ya existen. =====
+async function psicologaNuevas(env: Env): Promise<void> {
+  if (await env.ESTRATEGIAS.get("fulf:psico:nuevas:v1")) return;
+  if (!(await env.ESTRATEGIAS.get("alta:faltantes:v1"))) return; // espera a que terminen las que faltaban
+  const faltantes = JSON.parse((await env.ESTRATEGIAS.get("alta:faltantes")) || "[]") as { email?: string; tel?: string }[];
+  const esNombre = (x: string) => !x.includes("@") && !/^[+\d\s().-]{7,}$/.test(x);
+  const todos = [...(await leerAltaListas(env)).flatMap((l) => l.items).filter((x) => !esNombre(x)), ...faltantes.map((f) => f.tel || f.email || "")]
+    .filter((x) => x).filter((x, i, a) => a.indexOf(x) === i);
+  const hechos = new Set<string>(JSON.parse((await env.ESTRATEGIAS.get("fulf:psico:nuevas:hechos")) || "[]"));
+  const pend = todos.filter((x) => !hechos.has(x));
+  if (!pend.length) { await env.ESTRATEGIAS.put("fulf:psico:nuevas:v1", "1"); return; }
+  const lote = pend.slice(0, 14);
+  const r = await altaEnPipeline(env, "Delivery · Sesiones con la psicóloga", "Por agendar", lote, false, false);
+  if (r.error) return;
+  r.resultados.forEach((x) => { if (x.accion !== "error") hechos.add(x.item); });
+  await env.ESTRATEGIAS.put("fulf:psico:nuevas:hechos", JSON.stringify([...hechos]));
+  const acum = JSON.parse((await env.ESTRATEGIAS.get("fulf:psico:nuevas:acum")) || "{\"creada\":0,\"ya_existe\":0,\"sin_contacto\":0}");
+  for (const k of ["creada", "ya_existe", "sin_contacto"]) acum[k] += r.resultados.filter((x) => x.accion === k).length;
+  await env.ESTRATEGIAS.put("fulf:psico:nuevas:acum", JSON.stringify(acum));
+  if (pend.length <= lote.length) {
+    await env.ESTRATEGIAS.put("fulf:psico:nuevas:v1", "1");
+    await avisarThomas(env, `Sesiones con la psicóloga · Por agendar: ${acum.creada} tarjetas nuevas, ${acum.ya_existe} ya estaban, ${acum.sin_contacto} sin contacto en GHL.`).catch(() => undefined);
+  }
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -3048,6 +3074,7 @@ export default {
     ctx.waitUntil(corregirPsicologa(env).catch(() => undefined));
     ctx.waitUntil(recrearFulfillment(env).catch(() => undefined));
     ctx.waitUntil(altaFaltantes(env).catch(() => undefined));
+    ctx.waitUntil(psicologaNuevas(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV9(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV8(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
