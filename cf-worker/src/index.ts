@@ -1987,7 +1987,7 @@ async function vencimientoDelivery(env: Env): Promise<void> {
       const inicioKv = await env.ESTRATEGIAS.get(`fulf:inicio:${op.id}`);
       const inicio = new Date(inicioKv || op.createdAt || "");
       if (isNaN(+inicio) || inicio > limite) continue;
-      const u = await fetch(`${GHL_BASE}/opportunities/${op.id}`, { method: "PUT", headers: { ...(cab as Record<string, string>), "Content-Type": "application/json" }, body: JSON.stringify({ pipelineStageId: venc.id }) });
+      const u = await fetch(`${GHL_BASE}/opportunities/${op.id}`, { method: "PUT", headers: { ...cab, "Content-Type": "application/json" }, body: JSON.stringify({ pipelineStageId: venc.id }) });
       if (u.ok) { movidas++; vencidas.push(`${op.name || op.contact?.name || op.id} (${nombre})`); }
     }
   }
