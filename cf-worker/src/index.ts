@@ -1704,6 +1704,47 @@ async function altaUnica(env: Env): Promise<void> {
   }
 }
 
+// ===== Diagnóstico único (solo lectura): qué datos de emails masivos y de llamadas deja ver el token de GHL.
+// Solo cuenta claves y estados (nunca nombres ni correos), avisa por Slack a Thomas y se apaga solo. =====
+function resumenJson(d: any): string {
+  const partes: string[] = [];
+  for (const [k, v] of Object.entries(d || {})) {
+    if (Array.isArray(v)) {
+      const primero: any = v[0];
+      const claves = primero && typeof primero === "object" ? Object.keys(primero).slice(0, 14).join(", ") : "";
+      const estados: Record<string, number> = {};
+      v.forEach((x: any) => { const e = x && (x.status || x.messageType || x.type); if (typeof e === "string") estados[e] = (estados[e] || 0) + 1; });
+      const est = Object.keys(estados).length ? " · tipos/estados: " + Object.entries(estados).map(([a, b]) => `${a}=${b}`).join(", ") : "";
+      partes.push(`${k}: ${v.length} elementos${claves ? " [" + claves + "]" : ""}${est}`);
+    } else if (typeof v === "number" || typeof v === "boolean") partes.push(`${k}=${v}`);
+  }
+  return partes.join(" | ").slice(0, 700) || "(sin campos de lista)";
+}
+async function diagGhlUnica(env: Env): Promise<void> {
+  const clave = "diag:ghl:v1";
+  if (await env.ESTRATEGIAS.get(clave)) return;
+  await env.ESTRATEGIAS.put(clave, "1");
+  const loc = env.GHL_LOCATION_ID, hasta = Date.now(), desde = hasta - 7 * 86400000;
+  const rango = `startDate=${encodeURIComponent(new Date(desde).toISOString())}&endDate=${encodeURIComponent(new Date(hasta).toISOString())}`;
+  const pruebas = [
+    ["Conversaciones (buscar)", `${GHL_BASE}/conversations/search?locationId=${loc}&limit=3`],
+    ["Mensajes de email, últimos 7 días", `${GHL_BASE}/conversations/messages/export?locationId=${loc}&channel=Email&${rango}&limit=100`],
+    ["Mensajes de llamada, últimos 7 días", `${GHL_BASE}/conversations/messages/export?locationId=${loc}&channel=Call&${rango}&limit=100`],
+    ["Emails programados / campañas", `${GHL_BASE}/emails/schedule?locationId=${loc}&limit=5`],
+    ["Campañas", `${GHL_BASE}/campaigns/?locationId=${loc}&limit=5`],
+  ];
+  const lineas: string[] = [];
+  for (const [nombre, url] of pruebas) {
+    try {
+      const r = await fetch(url, { headers: ghlHeaders(env) });
+      const txt = await r.text();
+      if (r.ok) { let d: any = {}; try { d = JSON.parse(txt); } catch { /* texto */ } lineas.push(`✅ *${nombre}* (${r.status}): ${resumenJson(d)}`); }
+      else lineas.push(`❌ *${nombre}* (${r.status}): ${txt.replace(/\s+/g, " ").slice(0, 160)}`);
+    } catch (e) { lineas.push(`⚠️ *${nombre}*: ${String(e).slice(0, 120)}`); }
+  }
+  await avisarThomas(env, "🔎 *Prueba de lectura de GHL (emails masivos y llamadas)*\nSolo lectura, sin cambios. Resultado:\n" + lineas.join("\n"));
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2461,6 +2502,7 @@ export default {
     if (hm % 60 === 30) ctx.waitUntil(guardarMetricasAuto(env, "hora", event.scheduledTime).catch(() => undefined));
     // Tarea única de alta de alumnas en los pipelines de entrega (se apaga sola cuando termina cada lista).
     ctx.waitUntil(altaUnica(env).catch(() => undefined));
+    ctx.waitUntil(diagGhlUnica(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
