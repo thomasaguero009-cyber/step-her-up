@@ -2110,6 +2110,43 @@ async function copiarEntrega(env: Env): Promise<void> {
   }
 }
 
+// ===== Webinar → Fulfillment: cuando una tarjeta del pipeline del webinar llega a una etapa "Closed ...", se crea sola la de la alumna en
+// "Fulfillment · Step Her Up", en "Enviar contrato". Solo toma cierres posteriores a la activación (KV `fulf:webinar:desde`), no los viejos.
+// Repetible: si la persona ya tiene tarjeta en Fulfillment, no hace nada. No mueve ni borra nada del pipeline del webinar. =====
+async function webinarAFulfillment(env: Env): Promise<void> {
+  let desde = await env.ESTRATEGIAS.get("fulf:webinar:desde");
+  if (!desde) { desde = new Date().toISOString(); await env.ESTRATEGIAS.put("fulf:webinar:desde", desde); return; }
+  const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const pw = await pipelineWebinar(env);
+  if (!pw) return;
+  const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
+  if (!rp.ok) return;
+  const pf = (((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || []).find((x) => x.name === "Fulfillment · Step Her Up");
+  const etapa = pf?.stages?.find((e) => e.name === "Enviar contrato");
+  if (!pf || !etapa) return;
+  const limite = Date.parse(desde);
+  const nuevas: string[] = [];
+  let presupuesto = 8; // 50 subrequests por ejecución
+  for (const e of pw.etapas.filter((x) => /^closed/i.test(x.name.trim()))) {
+    const res = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pw.id}&pipeline_stage_id=${e.id}&limit=100`, { headers: cab });
+    if (!res.ok) continue;
+    for (const o of ((await res.json()) as { opportunities?: any[] }).opportunities || []) {
+      const cambio = Date.parse(o.lastStageChangeAt);
+      const contactId = o.contactId || o.contact?.id;
+      if (!cambio || cambio < limite || !contactId || presupuesto <= 0) continue;
+      const ya = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pf.id}&contact_id=${contactId}`, { headers: cab });
+      if (!ya.ok || (((await ya.json()) as { opportunities?: unknown[] }).opportunities || []).length) continue;
+      presupuesto--;
+      const c = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId: pf.id, locationId: env.GHL_LOCATION_ID, pipelineStageId: etapa.id, contactId, name: o.name || o.contact?.name || "Alumna", status: "open" }) });
+      if (!c.ok) continue;
+      const nueva = ((await c.json()) as any).opportunity || {};
+      if (nueva.id) await env.ESTRATEGIAS.put(`fulf:inicio:${nueva.id}`, new Date(cambio).toISOString().slice(0, 10));
+      nuevas.push(o.name || o.contact?.name || "Alumna");
+    }
+  }
+  if (nuevas.length) await avisarThomas(env, `Nueva alumna del webinar pasó a Fulfillment (Enviar contrato): ${nuevas.join(", ")}.`).catch(() => undefined);
+}
+
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
 async function handleWebinarCompra(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.SITE_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
@@ -2880,6 +2917,7 @@ export default {
     ctx.waitUntil(diagGhlUnicaV6(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV7(env).catch(() => undefined));
     ctx.waitUntil(copiarEntrega(env).catch(() => undefined));
+    ctx.waitUntil(webinarAFulfillment(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV8(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
