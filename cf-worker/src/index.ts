@@ -1966,6 +1966,7 @@ async function diagGhlUnicaV6(env: Env): Promise<void> {
 // Empieza a contar desde KV `fulf:inicio:<id de la oportunidad>` (YYYY-MM-DD) y, si no existe, desde que se creó la oportunidad.
 const PIPELINES_ENTREGA = ["Fulfillment · Step Her Up", "Delivery · Sesiones con la psicóloga"];
 async function vencimientoDelivery(env: Env): Promise<void> {
+  if ((await env.ESTRATEGIAS.get("fulf:vencimiento:on")) !== "1") return; // se activa a mano cuando las tarjetas ya tienen su fecha de inicio
   const cab = ghlHeaders(env);
   const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
   if (!rp.ok) return;
@@ -2023,6 +2024,67 @@ async function diagGhlUnicaV7(env: Env): Promise<void> {
     }
   } catch (e) { lineas.push(`⚠️ ${String(e).slice(0, 120)}`); }
   await env.ESTRATEGIAS.put("diag:ghl:v7:out", lineas.join("\n"));
+}
+
+// ===== Copia (no mueve ni borra nada) de las alumnas a los pipelines nuevos de entrega. Repetible: si ya existe una tarjeta de esa persona en el destino, la salta.
+// La fecha de inicio (para el Vencido) se guarda en KV `fulf:inicio:<id nueva>` con la fecha de creación de la tarjeta original. =====
+const COPIA_ENTREGA: { origen: string; destino: string; etapas: Record<string, string> }[] = [
+  { origen: "Step Her Up 2.0- Delivery", destino: "Fulfillment · Step Her Up", etapas: {
+    "Enviar Contrato": "Enviar contrato", "Firmar contrato": "Firmar contrato", "1era Llamada 1:1": "1ra llamada 1:1 (diagnóstico)",
+    "2da Llamada 1:1": "2da llamada 1:1", "3era Llamada 1:1": "3ra llamada 1:1" } },
+  { origen: "STEP HER UP - DELIVERY", destino: "Delivery · Sesiones con la psicóloga", etapas: {
+    "Cita con Psicóloga": "Por agendar", "2da cita con Johanna": "En sesiones", "3era Cita con Johanna": "En sesiones", "4ta Cita con Johanna": "En sesiones" } },
+];
+async function copiarEntrega(env: Env): Promise<void> {
+  if (await env.ESTRATEGIAS.get("fulf:copia:v1")) return;
+  const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
+  if (!rp.ok) return;
+  const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+  const hoy = Date.now(), tresMeses = new Date(); tresMeses.setMonth(tresMeses.getMonth() - 3);
+  let copiadas = 0, yaEstaban = 0, errores = 0, pendientes = 0, viejas = 0;
+  let presupuesto = 16; // 50 subrequests por ejecución: cada copia gasta 2 (crear + guardar fecha)
+  for (const m of COPIA_ENTREGA) {
+    const po = pipes.find((x) => x.name === m.origen), pd = pipes.find((x) => x.name === m.destino);
+    if (!po || !pd) { errores++; continue; }
+    const etapaOrigen = new Map((po.stages || []).map((e) => [e.id, e.name]));
+    const etapaDestino = new Map((pd.stages || []).map((e) => [e.name, e.id]));
+    const [ro, rd] = await Promise.all([
+      fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${po.id}&limit=100`, { headers: cab }),
+      fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pd.id}&limit=100`, { headers: cab }),
+    ]);
+    if (!ro.ok || !rd.ok) { errores++; continue; }
+    const ops: any[] = ((await ro.json()) as any).opportunities || [];
+    const yaDestino = new Set((((await rd.json()) as any).opportunities || []).map((x: any) => x.contactId || x.contact?.id));
+    for (const op of ops) {
+      const nombreEtapa = m.etapas[etapaOrigen.get(op.pipelineStageId) || ""];
+      if (!nombreEtapa) continue; // otras columnas: no se copian
+      const contactId = op.contactId || op.contact?.id;
+      const etapaId = etapaDestino.get(nombreEtapa);
+      if (!contactId || !etapaId) { errores++; continue; }
+      if (yaDestino.has(contactId)) { yaEstaban++; continue; }
+      if (presupuesto <= 0) { pendientes++; continue; }
+      presupuesto--;
+      const c = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId: pd.id, locationId: env.GHL_LOCATION_ID, pipelineStageId: etapaId, contactId, name: op.name || op.contact?.name || "Alumna", status: "open" }) });
+      if (!c.ok) { errores++; continue; }
+      const nueva = ((await c.json()) as any).opportunity || {};
+      const inicio = new Date(op.createdAt || hoy);
+      if (nueva.id) { await env.ESTRATEGIAS.put(`fulf:inicio:${nueva.id}`, inicio.toISOString().slice(0, 10)); presupuesto--; }
+      yaDestino.add(contactId); copiadas++;
+      if (inicio < tresMeses) viejas++;
+    }
+  }
+  const acum = JSON.parse((await env.ESTRATEGIAS.get("fulf:copia:acum")) || "{\"copiadas\":0,\"viejas\":0}") as { copiadas: number; viejas: number };
+  acum.copiadas += copiadas; acum.viejas += viejas;
+  await env.ESTRATEGIAS.put("fulf:copia:acum", JSON.stringify(acum));
+  if (!pendientes && !errores) {
+    await env.ESTRATEGIAS.put("fulf:copia:v1", "1");
+    await avisarThomas(env, `Copia a los pipelines nuevos terminada: ${acum.copiadas} tarjetas creadas en esta tarea (${yaEstaban} ya estaban). De esas, ${acum.viejas} tienen una fecha de inicio de hace más de 3 meses y pasarían a Vencido apenas se active el Vencido automático. No se movió ni borró nada de los pipelines viejos.`).catch(() => undefined);
+  } else if (errores) {
+    const n = parseInt((await env.ESTRATEGIAS.get("fulf:copia:err")) || "0", 10) + 1;
+    await env.ESTRATEGIAS.put("fulf:copia:err", String(n));
+    if (n >= 3) { await env.ESTRATEGIAS.put("fulf:copia:v1", "1"); await avisarThomas(env, `La copia a los pipelines nuevos se detuvo con ${errores} errores tras 3 intentos (${acum.copiadas} copiadas). Revisar.`).catch(() => undefined); }
+  }
 }
 
 // POST /webinar-compra (header X-Site-Key). Body: { emails: string[], valor?: number, simular?: boolean }
@@ -2794,6 +2856,7 @@ export default {
     ctx.waitUntil(diagGhlUnicaV5(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV6(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnicaV7(env).catch(() => undefined));
+    ctx.waitUntil(copiarEntrega(env).catch(() => undefined));
     // Agente de GHL: además del de las 10:00 AM, revisa a la 1:10 PM (17:10 UTC) y a las 8:10 PM (00:10 UTC).
     if (hm === 17 * 60 + 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "1:10 PM").catch(() => undefined));
     if (hm === 10) ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "8:10 PM").catch(() => undefined));
