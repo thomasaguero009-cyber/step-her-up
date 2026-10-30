@@ -18,6 +18,10 @@ export interface Env {
   ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
   EMAIL_HOOK_KEY?: string; // clave del webhook de eventos de email de GHL (secret)
   SLACK_BOT_TOKEN?: string; // bot de Slack para el recordatorio diario de #setters (secret)
+  META_APP_ID?: string; // app de Meta (secret): sirve para cambiar el token por uno de ~60 días y renovarlo
+  META_APP_SECRET?: string; // clave de esa app (secret)
+  META_ADS_TOKEN?: string; // token de usuario con permiso ads_read (secret); al primer uso se cambia por el de ~60 días y queda en KV
+  META_AD_ACCOUNT?: string; // cuenta publicitaria (act_123...) (secret)
 }
 
 const GHL_BASE = "https://services.leadconnectorhq.com";
@@ -1114,6 +1118,75 @@ async function handlePdfClics(url: URL, env: Env, cors: HeadersInit): Promise<Re
   const filas = Object.entries(datos).map(([k, n]) => { const [archivo, source, medium, campaign, content] = k.split("|"); return { archivo, source, medium, campaign, content, clics: n }; })
     .sort((a, b) => b.clics - a.clics);
   return json({ ok: true, mes, total: filas.reduce((t, f) => t + f.clics, 0), filas }, 200, cors);
+}
+
+// ===== Meta Ads (solo lectura): gasto, clics y leads por día y campaña. Nada del token va en el repo: vive en secrets y en el KV privado.
+// El token que se carga por secret se cambia solo por uno de ~60 días (KV `meta:token`) y se renueva antes de vencer; si no puede, avisa a Thomas por Slack. =====
+const META_GRAPH = "https://graph.facebook.com/v21.0";
+const DIA_MS = 86400000;
+type MetaToken = { t: string; exp: number };
+
+async function metaIntercambiar(env: Env, actual: string): Promise<MetaToken | null> {
+  if (!actual || !env.META_APP_ID || !env.META_APP_SECRET) return null;
+  try {
+    const r = await fetch(`${META_GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(env.META_APP_ID)}&client_secret=${encodeURIComponent(env.META_APP_SECRET)}&fb_exchange_token=${encodeURIComponent(actual)}`);
+    if (!r.ok) return null;
+    const d = (await r.json()) as { access_token?: string; expires_in?: number };
+    return d.access_token ? { t: d.access_token, exp: Date.now() + (d.expires_in || 60 * 86400) * 1000 } : null;
+  } catch { return null; }
+}
+
+async function metaToken(env: Env): Promise<string | null> {
+  let g = JSON.parse((await env.ESTRATEGIAS.get("meta:token")) || "null") as MetaToken | null;
+  if ((!g || g.exp - Date.now() < 20 * DIA_MS) && !(await env.ESTRATEGIAS.get("meta:intento"))) {
+    await env.ESTRATEGIAS.put("meta:intento", "1", { expirationTtl: 3600 });
+    const nuevo = await metaIntercambiar(env, g?.t || env.META_ADS_TOKEN || "");
+    if (nuevo) { g = nuevo; await env.ESTRATEGIAS.put("meta:token", JSON.stringify(g)); }
+  }
+  if (g && g.exp > Date.now()) return g.t;
+  return g ? null : env.META_ADS_TOKEN || null;
+}
+
+// Una vez al día (10:00 AM de PR): renueva si hace falta y avisa si el token está por vencer o ya no sirve.
+async function metaRevisar(env: Env): Promise<void> {
+  if (!env.META_AD_ACCOUNT) return;
+  const tok = await metaToken(env);
+  const g = JSON.parse((await env.ESTRATEGIAS.get("meta:token")) || "null") as MetaToken | null;
+  if (!tok || (g && g.exp - Date.now() < 7 * DIA_MS)) {
+    const cuando = g ? new Date(g.exp).toLocaleDateString("es-PR", { timeZone: "America/Puerto_Rico" }) : "";
+    await avisarThomas(env, !tok ? "El token de Meta Ads ya no sirve: hay que generar uno nuevo en Graph API Explorer y cargarlo con wrangler secret put META_ADS_TOKEN." : `El token de Meta Ads vence el ${cuando} y no se pudo renovar solo. Hay que generar uno nuevo antes de esa fecha.`).catch(() => undefined);
+  }
+}
+
+async function handleAdsInsights(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.SITE_KEY || !env.META_AD_ACCOUNT) return json({ ok: false, error: "not_configured" }, 503, cors);
+  if (!igualesSeguro(request.headers.get("X-Site-Key") || "", env.SITE_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
+  const mes = /^\d{4}-\d{2}$/.test(url.searchParams.get("mes") || "") ? (url.searchParams.get("mes") as string) : mesActual();
+  const cache = await env.ESTRATEGIAS.get(`meta:ads:${mes}`);
+  if (cache) return new Response(cache, { status: 200, headers: { "Content-Type": "application/json", ...cors } });
+  const token = await metaToken(env);
+  if (!token) return json({ ok: false, error: "sin_token" }, 503, cors);
+  const [a, m] = mes.split("-").map(Number);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const finMes = `${mes}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, "0")}`;
+  const rango = JSON.stringify({ since: `${mes}-01`, until: finMes < hoy ? finMes : hoy });
+  const cuenta = env.META_AD_ACCOUNT.startsWith("act_") ? env.META_AD_ACCOUNT : `act_${env.META_AD_ACCOUNT}`;
+  let next: string | null = `${META_GRAPH}/${cuenta}/insights?level=campaign&time_increment=1&fields=campaign_name,spend,impressions,clicks,actions&limit=500&time_range=${encodeURIComponent(rango)}&access_token=${encodeURIComponent(token)}`;
+  const filas: { fecha: string; campana: string; gasto: number; impresiones: number; clics: number; leads: number }[] = [];
+  for (let i = 0; next && i < 4; i++) {
+    const r: Response = await fetch(next);
+    const d = (await r.json().catch(() => ({}))) as any;
+    if (!r.ok || d.error) return json({ ok: false, error: "meta_error", detalle: String(d?.error?.message || r.status).slice(0, 200) }, 502, cors);
+    for (const x of d.data || []) {
+      const acc = (x.actions || []) as { action_type: string; value: string }[];
+      const lead = acc.find((y) => y.action_type === "lead") || acc.find((y) => y.action_type === "offsite_conversion.fb_pixel_lead") || acc.find((y) => y.action_type === "onsite_conversion.lead_grouped");
+      filas.push({ fecha: x.date_start, campana: x.campaign_name, gasto: Number(x.spend || 0), impresiones: Number(x.impressions || 0), clics: Number(x.clicks || 0), leads: Number(lead?.value || 0) });
+    }
+    next = d.paging?.next || null;
+  }
+  const cuerpo = JSON.stringify({ ok: true, mes, gasto: Math.round(filas.reduce((t, f) => t + f.gasto, 0) * 100) / 100, filas });
+  await env.ESTRATEGIAS.put(`meta:ads:${mes}`, cuerpo, { expirationTtl: 1800 });
+  return new Response(cuerpo, { status: 200, headers: { "Content-Type": "application/json", ...cors } });
 }
 
 // Registro corto (2 días) de qué pasó en cada paso, para poder diagnosticar.
@@ -3121,6 +3194,7 @@ export default {
     if (event.cron.startsWith("0 14 ")) {
       ctx.waitUntil(vigilanteGhlProgramado(env, event.scheduledTime, "10:00 AM").catch(() => undefined));
       ctx.waitUntil(vencimientoDelivery(env).catch(() => undefined));
+      ctx.waitUntil(metaRevisar(env).catch(() => undefined));
       return;
     }
     if (event.cron.startsWith("0 0 ") || event.cron.startsWith("0 17 ")) {
@@ -3264,6 +3338,9 @@ export default {
       }
       if (url.pathname === "/pdf-clics" && request.method === "GET") {
         return await handlePdfClics(url, env, cors);
+      }
+      if (url.pathname === "/ads-insights" && request.method === "GET") {
+        return await handleAdsInsights(request, url, env, cors);
       }
       if (url.pathname === "/click-match" && request.method === "GET") {
         return await handleClickMatch(request, env, cors);
