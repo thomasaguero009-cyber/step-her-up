@@ -1093,6 +1093,29 @@ async function handleClic(request: Request, url: URL, env: Env, cors: HeadersIni
   return new Response(null, { status: 204, headers: { ...cors, "Cache-Control": "no-store" } });
 }
 
+// ===== Clics a PDF: la pasarela shu.stepherup.com/pdf/ avisa aquí antes de abrir el archivo. Se cuenta por mes en una sola clave del KV
+// (`pdfclics:YYYY-MM`) para gastar pocas escrituras. Los robots de vista previa no cuentan. =====
+const mesActual = () => new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 7);
+async function handlePdfClic(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const ua = request.headers.get("User-Agent") || "";
+  if (!/bot|crawler|spider|facebookexternalhit|facebot|preview|slurp|whatsapp|telegram/i.test(ua)) {
+    const limpio = (k: string) => (url.searchParams.get(k) || "").trim().slice(0, 80).replace(/[|]/g, "/");
+    const archivo = limpio("f") || "(sin nombre)";
+    const clave = [archivo, limpio("utm_source") || "-", limpio("utm_medium") || "-", limpio("utm_campaign") || "-", limpio("utm_content") || "-"].join("|");
+    const k = `pdfclics:${mesActual()}`;
+    const datos = JSON.parse((await env.ESTRATEGIAS.get(k)) || "{}") as Record<string, number>;
+    if (Object.keys(datos).length < 400 || datos[clave]) { datos[clave] = (datos[clave] || 0) + 1; await env.ESTRATEGIAS.put(k, JSON.stringify(datos)); }
+  }
+  return new Response(null, { status: 204, headers: { ...cors, "Cache-Control": "no-store" } });
+}
+async function handlePdfClics(url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const mes = /^\d{4}-\d{2}$/.test(url.searchParams.get("mes") || "") ? (url.searchParams.get("mes") as string) : mesActual();
+  const datos = JSON.parse((await env.ESTRATEGIAS.get(`pdfclics:${mes}`)) || "{}") as Record<string, number>;
+  const filas = Object.entries(datos).map(([k, n]) => { const [archivo, source, medium, campaign, content] = k.split("|"); return { archivo, source, medium, campaign, content, clics: n }; })
+    .sort((a, b) => b.clics - a.clics);
+  return json({ ok: true, mes, total: filas.reduce((t, f) => t + f.clics, 0), filas }, 200, cors);
+}
+
 // Registro corto (2 días) de qué pasó en cada paso, para poder diagnosticar.
 async function anotarDiagnostico(env: Env, evento: string, datos: Record<string, unknown>): Promise<void> {
   try {
@@ -3183,6 +3206,12 @@ export default {
       }
       if (url.pathname === "/click" && request.method === "GET") {
         return await handleClic(request, url, env, cors);
+      }
+      if (url.pathname === "/pdf-clic" && request.method === "GET") {
+        return await handlePdfClic(request, url, env, cors);
+      }
+      if (url.pathname === "/pdf-clics" && request.method === "GET") {
+        return await handlePdfClics(url, env, cors);
       }
       if (url.pathname === "/click-match" && request.method === "GET") {
         return await handleClickMatch(request, env, cors);
