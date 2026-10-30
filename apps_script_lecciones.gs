@@ -49,7 +49,33 @@ function doGet(e) {
     try { return responder(ventasDesglose(p.mes)); }
     catch (err) { return responder({ status: 'error', message: String(err && err.message || err) }); }
   }
+  if (p.action === 'csv') {
+    try { return csvDeHoja(p.hoja); }
+    catch (err) { return ContentService.createTextOutput('ERROR: ' + String(err && err.message || err)).setMimeType(ContentService.MimeType.TEXT); }
+  }
   return responder({ status: 'ok', message: 'Lecciones API viva' });
+}
+
+// Devuelve en CSV (como los muestra el Sheet) SOLO las pestanas de esta lista, para que el dashboard no dependa de publicar el documento
+// completo en la web (publicado, cualquiera con el codigo podia bajar todas las pestanas, incluidas las que tienen nombres de clientas).
+var HOJAS_CSV_PERMITIDAS = ['Tracker', 'Ranking', 'Ads', 'Lecciones', 'Lecciones_Setters', 'Lecciones_Closers', 'Lecciones_Ventas'];
+function csvDeHoja(nombre) {
+  nombre = String(nombre || '');
+  if (HOJAS_CSV_PERMITIDAS.indexOf(nombre) === -1) throw new Error('Hoja no permitida');
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
+  if (!hoja) throw new Error('No existe la hoja ' + nombre);
+  var valores = hoja.getDataRange().getDisplayValues();
+  var ultFila = valores.length;
+  while (ultFila > 0 && valores[ultFila - 1].every(function (c) { return c === ''; })) ultFila--;
+  var ultCol = 0;
+  valores.forEach(function (f) { for (var c = f.length; c > ultCol; c--) { if (f[c - 1] !== '') { ultCol = c; break; } } });
+  var lineas = [];
+  for (var i = 0; i < ultFila; i++) {
+    lineas.push(valores[i].slice(0, ultCol).map(function (c) {
+      return /[",\r\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c;
+    }).join(','));
+  }
+  return ContentService.createTextOutput(lineas.join('\n')).setMimeType(ContentService.MimeType.TEXT);
 }
 
 // ---------------------------------------------------------------------------
