@@ -2232,6 +2232,57 @@ async function corregirPsicologa(env: Env): Promise<void> {
   await avisarThomas(env, `Sesiones con la psicóloga: moví ${movidas} tarjetas a su columna más avanzada (Por agendar / En sesiones).`).catch(() => undefined);
 }
 
+// ===== Sesiones con la psicóloga por número de sesión (30-oct, pedido de Gianie): las tarjetas que estaban en "En sesiones" (hoy "Sesión 2") pasan a
+// "Sesión 3" (o "Sesión 4" si existe) cuando en el pipeline viejo están en 3era (o 4ta) cita con Johanna. No toca otras columnas. Informa a Thomas solo con cifras. =====
+async function psicologaSesiones(env: Env): Promise<void> {
+  if (await env.ESTRATEGIAS.get("fulf:psico:sesiones:v1")) return;
+  const cab = { ...ghlHeaders(env), "Content-Type": "application/json" };
+  const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
+  if (!rp.ok) return;
+  const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+  const po = pipes.find((x) => x.name === "STEP HER UP - DELIVERY"), pd = pipes.find((x) => x.name === "Delivery · Sesiones con la psicóloga");
+  if (!pd) return;
+  const nfc = (t: string) => t.normalize("NFC");
+  const porNombre = new Map((pd.stages || []).map((e) => [nfc(e.name), e.id]));
+  const nomDe = new Map((pd.stages || []).map((e) => [e.id, nfc(e.name)]));
+  if (!porNombre.has("Sesión 2") || !porNombre.has("Sesión 3")) return;
+  if (!po) { await env.ESTRATEGIAS.put("fulf:psico:sesiones:v1", "1"); await avisarThomas(env, "No pude ubicar las sesiones de la psicóloga: ya no existe el pipeline viejo STEP HER UP - DELIVERY.").catch(() => undefined); return; }
+  const rango: Record<string, number> = { "Cita con Psicóloga": 1, "2da cita con Johanna": 2, "3era Cita con Johanna": 3, "4ta Cita con Johanna": 4 };
+  const etapaO = new Map((po.stages || []).map((e) => [e.id, nfc(e.name)]));
+  const rangoN = new Map(Object.entries(rango).map(([k, v]) => [nfc(k), v]));
+  const [ro, rd] = await Promise.all([
+    fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${po.id}&limit=100`, { headers: cab }),
+    fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pd.id}&limit=100`, { headers: cab }),
+  ]);
+  if (!ro.ok || !rd.ok) return;
+  const mejor = new Map<string, number>();
+  for (const o of ((await ro.json()) as any).opportunities || []) {
+    const r = rangoN.get(etapaO.get(o.pipelineStageId) || ""); const id = o.contactId || o.contact?.id;
+    if (r && id) mejor.set(id, Math.max(mejor.get(id) || 0, r));
+  }
+  const dist: Record<string, number> = {};
+  let movidas = 0, topadas = 0;
+  for (const o of ((await rd.json()) as any).opportunities || []) {
+    const id = o.contactId || o.contact?.id; let actual = nomDe.get(o.pipelineStageId) || "otra";
+    if (id && actual === "Sesión 2") {
+      const r = mejor.get(id) || 0;
+      const quiere = r >= 4 && porNombre.has("Sesión 4") ? "Sesión 4" : r >= 3 ? "Sesión 3" : "";
+      if (quiere) {
+        if (movidas >= 40) topadas++;
+        else {
+          const u = await fetch(`${GHL_BASE}/opportunities/${o.id}`, { method: "PUT", headers: cab, body: JSON.stringify({ pipelineStageId: porNombre.get(quiere) }) });
+          if (u.ok) { movidas++; actual = quiere; }
+        }
+      }
+    }
+    dist[actual] = (dist[actual] || 0) + 1;
+  }
+  if (!topadas) await env.ESTRATEGIAS.put("fulf:psico:sesiones:v1", "1");
+  const txt = Object.entries(dist).map(([k, v]) => `${k} ${v}`).join(", ");
+  await env.ESTRATEGIAS.put("fulf:psico:sesiones:out", JSON.stringify({ movidas, topadas, dist }));
+  await avisarThomas(env, `Sesiones con la psicóloga: moví ${movidas} tarjetas a su sesión${topadas ? ` (faltan ${topadas}, sigo en 10 min)` : ""}. Quedan: ${txt}.`).catch(() => undefined);
+}
+
 // ===== Recrear en "Fulfillment · Step Her Up" (Enviar contrato) a las alumnas de las listas privadas. Repetible: salta a quien ya tiene tarjeta.
 // Hasta 14 por ejecución (límite de 50 llamadas); cuando terminan todas, avisa a Thomas. =====
 async function recrearFulfillment(env: Env): Promise<void> {
@@ -3095,6 +3146,7 @@ export default {
     ctx.waitUntil(copiarEntrega(env).catch(() => undefined));
     ctx.waitUntil(webinarAFulfillment(env).catch(() => undefined));
     ctx.waitUntil(corregirPsicologa(env).catch(() => undefined));
+    ctx.waitUntil(psicologaSesiones(env).catch(() => undefined));
     ctx.waitUntil(recrearFulfillment(env).catch(() => undefined));
     ctx.waitUntil(altaFaltantes(env).catch(() => undefined));
     ctx.waitUntil(psicologaNuevas(env).catch(() => undefined));
