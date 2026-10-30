@@ -315,7 +315,38 @@ function filaPorEncabezado(h, valores) {
   return fila;
 }
 
+// Si ya hay una fila de ese dia y esa persona, le suma los numeros (la fila se va actualizando); si no, agrega una fila nueva.
+function sumarOAgregar(sheet, h, valores, colNombre, nombre, fecha) {
+  var fila = filaPorEncabezado(h, valores);
+  var cF = h.indexOf('fecha'), cN = h.indexOf(colNombre);
+  var objetivo = fechaDeCelda(fecha);
+  var ult = sheet.getLastRow();
+  if (cF > -1 && cN > -1 && objetivo && ult > 1) {
+    var datos = sheet.getRange(2, 1, ult - 1, h.length).getValues();
+    for (var i = datos.length - 1; i >= 0; i--) {
+      var f = fechaDeCelda(datos[i][cF]);
+      if (!f || f.d !== objetivo.d || f.m !== objetivo.m || f.a !== objetivo.a) continue;
+      if (String(datos[i][cN]).trim().toLowerCase() !== String(nombre).trim().toLowerCase()) continue;
+      var nuevos = datos[i].map(function (v, c) {
+        if (c === cF || c === cN || typeof fila[c] !== 'number') return v;
+        var antes = typeof v === 'number' ? v : (parseFloat(String(v).replace(/[^0-9.\-]/g, '')) || 0);
+        return antes + fila[c];
+      });
+      sheet.getRange(i + 2, 1, 1, h.length).setValues([nuevos]);
+      return;
+    }
+  }
+  sheet.appendRow(fila);
+}
+
+// El formulario de metricas puede mandar varias veces el mismo dia: se bloquea para que dos envios a la vez no se pisen.
 function addMetricas(body) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return addMetricasSinBloqueo(body); } finally { lock.releaseLock(); }
+}
+
+function addMetricasSinBloqueo(body) {
   var esCloser = body.rol === 'closer';
   var nombre = String(esCloser ? (body.closer || body.setter) : (body.setter || body.closer) || '').trim();
   if (!nombre) throw new Error('Falta el nombre');
@@ -325,7 +356,7 @@ function addMetricas(body) {
     var sheetC = encontrarPestana('closers');
     repararEncabezados(sheetC);
     var hC = asegurarColumnas(sheetC, ['Agendas', 'Shows', 'No shows', 'Cierres']);
-    sheetC.appendRow(filaPorEncabezado(hC, {
+    sumarOAgregar(sheetC, hC, {
       'fecha': fecha,
       'closer': nombre,
       'monto': cash,
@@ -333,12 +364,12 @@ function addMetricas(body) {
       'shows': Number(body.shows) || 0,
       'no shows|noshows|no show': Number(body.noShows) || 0,
       'cierres': Number(body.cierres) || 0,
-    }));
+    }, 'closer', nombre, fecha);
   } else {
     var sheet = encontrarPestana('tracker');
     repararEncabezados(sheet);
     var h = asegurarColumnas(sheet, ['No califica', 'No respondi\u00f3', 'No atendieron', 'Info por WhatsApp', 'Cortaron / colgaron', 'Llamar m\u00e1s tarde']);
-    sheet.appendRow(filaPorEncabezado(h, {
+    sumarOAgregar(sheet, h, {
       'fecha': fecha,
       'setter': nombre,
       'llamadas|leads': Number(body.llamadas) || 0,
@@ -352,9 +383,48 @@ function addMetricas(body) {
       'shows': Number(body.shows) || 0,
       'cierres': Number(body.cierres) || 0,
       'ventas': cash,
-    }));
+    }, 'setter', nombre, fecha);
   }
   return {};
+}
+
+// Menu "Step Her Up -> Unificar metricas por dia": junta en una sola fila las filas repetidas de la misma fecha y la misma persona
+// (suma los numeros) en las pestanas del tracker y del ranking. Pide confirmacion. Conviene duplicar la pestana antes (el historial de versiones tambien sirve).
+function unificarMetricasPorDia() {
+  var ui = SpreadsheetApp.getUi();
+  if (ui.alert('Unificar metricas', 'Se juntan en una fila las filas repetidas del mismo dia y la misma persona (se suman los numeros). Seguro?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  var resumen = [];
+  [['tracker', 'setter'], ['closers', 'closer']].forEach(function (par) {
+    var sheet = encontrarPestana(par[0]);
+    var h = encabezados(sheet);
+    var cF = h.indexOf('fecha'), cN = h.indexOf(par[1]);
+    var ult = sheet.getLastRow();
+    if (cF < 0 || cN < 0 || ult < 3) return;
+    var datos = sheet.getRange(2, 1, ult - 1, h.length).getValues();
+    var primera = {}, borrar = [];
+    for (var i = 0; i < datos.length; i++) {
+      var f = fechaDeCelda(datos[i][cF]);
+      var nombre = String(datos[i][cN]).trim().toLowerCase();
+      if (!f || !nombre) continue;
+      var clave = f.texto + '|' + nombre;
+      if (!(clave in primera)) { primera[clave] = i; continue; }
+      var base = datos[primera[clave]];
+      for (var c = 0; c < h.length; c++) {
+        if (c === cF || c === cN) continue;
+        var v = datos[i][c];
+        var n = typeof v === 'number' ? v : (v === '' ? null : parseFloat(String(v).replace(/[^0-9.\-]/g, '')));
+        if (n === null || isNaN(n)) continue;
+        var b = base[c];
+        var antes = typeof b === 'number' ? b : (parseFloat(String(b).replace(/[^0-9.\-]/g, '')) || 0);
+        base[c] = antes + n;
+      }
+      borrar.push(i);
+    }
+    Object.keys(primera).forEach(function (k) { sheet.getRange(primera[k] + 2, 1, 1, h.length).setValues([datos[primera[k]]]); });
+    for (var j = borrar.length - 1; j >= 0; j--) sheet.deleteRow(borrar[j] + 2);
+    resumen.push(sheet.getName() + ': ' + borrar.length + ' filas juntadas');
+  });
+  ui.alert('Listo', resumen.join('\n') || 'No habia nada para unificar.', ui.ButtonSet.OK);
 }
 
 // ===== Ordenar la hoja ===================================================
@@ -372,6 +442,7 @@ var COLOR_ROSA = '#e88aa8';
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Step Her Up')
     .addItem('Ordenar hoja ahora', 'ordenarHoja')
+    .addItem('Unificar metricas por dia', 'unificarMetricasPorDia')
     .addItem('Activar orden autom\u00e1tico', 'activarOrdenAutomatico')
     .addItem('Desactivar orden autom\u00e1tico', 'desactivarOrdenAutomatico')
     .addToUi();
