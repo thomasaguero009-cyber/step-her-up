@@ -2,6 +2,8 @@
 // Integration key como secret (nunca en el repo) y expone dos rutas simples
 // para que el front no tenga que hablar con GHL directamente.
 
+import { handleAsistente } from "./asistente";
+
 export interface Env {
   GHL_API_KEY: string;
   GHL_LOCATION_ID: string;
@@ -3234,6 +3236,17 @@ export default {
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    // Asistente de contenido para alumnas: acceso por token, con su propio manejo de CORS.
+    if (url.pathname.startsWith("/asistente/")) {
+      try {
+        return await handleAsistente(request, env);
+      } catch (err) {
+        return new Response(JSON.stringify({ ok: false, error: "unexpected", detail: String(err) }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
     const cors = corsHeaders(request.headers.get("Origin"), env);
 
     if (request.method === "OPTIONS") {
