@@ -2106,16 +2106,23 @@ async function diagGhlUnicaV9(env: Env): Promise<void> {
   await env.ESTRATEGIAS.put("diag:ghl:v9:out", lineas.join("\n"));
 }
 
-// Vencimiento automático de la entrega: a los 3 meses de empezar, lo que no llegó a "Done" pasa a "Vencido".
-// Empieza a contar desde KV `fulf:inicio:<id de la oportunidad>` (YYYY-MM-DD) y, si no existe, desde que se creó la oportunidad.
+// Vencimiento automático de la entrega: lo que no llegó a "Done" pasa a "Vencido" cuando se le acaba el acceso.
+// Duración por tarjeta (regla de Thomas, 2-nov-2026): compra antes del 1-oct-2026 = 12 meses; desde octubre = 6 meses; webinar = 3 meses
+// (las del webinar llevan KV `fulf:meses:<id>` = "3"; ese valor, si existe, manda sobre la regla).
+// Empieza a contar desde KV `fulf:inicio:<id de la oportunidad>` (YYYY-MM-DD) y, si no existe, desde que se creó la oportunidad. Solo tarjetas abiertas.
 const PIPELINES_ENTREGA = ["Fulfillment · Step Her Up", "Delivery · Sesiones con la psicóloga"];
+async function mesesDeAcceso(env: Env, opId: string, inicio: Date): Promise<number> {
+  const n = parseInt((await env.ESTRATEGIAS.get(`fulf:meses:${opId}`)) || "", 10);
+  if (n > 0) return n;
+  return inicio < new Date("2026-10-01T00:00:00Z") ? 12 : 6;
+}
 async function vencimientoDelivery(env: Env): Promise<void> {
   if ((await env.ESTRATEGIAS.get("fulf:vencimiento:on")) !== "1") return; // se activa a mano cuando las tarjetas ya tienen su fecha de inicio
   const cab = ghlHeaders(env);
   const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
   if (!rp.ok) return;
   const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
-  const limite = new Date(); limite.setMonth(limite.getMonth() - 3);
+  const ahora = new Date();
   const vencidas: string[] = [];
   let movidas = 0;
   for (const nombre of PIPELINES_ENTREGA) {
@@ -2128,15 +2135,18 @@ async function vencimientoDelivery(env: Env): Promise<void> {
     const ops: any[] = ((await r.json()) as any).opportunities || [];
     for (const op of ops) {
       if (movidas >= 20) break;
+      if (op.status !== "open") continue;
       if (op.pipelineStageId === done.id || op.pipelineStageId === venc.id) continue;
       const inicioKv = await env.ESTRATEGIAS.get(`fulf:inicio:${op.id}`);
       const inicio = new Date(inicioKv || op.createdAt || "");
-      if (isNaN(+inicio) || inicio > limite) continue;
+      if (isNaN(+inicio)) continue;
+      const fin = new Date(inicio); fin.setMonth(fin.getMonth() + (await mesesDeAcceso(env, op.id, inicio)));
+      if (fin > ahora) continue;
       const u = await fetch(`${GHL_BASE}/opportunities/${op.id}`, { method: "PUT", headers: { ...cab, "Content-Type": "application/json" }, body: JSON.stringify({ pipelineStageId: venc.id }) });
       if (u.ok) { movidas++; vencidas.push(`${op.name || op.contact?.name || op.id} (${nombre})`); }
     }
   }
-  if (vencidas.length) await avisarThomas(env, `Pasaron a Vencido (3 meses sin llegar a Done): ${vencidas.join(", ")}.`).catch(() => undefined);
+  if (vencidas.length) await avisarThomas(env, `Pasaron a Vencido (se les acabó el acceso sin llegar a Done): ${vencidas.join(", ")}.`).catch(() => undefined);
 }
 
 // Lectura única (solo lectura): nombre de cada alumna de las listas de alta, para pasarlas a la hoja de sesiones con la psicóloga.
@@ -2231,9 +2241,12 @@ async function copiarEntrega(env: Env): Promise<void> {
   }
 }
 
-// ===== Webinar → Fulfillment: cuando una tarjeta del pipeline del webinar llega a una etapa "Closed ...", se crea sola la de la alumna en
-// "Fulfillment · Step Her Up", en "Enviar contrato". Solo toma cierres posteriores a la activación (KV `fulf:webinar:desde`), no los viejos.
-// Repetible: si la persona ya tiene tarjeta en Fulfillment, no hace nada. No mueve ni borra nada del pipeline del webinar. =====
+// ===== Webinar → entrega: cuando una tarjeta del pipeline del webinar llega a una etapa "Closed ...", se crea sola la de la alumna según el producto:
+// "Closed $997" (SHU PROGRAM, Low ticket) → "Fulfillment · Step Her Up" / "Accesos (Skool y WhatsApp)", con acceso de 3 meses (KV `fulf:meses:<id>`);
+// "Closed Upsell" (premium, High ticket) → "Step Her Up 2.0- Delivery" / "Enviar Contrato".
+// En los dos casos también se crea su tarjeta en "Delivery · Sesiones con la psicóloga" / "Por agendar".
+// Solo toma cierres posteriores a la activación (KV `fulf:webinar:desde`), no los viejos. Repetible: si la persona ya tiene tarjeta en el pipeline de destino, no hace nada.
+// No mueve ni borra nada del pipeline del webinar. =====
 async function webinarAFulfillment(env: Env): Promise<void> {
   let desde = await env.ESTRATEGIAS.get("fulf:webinar:desde");
   if (!desde) { desde = new Date().toISOString(); await env.ESTRATEGIAS.put("fulf:webinar:desde", desde); return; }
@@ -2242,30 +2255,49 @@ async function webinarAFulfillment(env: Env): Promise<void> {
   if (!pw) return;
   const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: cab });
   if (!rp.ok) return;
-  const pf = (((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || []).find((x) => x.name === "Fulfillment · Step Her Up");
-  const etapa = pf?.stages?.find((e) => e.name === "Enviar contrato");
-  if (!pf || !etapa) return;
+  const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+  const pf = pipes.find((x) => x.name === "Fulfillment · Step Her Up");
+  const p2 = pipes.find((x) => x.name === "Step Her Up 2.0- Delivery");
+  const pp = pipes.find((x) => x.name === "Delivery · Sesiones con la psicóloga");
+  const etapaLow = pf?.stages?.find((e) => /^accesos/i.test(e.name.trim()));
+  const etapaHigh = p2?.stages?.find((e) => /^enviar contrato/i.test(e.name.trim()));
+  const etapaPsi = pp?.stages?.find((e) => e.name === "Por agendar");
+  if (!pf || !etapaLow || !p2 || !etapaHigh) return;
   const limite = Date.parse(desde);
   const nuevas: string[] = [];
-  let presupuesto = 8; // 50 subrequests por ejecución
+  let presupuesto = 7; // 50 subrequests por ejecución (cada alumna gasta hasta 4)
+  const crear = async (pipelineId: string, pipelineStageId: string, contactId: string, name: string): Promise<string | null> => {
+    const ya = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pipelineId}&contact_id=${contactId}`, { headers: cab });
+    if (!ya.ok || (((await ya.json()) as { opportunities?: unknown[] }).opportunities || []).length) return null;
+    const c = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId, locationId: env.GHL_LOCATION_ID, pipelineStageId, contactId, name, status: "open" }) });
+    if (!c.ok) return null;
+    return (((await c.json()) as any).opportunity || {}).id || null;
+  };
   for (const e of pw.etapas.filter((x) => /^closed/i.test(x.name.trim()))) {
+    const alto = /upsell/i.test(e.name);
     const res = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pw.id}&pipeline_stage_id=${e.id}&limit=100`, { headers: cab });
     if (!res.ok) continue;
     for (const o of ((await res.json()) as { opportunities?: any[] }).opportunities || []) {
       const cambio = Date.parse(o.lastStageChangeAt);
       const contactId = o.contactId || o.contact?.id;
       if (!cambio || cambio < limite || !contactId || presupuesto <= 0) continue;
-      const ya = await fetch(`${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${pf.id}&contact_id=${contactId}`, { headers: cab });
-      if (!ya.ok || (((await ya.json()) as { opportunities?: unknown[] }).opportunities || []).length) continue;
       presupuesto--;
-      const c = await fetch(`${GHL_BASE}/opportunities/`, { method: "POST", headers: cab, body: JSON.stringify({ pipelineId: pf.id, locationId: env.GHL_LOCATION_ID, pipelineStageId: etapa.id, contactId, name: o.name || o.contact?.name || "Alumna", status: "open" }) });
-      if (!c.ok) continue;
-      const nueva = ((await c.json()) as any).opportunity || {};
-      if (nueva.id) await env.ESTRATEGIAS.put(`fulf:inicio:${nueva.id}`, new Date(cambio).toISOString().slice(0, 10));
-      nuevas.push(o.name || o.contact?.name || "Alumna");
+      const nombre = o.name || o.contact?.name || "Alumna";
+      const id = await crear(alto ? p2.id : pf.id, alto ? etapaHigh.id : etapaLow.id, contactId, nombre);
+      if (!id) continue;
+      await env.ESTRATEGIAS.put(`fulf:inicio:${id}`, new Date(cambio).toISOString().slice(0, 10));
+      if (!alto) await env.ESTRATEGIAS.put(`fulf:meses:${id}`, "3");
+      if (pp && etapaPsi) {
+        const idp = await crear(pp.id, etapaPsi.id, contactId, nombre);
+        if (idp) {
+          await env.ESTRATEGIAS.put(`fulf:inicio:${idp}`, new Date(cambio).toISOString().slice(0, 10));
+          if (!alto) await env.ESTRATEGIAS.put(`fulf:meses:${idp}`, "3");
+        }
+      }
+      nuevas.push(`${nombre} (${alto ? "High ticket → 2.0 Delivery" : "Low ticket → Fulfillment"})`);
     }
   }
-  if (nuevas.length) await avisarThomas(env, `Nueva alumna del webinar pasó a Fulfillment (Enviar contrato): ${nuevas.join(", ")}.`).catch(() => undefined);
+  if (nuevas.length) await avisarThomas(env, `Nueva alumna del webinar en la entrega: ${nuevas.join(", ")}.`).catch(() => undefined);
 }
 
 // ===== Arreglo único: cada alumna del pipeline de sesiones queda en su columna más avanzada según el pipeline viejo. Solo mueve tarjetas
