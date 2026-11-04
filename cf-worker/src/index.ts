@@ -2511,6 +2511,167 @@ async function firmaStripeValida(payload: string, header: string, secreto: strin
   return v1.some((v) => igualesSeguro(v, hex));
 }
 
+// ===== Panel "Entrega" del dashboard: cada alumna con su estado en los 3 pipelines de entrega (solo lectura, no cambia nada en GHL).
+// Agrupa por contacto: High ticket (2.0-Delivery), Low ticket (Fulfillment) y psicóloga; cruza con los campos del contacto y con
+// el KV `fulf:cruce` (ventas de Gianie y hoja de Johanna ya leídas, el Worker no puede leer Google Sheets) y marca "No cuadra" cuando
+// las fuentes se contradicen. Vencimiento: campo fecha_de_vencimiento del contacto, o KV `fulf:inicio:<id>` / `fulf:meses:<id>`, o fecha
+// de creación + 12 meses antes de oct-2026 (6 después). Solo cuentan tarjetas open. =====
+const PIPELINES_PANEL = [
+  { nombre: "Step Her Up 2.0- Delivery", clave: "high" },
+  { nombre: "Fulfillment · Step Her Up", clave: "low" },
+  { nombre: "Delivery · Sesiones con la psicóloga", clave: "psicologa" },
+] as const;
+const CAMPO_VENCE = "zS8Xjq47rUK4C5Tpz5el";       // fecha_de_vencimiento
+const CAMPO_ESTRATEGIA = "pJ9PCw4QJ5fCLiG1qsAY";  // estrategia_entregada (Sí/No)
+const normalizarNombre = (t: string) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
+  const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+  if (!rp.ok) return json({ ok: false, error: "pipelines_failed" }, 502, cors);
+  const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
+  const hoy = new Date();
+  const alumnas = new Map<string, any>();
+  const resumen: { clave: string; nombre: string; etapas: { nombre: string; n: number }[] }[] = [];
+  const kvLeer = async (claves: string[]) => {
+    const kv = new Map<string, string | null>();
+    for (let i = 0; i < claves.length; i += 100) {
+      const parte = claves.slice(i, i + 100);
+      try { for (const [k, v] of (await (env.ESTRATEGIAS as any).get(parte)) as Map<string, string | null>) kv.set(k, v); } // lectura en bloque (1 sola operación)
+      catch { for (const k of parte) kv.set(k, await env.ESTRATEGIAS.get(k)); } // runtimes viejos (pruebas locales): de a una
+    }
+    return kv;
+  };
+  for (const def of PIPELINES_PANEL) {
+    const pipe = pipes.find((x) => x.name === def.nombre);
+    if (!pipe) continue;
+    const etapas = pipe.stages || [];
+    const ops = ((await traerOportunidadesDePipeline(env, pipe.id)) as any[]).filter((o) => o.status === "open");
+    const conteo = new Map<string, number>();
+    const kv = await kvLeer(ops.flatMap((o) => [`fulf:inicio:${o.id}`, `fulf:meses:${o.id}`]));
+    for (const o of ops) {
+      const etapa = etapas.find((e) => e.id === o.pipelineStageId)?.name || "?";
+      conteo.set(etapa, (conteo.get(etapa) || 0) + 1);
+      const cid: string = o.contactId || o.contact?.id || o.id;
+      const c = o.contact || {};
+      const a = alumnas.get(cid) || { contactId: cid, nombre: String(c.name || o.name || "Alumna").replace(/\b(.+?)\s+\1\b/i, "$1"), email: c.email || "", telefono: c.phone || "", etiquetas: c.tags || [], asignada: o.assignedTo || null, high: null, low: null, psicologa: null };
+      const inicio = new Date(kv.get(`fulf:inicio:${o.id}`) || o.createdAt || "");
+      const meses = parseInt(kv.get(`fulf:meses:${o.id}`) || "", 10) || (inicio < new Date("2026-10-01T00:00:00Z") ? 12 : 6);
+      const fin = new Date(inicio); fin.setMonth(fin.getMonth() + meses);
+      a[def.clave] = { oppId: o.id, etapa, inicio: isNaN(+inicio) ? null : inicio.toISOString().slice(0, 10), vence: isNaN(+fin) ? null : fin.toISOString().slice(0, 10), meses };
+      alumnas.set(cid, a);
+    }
+    resumen.push({ clave: def.clave, nombre: def.nombre, etapas: etapas.map((e) => ({ nombre: e.name, n: conteo.get(e.name) || 0 })) });
+  }
+
+  // Campos del contacto (vencimiento, estrategia entregada): una búsqueda por etiqueta de pipeline (100 por página); los que falten, de a uno.
+  const campos = new Map<string, Record<string, string>>();
+  const registrar = (c: any) => { const m: Record<string, string> = {}; for (const f of c.customFields || []) m[f.id] = String(f.value ?? ""); campos.set(c.id, m); };
+  for (const tag of ["step her up 2.0- delivery", "fulfillment · step her up", "delivery · sesiones con la psicóloga"]) {
+    for (let pagina = 1; pagina <= 5; pagina++) {
+      const r = await fetch(`${GHL_BASE}/contacts/search`, { method: "POST", headers: { ...ghlHeaders(env), "Content-Type": "application/json" }, body: JSON.stringify({ locationId: env.GHL_LOCATION_ID, pageLimit: 100, page: pagina, filters: [{ field: "tags", operator: "contains", value: [tag] }] }) });
+      if (!r.ok) break;
+      const lote = ((await r.json()) as { contacts?: any[] }).contacts || [];
+      lote.forEach(registrar);
+      if (lote.length < 100) break;
+    }
+  }
+  let sueltos = 0;
+  for (const id of alumnas.keys()) {
+    if (campos.has(id) || sueltos >= 12) continue;
+    sueltos++;
+    const r = await fetch(`${GHL_BASE}/contacts/${id}`, { headers: ghlHeaders(env) });
+    if (r.ok) registrar(((await r.json()) as { contact?: any }).contact || { id });
+  }
+
+  // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
+  let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
+  try { cruce = ((await env.ESTRATEGIAS.get("fulf:cruce", "json")) as typeof cruce) || {}; } catch { cruce = {}; }
+  const duplicados = new Map<string, string[]>();
+  for (const a of alumnas.values()) {
+    for (const k of [a.email && `e:${String(a.email).toLowerCase()}`, a.telefono && `t:${String(a.telefono).replace(/\D/g, "").slice(-10)}`, `n:${normalizarNombre(a.nombre)}`].filter(Boolean) as string[]) {
+      duplicados.set(k, [...(duplicados.get(k) || []), a.contactId]);
+    }
+  }
+  const dias = (iso: string | null) => (iso ? Math.ceil((+new Date(iso) - +hoy) / 86400000) : null);
+  const hecha = (x: any) => x && /^(done|vencido|vencio)$/i.test(x.etapa.trim());
+  const ordinal = (t: string) => (/^1/.test(t) ? 1 : /^2/.test(t) ? 2 : /^3/.test(t) ? 3 : /^4/.test(t) ? 4 : 0);
+
+  const lista = [...alumnas.values()].map((a) => {
+    const f = campos.get(a.contactId) || {};
+    const cr = cruce.porContacto?.[a.contactId] || null;
+    const et: string[] = (a.etiquetas || []).map((t: string) => t.toLowerCase());
+    const tipo = a.high ? "high" : a.low ? "low" : "solo_psicologa";
+    const principal = a.high || a.low;
+    const base = principal || a.psicologa;
+    const motivos: string[] = [];
+
+    // Llamadas 1:1: High 3, Low 1. Se cuentan por la columna donde está (estar en "2da llamada" = ya hizo 1) o por el campo del contacto si está cargado.
+    let llamadas: { hechas: number; total: number } | null = null;
+    if (a.high) {
+      const e = a.high.etapa.toLowerCase();
+      const n = /llamada/.test(e) ? ordinal(e) - 1 : /sesi[oó]n|vencio/.test(e) ? 3 : 0;
+      llamadas = { hechas: Math.max(0, n), total: 3 };
+    } else if (a.low) {
+      llamadas = { hechas: /^(estrategia|acompa|done|vencido)/i.test(a.low.etapa) ? 1 : 0, total: 1 };
+    }
+    // Sesiones con la psicóloga: "Sesión N" = ya hizo N. Total 4 en High o sola, 1 en Low.
+    let sesiones: { hechas: number; total: number } | null = null;
+    if (a.psicologa) {
+      const e = a.psicologa.etapa;
+      sesiones = { hechas: /^done/i.test(e) ? (a.low && !a.high ? 1 : 4) : /^sesi/i.test(e) ? ordinal(e.replace(/\D*/, "")) : 0, total: a.low && !a.high ? 1 : 4 };
+      if (/^vencido/i.test(e)) sesiones.hechas = cr?.johanna?.sesiones ?? 0;
+    }
+    const strategy = f[CAMPO_ESTRATEGIA] === "Sí" || et.includes("estrategia entregada");
+
+    // Vencimiento: el campo del contacto manda; si no está, el cálculo de la tarjeta.
+    const campoVence = f[CAMPO_VENCE] ? f[CAMPO_VENCE].slice(0, 10) : null;
+    const vence = campoVence || base?.vence || null;
+    const d = dias(vence);
+
+    // Estado (una sola etiqueta con esta prioridad).
+    const tarjetas = [a.high, a.low, a.psicologa].filter(Boolean);
+    const terminada = tarjetas.length > 0 && tarjetas.every(hecha);
+    const faltaAgendar = et.includes("llamada-1a1-pendiente") || (a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && !et.some((t) => /cita|sesi[oó]n \d/.test(t)));
+    const estado = terminada ? "terminada" : d != null && d < 0 ? "vencida" : d != null && d <= 30 ? "por_vencer" : faltaAgendar ? "falta_agendar" : "al_dia";
+
+    // Próximo paso, según la columna.
+    let proximo = "";
+    if (a.high) {
+      const e = a.high.etapa.toLowerCase();
+      proximo = /enviar/.test(e) ? "Enviar el contrato" : /firmar/.test(e) ? "Que firme el contrato" : /contrato firmado/.test(e) ? "Agendar la 1ra llamada 1:1" : /llamada/.test(e) ? `Llamada 1:1 n.º ${ordinal(e)}` : /sesi[oó]n/.test(e) ? "Sesión con la psicóloga" : "";
+    } else if (a.low) {
+      const e = a.low.etapa.toLowerCase();
+      proximo = /accesos/.test(e) ? "Dar accesos (Skool y WhatsApp)" : /llamada/.test(e) ? "Llamada de auditoría" : /estrategia/.test(e) ? "Seguimiento" : /acompa/.test(e) ? "Llamadas grupales" : "";
+    }
+    if (a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && (!proximo || /sesi/.test(proximo) || !a.high)) proximo = proximo || "Agendar sesión con la psicóloga";
+    if (terminada) proximo = "";
+
+    // No cuadra: las fuentes se contradicen.
+    const noCuadra: string[] = [];
+    if (cr?.johanna && a.psicologa && sesiones && cr.johanna.sesiones !== sesiones.hechas && !/^vencido/i.test(a.psicologa.etapa)) noCuadra.push(`Johanna dice ${cr.johanna.sesiones} sesión(es) hecha(s) y el CRM tiene ${sesiones.hechas} (columna "${a.psicologa.etapa}")`);
+    if (cr?.johanna && !a.psicologa && cr.johanna.sesiones > 0) noCuadra.push(`Johanna tiene ${cr.johanna.sesiones} sesión(es) y no hay tarjeta de psicóloga abierta`);
+    const accesoVigente = cr?.vence && cr.vence >= hoy.toISOString().slice(0, 10);
+    if (cr?.tier === "high" && !a.high && accesoVigente) noCuadra.push("Compró High ticket (ventas) y no tiene tarjeta en 2.0-Delivery");
+    if (cr?.tier === "low" && a.high && !a.low && accesoVigente) noCuadra.push("Compró Low ticket (ventas) y está en 2.0-Delivery");
+    if (cr?.venceOpc?.length && campoVence && !cr.venceOpc.some((x: string) => Math.abs(+new Date(x) - +new Date(campoVence)) <= 40 * 86400000)) noCuadra.push(`Vencimiento: ventas calcula ${cr.venceOpc.join(" o ")} y el CRM tiene ${campoVence}`);
+    if (cr?.pago && /deuda|contracargo|chargeback|reembolso/i.test(cr.pago)) noCuadra.push(`Pago: ${cr.pago}`);
+
+    const claveDup = [a.email && `e:${String(a.email).toLowerCase()}`, a.telefono && `t:${String(a.telefono).replace(/\D/g, "").slice(-10)}`, `n:${normalizarNombre(a.nombre)}`].filter(Boolean) as string[];
+    if (claveDup.some((k) => (duplicados.get(k) || []).length > 1)) motivos.push("Contacto duplicado");
+    if (a.high && a.low) motivos.push("Está en dos pipelines (High y Low)");
+    if (!a.email) motivos.push("Sin correo");
+    if (et.includes("por-revisar-columna")) motivos.push("Columna por revisar");
+    for (const n of noCuadra) motivos.push("No cuadra");
+    return {
+      contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, estado, vence, dias: d,
+      high: a.high, low: a.low, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
+      contrato: a.high ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
+      llamadaPendiente: et.includes("llamada-1a1-pendiente"), compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
+      johanna: cr?.johanna || null, noCuadra, revisar: [...new Set(motivos)], haySinCruce: !cr,
+    };
+  }).sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
+  return json({ ok: true, generado: hoy.toISOString(), cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [] }, 200, cors);
+}
+
 // POST /stripe-webhook. Stripe avisa cada pago ("checkout.session.completed"). Solo cuentan los links de la oferta
 // ($997 y la primera cuota de $397); cualquier otro monto se ignora.
 async function handleStripeWebhook(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
@@ -3291,6 +3452,10 @@ export default {
       }
       if (url.pathname === "/book" && request.method === "POST") {
         return await handleBook(request, env, cors);
+      }
+      if (url.pathname === "/entrega" && request.method === "GET") {
+        if (!env.SITE_KEY || !igualesSeguro(request.headers.get("X-Site-Key") || "", env.SITE_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
+        return await conCopiaReciente(env, ctx, "entrega", 120, () => handleEntrega(env, {}), cors);
       }
       if (url.pathname === "/leads-summary" && request.method === "GET") {
         return await conCopiaReciente(env, ctx, `summary:${url.searchParams.get("start")}:${url.searchParams.get("end")}`, 30, () => handleLeadsSummary(url, env, {}), cors);
