@@ -2543,8 +2543,35 @@ const CAMPO_VENCE = "zS8Xjq47rUK4C5Tpz5el";       // fecha_de_vencimiento
 const CAMPO_ESTRATEGIA = "pJ9PCw4QJ5fCLiG1qsAY";  // estrategia_entregada (Sí/No)
 const normalizarNombre = (t: string) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 let faseEntrega = "inicio";
+// Citas del calendario "Consulta 1:1" por contacto (solo lectura): sirven para saber qué llamadas 1:1 ya se hicieron y cuál está agendada.
+// La API limita el rango de cada consulta, así que se pide de a 31 días en paralelo (14 meses atrás, 4 adelante).
+async function cargarCitas(env: Env): Promise<Map<string, { inicio: number; estado: string }[]>> {
+  const porContacto = new Map<string, { inicio: number; estado: string }[]>();
+  const h = { headers: ghlHeaders(env) };
+  const rc = await fetch(`${GHL_BASE}/calendars/?locationId=${env.GHL_LOCATION_ID}`, h);
+  if (!rc.ok) return porContacto;
+  const cals = ((await rc.json()) as { calendars?: { id: string; name?: string }[] }).calendars || [];
+  const ahora = Date.now(), vistos = new Set<string>(), DIA = 86400000;
+  const ventanas: [number, number][] = [];
+  for (let d = -14 * 30; d < 4 * 30; d += 31) ventanas.push([ahora + d * DIA, ahora + (d + 31) * DIA]);
+  await Promise.all(cals.filter((c) => /consulta 1[:：]1/i.test(c.name || "")).flatMap((c) => ventanas.map(async ([ini, fin]) => {
+    const re = await fetch(`${GHL_BASE}/calendars/events?locationId=${env.GHL_LOCATION_ID}&calendarId=${c.id}&startTime=${Math.round(ini)}&endTime=${Math.round(fin)}`, h);
+    if (!re.ok) return;
+    for (const e of ((await re.json()) as { events?: any[] }).events || []) {
+      if (!e.contactId || (e.id && vistos.has(e.id))) continue;
+      if (e.id) vistos.add(e.id);
+      const txt = String(e.startTime || "");
+      const t = /[zZ]$|[+-]\d\d:?\d\d$/.test(txt) ? Date.parse(txt) : Date.parse(txt.replace(" ", "T") + "-04:00");   // sin zona = hora de Puerto Rico
+      if (isNaN(t)) continue;
+      porContacto.set(e.contactId, [...(porContacto.get(e.contactId) || []), { inicio: t, estado: String(e.appointmentStatus || e.status || "") }]);
+    }
+  })));
+  return porContacto;
+}
+
 async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
   faseEntrega = "pipelines";
+  const citasP = cargarCitas(env).catch(() => new Map<string, { inicio: number; estado: string }[]>());
   const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
   if (!rp.ok) return json({ ok: false, error: "pipelines_failed" }, 502, cors);
   const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
@@ -2607,6 +2634,8 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     if (r.ok) registrar(((await r.json()) as { contact?: any }).contact || { id });
   }));
 
+  faseEntrega = "citas";
+  const citas = await citasP;
   faseEntrega = "hojas";
   // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
   let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
@@ -2640,15 +2669,25 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     const base = principal || a.psicologa;
     const motivos: string[] = [];
 
+    // Citas del calendario "Consulta 1:1" desde la última compra (las anteriores son de la venta): hechas = ya pasaron y no se cancelaron.
+    const ahoraMs = hoy.getTime(), hoyISO = hoy.toISOString().slice(0, 10);
+    const desdeCompra = cr?.compras?.[0]?.fecha ? +new Date(cr.compras[0].fecha) - 86400000 : 0;
+    const ci = (citas.get(a.contactId) || []).filter((x) => x.inicio >= desdeCompra && !/cancel|no.?show|invalid/i.test(x.estado)).sort((p, q) => p.inicio - q.inicio);
+    const citasHechas = ci.filter((x) => x.inicio < ahoraMs).length;
+    const proxCita = ci.find((x) => x.inicio >= ahoraMs) || null;
+    const fechaCita = (ms: number) => new Date(ms).toLocaleString("es-PR", { timeZone: "America/Puerto_Rico", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
     // Llamadas 1:1: High 3, Low 1. Se cuentan por la columna donde está (estar en "2da llamada" = ya hizo 1) o por el campo del contacto si está cargado.
-    let llamadas: { hechas: number; total: number } | null = null;
+    let llamadas: { hechas: number; total: number; proxima?: string | null } | null = null;
     if (a.high) {
       const e = a.high.etapa.toLowerCase();
       const n = /llamada/.test(e) ? ordinal(e) - 1 : /sesi[oó]n|vencio/.test(e) ? 3 : 0;
       llamadas = { hechas: Math.max(0, n), total: 3 };
-    } else if (a.low) {
-      llamadas = { hechas: /^(estrategia|acompa|done|vencido)/i.test(a.low.etapa) ? 1 : 0, total: 1 };
     }
+    // Low ticket no tiene llamadas 1:1 ni estrategia; la del webinar (auditoría de Instagram) solo cuenta si está en el calendario, y se muestra aparte.
+    const auditoria = !a.high && a.low ? (citasHechas ? { hecha: true, fecha: new Date(ci.filter((x) => x.inicio < ahoraMs).pop()!.inicio).toISOString() } : proxCita ? { hecha: false, fecha: new Date(proxCita.inicio).toISOString() } : null) : null;
+    const hechasColumna = llamadas ? llamadas.hechas : 0;
+    if (llamadas) { llamadas.hechas = Math.min(llamadas.total, Math.max(hechasColumna, citasHechas)); llamadas.proxima = proxCita ? new Date(proxCita.inicio).toISOString() : null; }
     // Sesiones con la psicóloga: "Sesión N" = ya hizo N. Total 4 en High o sola, 1 en Low.
     let sesiones: { hechas: number; total: number } | null = null;
     if (a.psicologa) {
@@ -2666,7 +2705,16 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     // Estado (una sola etiqueta con esta prioridad).
     const tarjetas = [a.high, a.low, a.psicologa].filter(Boolean);
     const terminada = tarjetas.length > 0 && tarjetas.every(hecha);
-    const faltaAgendar = et.includes("llamada-1a1-pendiente") || (a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && !et.some((t) => /cita|sesi[oó]n \d/.test(t)));
+    // Falta agendar: la etiqueta de GHL, o le toca una llamada 1:1 y no tiene ninguna cita por delante (antes del contrato o de los accesos
+    // la tarea es del equipo, salvo las tarjetas con columna provisional), o la psicóloga está en "Por agendar" sin sesión futura en la hoja de Johanna.
+    const tareaDelEquipo = (a.high && /enviar|firmar/i.test(a.high.etapa)) || (a.low && !a.high && /accesos/i.test(a.low.etapa));
+    const llamadaPorAgendar = !!llamadas && llamadas.hechas < llamadas.total && !proxCita && (!tareaDelEquipo || et.includes("por-revisar-columna"));
+    const sesionFutura = (cr?.johanna?.fechas || []).some((x: string) => x >= hoyISO);
+    // Con fila en la hoja de Johanna manda la hoja (las etiquetas "cita con psicóloga" o "sesión N" quedan viejas); sin fila, las etiquetas.
+    const psicologaPorAgendar = !!a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && (cr?.johanna ? !sesionFutura : !et.some((t) => /cita|sesi[oó]n \d/.test(t)));
+    const etiquetaLlamada = et.includes("llamada-1a1-pendiente") && !(a.low && !a.high);   // Low ticket no tiene llamadas 1:1
+    const faltaAgendar = etiquetaLlamada || llamadaPorAgendar || psicologaPorAgendar;
+    const quePorAgendar = [etiquetaLlamada || llamadaPorAgendar ? "llamada 1:1" : "", psicologaPorAgendar ? "sesión con la psicóloga" : ""].filter(Boolean);
     const estado = terminada ? "terminada" : d != null && d < 0 ? "vencida" : d != null && d <= 30 ? "por_vencer" : faltaAgendar ? "falta_agendar" : "al_dia";
 
     // Próximo paso, según la columna.
@@ -2676,13 +2724,19 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       proximo = /enviar/.test(e) ? "Enviar el contrato" : /firmar/.test(e) ? "Que firme el contrato" : /contrato firmado/.test(e) ? "Agendar la 1ra llamada 1:1" : /llamada/.test(e) ? `Llamada 1:1 n.º ${ordinal(e)}` : /sesi[oó]n/.test(e) ? "Sesión con la psicóloga" : "";
     } else if (a.low) {
       const e = a.low.etapa.toLowerCase();
-      proximo = /accesos/.test(e) ? "Dar accesos (Skool y WhatsApp)" : /llamada/.test(e) ? "Llamada de auditoría" : /estrategia/.test(e) ? "Seguimiento" : /acompa/.test(e) ? "Llamadas grupales" : "";
+      proximo = /accesos/.test(e) ? "Dar accesos (Skool y WhatsApp)" : /^1ra llamada|diagn[oó]stico/.test(e) ? "Auditoría de Instagram" : /estrategia/.test(e) ? "Seguimiento" : /acompa/.test(e) ? "Llamadas grupales" : "";
     }
     if (a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && (!proximo || /sesi/.test(proximo) || !a.high)) proximo = proximo || "Agendar sesión con la psicóloga";
+    // Con las citas del calendario el próximo paso sale de lo que realmente pasó, no de la columna.
+    if (llamadas && !terminada && !tareaDelEquipo && llamadas.hechas < llamadas.total) {
+      proximo = `Llamada 1:1 n.º ${llamadas.hechas + 1}` + (proxCita ? ` · ${fechaCita(proxCita.inicio)}` : " · sin agendar");
+    }
+    if (a.low && !a.high && !terminada && /^1ra llamada|diagn[oó]stico/i.test(a.low.etapa)) proximo = auditoria?.hecha ? "Pasar a acompañamiento (llamadas grupales)" : auditoria ? `Auditoría de Instagram · ${fechaCita(+new Date(auditoria.fecha))}` : "";
     if (terminada) proximo = "";
 
     // No cuadra: las fuentes se contradicen.
     const noCuadra: string[] = [];
+    if (llamadas && Math.min(citasHechas, llamadas.total) > hechasColumna) noCuadra.push(`El calendario muestra ${Math.min(citasHechas, llamadas.total)} llamada(s) 1:1 hecha(s) y la tarjeta sigue en "${(a.high || a.low).etapa}"`);
     if (cr?.johanna && a.psicologa && sesiones && cr.johanna.sesiones !== sesiones.hechas && !/^vencido/i.test(a.psicologa.etapa)) noCuadra.push(`Johanna dice ${cr.johanna.sesiones} sesión(es) hecha(s) y el CRM tiene ${sesiones.hechas} (columna "${a.psicologa.etapa}")`);
     if (cr?.johanna && !a.psicologa && cr.johanna.sesiones > 0) noCuadra.push(`Johanna tiene ${cr.johanna.sesiones} sesión(es) y no hay tarjeta de psicóloga abierta`);
     const accesoVigente = cr?.vence && cr.vence >= hoy.toISOString().slice(0, 10);
@@ -2701,11 +2755,11 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d,
       high: a.high, low: a.low, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
       contrato: a.high ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
-      llamadaPendiente: et.includes("llamada-1a1-pendiente"), compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
+      llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
       johanna: cr?.johanna || null, noCuadra, revisar: [...new Set(motivos)], haySinCruce: !cr,
     };
   }).sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
-  return json({ ok: true, generado: hoy.toISOString(), cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [] }, 200, cors);
+  return json({ ok: true, generado: hoy.toISOString(), citasLeidas: citas.size, cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [] }, 200, cors);
 }
 
 // POST /stripe-webhook. Stripe avisa cada pago ("checkout.session.completed"). Solo cuentan los links de la oferta
