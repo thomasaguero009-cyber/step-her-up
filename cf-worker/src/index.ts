@@ -2540,13 +2540,19 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     }
     return kv;
   };
-  for (const def of PIPELINES_PANEL) {
+  // Los tres pipelines se piden en paralelo (en secuencia GHL tardaba casi un minuto).
+  const cargados = await Promise.all(PIPELINES_PANEL.map(async (def) => {
     const pipe = pipes.find((x) => x.name === def.nombre);
-    if (!pipe) continue;
-    const etapas = pipe.stages || [];
+    if (!pipe) return null;
     const ops = ((await traerOportunidadesDePipeline(env, pipe.id)) as any[]).filter((o) => o.status === "open");
-    const conteo = new Map<string, number>();
     const kv = await kvLeer(ops.flatMap((o) => [`fulf:inicio:${o.id}`, `fulf:meses:${o.id}`]));
+    return { def, pipe, ops, kv };
+  }));
+  for (const cargado of cargados) {
+    if (!cargado) continue;
+    const { def, pipe, ops, kv } = cargado;
+    const etapas = pipe.stages || [];
+    const conteo = new Map<string, number>();
     for (const o of ops) {
       const etapa = etapas.find((e) => e.id === o.pipelineStageId)?.name || "?";
       conteo.set(etapa, (conteo.get(etapa) || 0) + 1);
@@ -2565,7 +2571,7 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
   // Campos del contacto (vencimiento, estrategia entregada): una búsqueda por etiqueta de pipeline (100 por página); los que falten, de a uno.
   const campos = new Map<string, Record<string, string>>();
   const registrar = (c: any) => { const m: Record<string, string> = {}; for (const f of c.customFields || []) m[f.id] = String(f.value ?? ""); campos.set(c.id, m); };
-  for (const tag of ["step her up 2.0- delivery", "fulfillment · step her up", "delivery · sesiones con la psicóloga"]) {
+  await Promise.all(["step her up 2.0- delivery", "fulfillment · step her up", "delivery · sesiones con la psicóloga"].map(async (tag) => {
     for (let pagina = 1; pagina <= 5; pagina++) {
       const r = await fetch(`${GHL_BASE}/contacts/search`, { method: "POST", headers: { ...ghlHeaders(env), "Content-Type": "application/json" }, body: JSON.stringify({ locationId: env.GHL_LOCATION_ID, pageLimit: 100, page: pagina, filters: [{ field: "tags", operator: "contains", value: [tag] }] }) });
       if (!r.ok) break;
@@ -2573,14 +2579,11 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       lote.forEach(registrar);
       if (lote.length < 100) break;
     }
-  }
-  let sueltos = 0;
-  for (const id of alumnas.keys()) {
-    if (campos.has(id) || sueltos >= 12) continue;
-    sueltos++;
+  }));
+  await Promise.all([...alumnas.keys()].filter((id) => !campos.has(id)).slice(0, 12).map(async (id) => {
     const r = await fetch(`${GHL_BASE}/contacts/${id}`, { headers: ghlHeaders(env) });
     if (r.ok) registrar(((await r.json()) as { contact?: any }).contact || { id });
-  }
+  }));
 
   // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
   let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
