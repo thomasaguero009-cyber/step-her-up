@@ -2524,7 +2524,9 @@ const PIPELINES_PANEL = [
 const CAMPO_VENCE = "zS8Xjq47rUK4C5Tpz5el";       // fecha_de_vencimiento
 const CAMPO_ESTRATEGIA = "pJ9PCw4QJ5fCLiG1qsAY";  // estrategia_entregada (Sí/No)
 const normalizarNombre = (t: string) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+let faseEntrega = "inicio";
 async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
+  faseEntrega = "pipelines";
   const rp = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
   if (!rp.ok) return json({ ok: false, error: "pipelines_failed" }, 502, cors);
   const pipes = ((await rp.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string }[] }[] }).pipelines || [];
@@ -2540,6 +2542,7 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     }
     return kv;
   };
+  faseEntrega = "oportunidades";
   // Los tres pipelines se piden en paralelo (en secuencia GHL tardaba casi un minuto).
   const cargados = await Promise.all(PIPELINES_PANEL.map(async (def) => {
     const pipe = pipes.find((x) => x.name === def.nombre);
@@ -2568,6 +2571,7 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     resumen.push({ clave: def.clave, nombre: def.nombre, etapas: etapas.map((e) => ({ nombre: e.name, n: conteo.get(e.name) || 0 })) });
   }
 
+  faseEntrega = "contactos";
   // Campos del contacto (vencimiento, estrategia entregada): una búsqueda por etiqueta de pipeline (100 por página); los que falten, de a uno.
   const campos = new Map<string, Record<string, string>>();
   const registrar = (c: any) => { const m: Record<string, string> = {}; for (const f of c.customFields || []) m[f.id] = String(f.value ?? ""); campos.set(c.id, m); };
@@ -2585,6 +2589,7 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     if (r.ok) registrar(((await r.json()) as { contact?: any }).contact || { id });
   }));
 
+  faseEntrega = "hojas";
   // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
   let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
   try { cruce = ((await env.ESTRATEGIAS.get("fulf:cruce", "json")) as typeof cruce) || {}; } catch { cruce = {}; }
@@ -3458,7 +3463,10 @@ export default {
       }
       if (url.pathname === "/entrega" && request.method === "GET") {
         if (!env.SITE_KEY || !igualesSeguro(request.headers.get("X-Site-Key") || "", env.SITE_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
-        return await conCopiaReciente(env, ctx, "entrega", 120, () => handleEntrega(env, {}), cors);
+        return await conCopiaReciente(env, ctx, "entrega", 120, () => Promise.race([
+        handleEntrega(env, {}),
+        new Promise<Response>((res) => setTimeout(() => res(json({ ok: false, error: "timeout", fase: faseEntrega }, 504, {})), 45000)),
+      ]), cors);
       }
       if (url.pathname === "/leads-summary" && request.method === "GET") {
         return await conCopiaReciente(env, ctx, `summary:${url.searchParams.get("start")}:${url.searchParams.get("end")}`, 30, () => handleLeadsSummary(url, env, {}), cors);
