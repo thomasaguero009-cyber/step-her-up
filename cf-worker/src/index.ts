@@ -3,6 +3,7 @@
 // para que el front no tenga que hablar con GHL directamente.
 
 import { handleAsistente } from "./asistente";
+import { calcularCruce } from "./cruce";
 
 export interface Env {
   GHL_API_KEY: string;
@@ -15,6 +16,7 @@ export interface Env {
   AYUDA_KEY: string; // código del equipo para el buscador "¿En qué te puedo ayudar?"
   ADMIN_KEY: string;
   SITE_KEY: string; // contraseña de la plataforma (para los recursos privados)
+  HOJAS_KEY?: string; // clave del Apps Script que manda las hojas de ventas y de Johanna a POST /hojas (secret)
   STRIPE_WEBHOOK_SECRET?: string; // clave de firma del webhook de Stripe (whsec_...)
   OPENAI_MODEL: string;
   ESTRATEGIAS: KVNamespace; // ejemplos reales de estrategias (privados)
@@ -2511,6 +2513,22 @@ async function firmaStripeValida(payload: string, header: string, secreto: strin
   return v1.some((v) => igualesSeguro(v, hex));
 }
 
+// ===== POST /hojas: el Apps Script de Thomas lee la hoja de ventas de Gianie y la de Johanna (solo lectura) y manda las filas acá cada hora.
+// Se guardan crudas en el KV `fulf:hojas`; el panel Fulfillment las cruza con GHL al abrirse. Clave: header X-Hojas-Key (secret HOJAS_KEY). =====
+async function handleHojas(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.HOJAS_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
+  if (!igualesSeguro(request.headers.get("X-Hojas-Key") || "", env.HOJAS_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
+  let body: { ventas?: any[]; johanna?: any[] };
+  try { body = (await request.json()) as typeof body; } catch { return json({ ok: false, error: "json_invalido" }, 400, cors); }
+  const ventas = Array.isArray(body.ventas) ? body.ventas : [], johanna = Array.isArray(body.johanna) ? body.johanna : [];
+  // Si una lectura viene vacía (hoja renombrada o sin permiso) no pisa lo que ya había: mejor datos de ayer que ninguno.
+  if (ventas.length < 20 || johanna.length < 5) return json({ ok: false, error: "muy_pocas_filas", ventas: ventas.length, johanna: johanna.length }, 422, cors);
+  const limpio = (x: any) => Object.fromEntries(Object.entries(x).filter(([, v]) => typeof v === "string" || typeof v === "number" || Array.isArray(v)));
+  await env.ESTRATEGIAS.put("fulf:hojas", JSON.stringify({ generado: new Date().toISOString(), ventas: ventas.map(limpio), johanna: johanna.map(limpio) }));
+  await env.ESTRATEGIAS.delete("cache:ghl:entrega");
+  return json({ ok: true, ventas: ventas.length, johanna: johanna.length }, 200, cors);
+}
+
 // ===== Panel "Entrega" del dashboard: cada alumna con su estado en los 3 pipelines de entrega (solo lectura, no cambia nada en GHL).
 // Agrupa por contacto: High ticket (2.0-Delivery), Low ticket (Fulfillment) y psicóloga; cruza con los campos del contacto y con
 // el KV `fulf:cruce` (ventas de Gianie y hoja de Johanna ya leídas, el Worker no puede leer Google Sheets) y marca "No cuadra" cuando
@@ -2592,7 +2610,15 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
   faseEntrega = "hojas";
   // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
   let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
-  try { cruce = ((await env.ESTRATEGIAS.get("fulf:cruce", "json")) as typeof cruce) || {}; } catch { cruce = {}; }
+  try {
+    // Preferido: filas crudas que manda el Apps Script (POST /hojas), cruzadas acá con los contactos de GHL de este momento.
+    // Respaldo: cruce ya armado a mano (`fulf:cruce`).
+    const hojas = (await env.ESTRATEGIAS.get("fulf:hojas", "json")) as { generado?: string; ventas?: any[]; johanna?: any[] } | null;
+    if (hojas?.ventas?.length) {
+      const r = calcularCruce(hojas.ventas, hojas.johanna || [], [...alumnas.values()].map((a) => ({ id: a.contactId, nombre: a.nombre, email: a.email || "", telefono: a.telefono || "" })));
+      cruce = { generado: hojas.generado, porContacto: r.porContacto, sinTarjeta: r.sinTarjeta };
+    } else cruce = ((await env.ESTRATEGIAS.get("fulf:cruce", "json")) as typeof cruce) || {};
+  } catch { cruce = {}; }
   const duplicados = new Map<string, string[]>();
   for (const a of alumnas.values()) {
     for (const k of [a.email && `e:${String(a.email).toLowerCase()}`, a.telefono && `t:${String(a.telefono).replace(/\D/g, "").slice(-10)}`, `n:${normalizarNombre(a.nombre)}`].filter(Boolean) as string[]) {
@@ -2607,7 +2633,9 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     const f = campos.get(a.contactId) || {};
     const cr = cruce.porContacto?.[a.contactId] || null;
     const et: string[] = (a.etiquetas || []).map((t: string) => t.toLowerCase());
-    const tipo = a.high ? "high" : a.low ? "low" : "solo_psicologa";
+    // Oferta webinar (SHU PROGRAM): la última compra en ventas, o sin dato de ventas, una tarjeta con 3 meses de acceso. Cuenta como Low ticket.
+    const webinar = /shu program|shu mp/i.test(cr?.compras?.[0]?.producto || "") || (!cr?.compras?.length && (a.low?.meses === 3 || a.high?.meses === 3));
+    const tipo = webinar ? "low" : a.high ? "high" : a.low ? "low" : "solo_psicologa";
     const principal = a.high || a.low;
     const base = principal || a.psicologa;
     const motivos: string[] = [];
@@ -2670,7 +2698,7 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     if (et.includes("por-revisar-columna")) motivos.push("Columna por revisar");
     for (const n of noCuadra) motivos.push("No cuadra");
     return {
-      contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, estado, vence, dias: d,
+      contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d,
       high: a.high, low: a.low, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
       contrato: a.high ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
       llamadaPendiente: et.includes("llamada-1a1-pendiente"), compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
@@ -3460,6 +3488,9 @@ export default {
       }
       if (url.pathname === "/book" && request.method === "POST") {
         return await handleBook(request, env, cors);
+      }
+      if (url.pathname === "/hojas" && request.method === "POST") {
+        return await handleHojas(request, env, cors);
       }
       if (url.pathname === "/entrega" && request.method === "GET") {
         if (!env.SITE_KEY || !igualesSeguro(request.headers.get("X-Site-Key") || "", env.SITE_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
