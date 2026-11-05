@@ -2708,7 +2708,8 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     let sesiones: { hechas: number; total: number } | null = null;
     if (a.psicologa) {
       const e = a.psicologa.etapa;
-      sesiones = { hechas: /^done/i.test(e) ? (a.low && !a.high ? 1 : 4) : /^sesi/i.test(e) ? ordinal(e.replace(/\D*/, "")) : 0, total: a.low && !a.high ? 1 : 4 };
+      const unaSesion = (a.low || webinar) && !a.high;   // Low ticket y webinar: 1 sesión con la psicóloga (confirmado por Thomas)
+      sesiones = { hechas: /^done/i.test(e) ? (unaSesion ? 1 : 4) : /^sesi/i.test(e) ? ordinal(e.replace(/\D*/, "")) : 0, total: unaSesion ? 1 : 4 };
       if (/^vencido/i.test(e)) sesiones.hechas = cr?.johanna?.sesiones ?? 0;
     }
     const strategy = f[CAMPO_ESTRATEGIA] === "Sí" || et.includes("estrategia entregada");
