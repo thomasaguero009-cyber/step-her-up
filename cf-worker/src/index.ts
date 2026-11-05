@@ -2636,6 +2636,9 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
 
   faseEntrega = "citas";
   const citas = await citasP;
+  // Auditorías de Instagram marcadas a mano (la llamada no quedó en el calendario): KV `fulf:auditoria` = { contactId: "AAAA-MM-DD" o "" }.
+  let auditoriasManual: Record<string, string> = {};
+  try { auditoriasManual = ((await env.ESTRATEGIAS.get("fulf:auditoria", "json")) as Record<string, string>) || {}; } catch { auditoriasManual = {}; }
   faseEntrega = "hojas";
   // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
   let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
@@ -2685,7 +2688,8 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       llamadas = { hechas: Math.max(0, n), total: 3 };
     }
     // Low ticket no tiene llamadas 1:1 ni estrategia; la del webinar (auditoría de Instagram) solo cuenta si está en el calendario, y se muestra aparte.
-    const auditoria = !a.high && a.low ? (citasHechas ? { hecha: true, fecha: new Date(ci.filter((x) => x.inicio < ahoraMs).pop()!.inicio).toISOString() } : proxCita ? { hecha: false, fecha: new Date(proxCita.inicio).toISOString() } : null) : null;
+    const marcaManual = auditoriasManual[a.contactId] ?? (et.includes("auditoria-hecha") ? "" : undefined);   // o la etiqueta auditoria-hecha en GHL
+    const auditoria = !a.high && a.low ? (citasHechas ? { hecha: true, fecha: new Date(ci.filter((x) => x.inicio < ahoraMs).pop()!.inicio).toISOString() } : marcaManual !== undefined ? { hecha: true, fecha: marcaManual ? new Date(marcaManual).toISOString() : null } : proxCita ? { hecha: false, fecha: new Date(proxCita.inicio).toISOString() } : null) : null;
     const hechasColumna = llamadas ? llamadas.hechas : 0;
     if (llamadas) { llamadas.hechas = Math.min(llamadas.total, Math.max(hechasColumna, citasHechas)); llamadas.proxima = proxCita ? new Date(proxCita.inicio).toISOString() : null; }
     // Qué incluye el Low ticket según cuándo compró: desde septiembre 2026 Skool + grupo de WhatsApp + reuniones grupales; antes, solo Skool.
