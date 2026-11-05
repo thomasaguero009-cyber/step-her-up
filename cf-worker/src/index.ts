@@ -2529,6 +2529,30 @@ async function handleHojas(request: Request, env: Env, cors: HeadersInit): Promi
   return json({ ok: true, ventas: ventas.length, johanna: johanna.length }, 200, cors);
 }
 
+// ===== POST /skool: lista de miembros de Skool (solo lectura de Skool; la carga Thomas con la exportación o un Zap). Misma clave que /hojas (X-Hojas-Key).
+// Body: { miembros: [{ email, nombre, desde }] } reemplaza la lista entera; { miembro: { email, nombre, desde } } agrega o actualiza uno. Se guarda en el KV `fulf:skool`. =====
+async function handleSkool(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
+  if (!env.HOJAS_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
+  if (!igualesSeguro(request.headers.get("X-Hojas-Key") || "", env.HOJAS_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
+  let body: { miembros?: any[]; miembro?: any };
+  try { body = (await request.json()) as typeof body; } catch { return json({ ok: false, error: "json_invalido" }, 400, cors); }
+  const limpio = (m: any) => ({ email: String(m?.email || "").trim().toLowerCase(), nombre: String(m?.nombre || "").replace(/\s+/g, " ").trim(), desde: String(m?.desde || "").slice(0, 10) });
+  let actual: { miembros?: any[] } = {};
+  try { actual = ((await env.ESTRATEGIAS.get("fulf:skool", "json")) as typeof actual) || {}; } catch { actual = {}; }
+  let miembros: any[];
+  if (Array.isArray(body.miembros)) {
+    miembros = body.miembros.map(limpio).filter((m) => m.email || m.nombre);
+    if (miembros.length < 5) return json({ ok: false, error: "muy_pocos_miembros", miembros: miembros.length }, 422, cors);   // una lista casi vacía no pisa la anterior
+  } else if (body.miembro) {
+    const nuevo = limpio(body.miembro);
+    if (!nuevo.email && !nuevo.nombre) return json({ ok: false, error: "miembro_vacio" }, 400, cors);
+    miembros = [...(actual.miembros || []).filter((m) => !(nuevo.email && m.email === nuevo.email)), nuevo];
+  } else return json({ ok: false, error: "falta_miembros" }, 400, cors);
+  await env.ESTRATEGIAS.put("fulf:skool", JSON.stringify({ generado: new Date().toISOString(), miembros }));
+  await env.ESTRATEGIAS.delete("cache:ghl:entrega");
+  return json({ ok: true, miembros: miembros.length }, 200, cors);
+}
+
 // ===== Panel "Entrega" del dashboard: cada alumna con su estado en los 3 pipelines de entrega (solo lectura, no cambia nada en GHL).
 // Agrupa por contacto: High ticket (2.0-Delivery), Low ticket (Fulfillment) y psicóloga; cruza con los campos del contacto y con
 // el KV `fulf:cruce` (ventas de Gianie y hoja de Johanna ya leídas, el Worker no puede leer Google Sheets) y marca "No cuadra" cuando
@@ -2641,6 +2665,11 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
   // Auditorías de Instagram marcadas a mano (la llamada no quedó en el calendario): KV `fulf:auditoria` = { contactId: "AAAA-MM-DD" o "" }.
   let auditoriasManual: Record<string, string> = {};
   try { auditoriasManual = ((await env.ESTRATEGIAS.get("fulf:auditoria", "json")) as Record<string, string>) || {}; } catch { auditoriasManual = {}; }
+  // Miembros de Skool (KV `fulf:skool`): por correo, y si no, por nombre completo.
+  let skoolLista: { generado?: string; miembros?: { email: string; nombre: string; desde: string }[] } | null = null;
+  try { skoolLista = (await env.ESTRATEGIAS.get("fulf:skool", "json")) as typeof skoolLista; } catch { skoolLista = null; }
+  const skoolPorEmail = new Map((skoolLista?.miembros || []).filter((m) => m.email).map((m) => [m.email, m] as const));
+  const skoolPorNombre = new Map((skoolLista?.miembros || []).filter((m) => m.nombre).map((m) => [normalizarNombre(m.nombre), m] as const));
   faseEntrega = "hojas";
   // Ventas de Gianie y hoja de Johanna (ya cruzadas por correo, teléfono y nombre; se cargan aparte porque el Worker no lee Google Sheets).
   let cruce: { generado?: string; porContacto?: Record<string, any>; sinTarjeta?: any[] } = {};
@@ -2692,6 +2721,10 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       llamadas = { hechas: Math.max(0, n), total: 3 };
     }
     // Low ticket no tiene llamadas 1:1 ni estrategia; la del webinar (auditoría de Instagram) solo cuenta si está en el calendario, y se muestra aparte.
+    // Skool: tiene acceso si su correo (o, si no, su nombre completo) está en la lista de miembros. Sin lista cargada queda en null.
+    const skool = skoolLista?.miembros?.length && (a.high || a.low || a.anterior)
+      ? (() => { const porCorreo = a.email ? skoolPorEmail.get(String(a.email).toLowerCase()) : undefined, porNombre = porCorreo ? undefined : skoolPorNombre.get(normalizarNombre(a.nombre)); const mm = porCorreo || porNombre; return { tiene: !!mm, porNombre: !!porNombre, desde: mm?.desde || null }; })()
+      : null;
     const marcaManual = auditoriasManual[a.contactId] ?? (et.includes("auditoria-hecha") ? "" : undefined);   // o la etiqueta auditoria-hecha en GHL
     const auditoria = !a.high && a.low ? (citasHechas ? { hecha: true, fecha: new Date(ci.filter((x) => x.inicio < ahoraMs).pop()!.inicio).toISOString() } : marcaManual !== undefined ? { hecha: true, fecha: marcaManual ? new Date(marcaManual).toISOString() : null } : proxCita ? { hecha: false, fecha: new Date(proxCita.inicio).toISOString() } : null) : null;
     const hechasColumna = llamadas ? llamadas.hechas : 0;
@@ -2785,11 +2818,11 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d,
       high: columnaProvisional ? { ...a.high, etapa: "Por definir (columna provisional)" } : a.high, low: a.low, anterior: a.anterior, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
       contrato: a.high && !columnaProvisional ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
-      llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, acceso, oferta, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
+      llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, acceso, oferta, skool, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
       johanna: cr?.johanna || null, noCuadra, revisar: [...new Set(motivos)], haySinCruce: !cr,
     };
   }).sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
-  return json({ ok: true, generado: hoy.toISOString(), citasLeidas: citas.size, cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [] }, 200, cors);
+  return json({ ok: true, generado: hoy.toISOString(), citasLeidas: citas.size, skoolGenerado: skoolLista?.generado || null, cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [] }, 200, cors);
 }
 
 // POST /stripe-webhook. Stripe avisa cada pago ("checkout.session.completed"). Solo cuentan los links de la oferta
@@ -3572,6 +3605,9 @@ export default {
       }
       if (url.pathname === "/book" && request.method === "POST") {
         return await handleBook(request, env, cors);
+      }
+      if (url.pathname === "/skool" && request.method === "POST") {
+        return await handleSkool(request, env, cors);
       }
       if (url.pathname === "/hojas" && request.method === "POST") {
         return await handleHojas(request, env, cors);
