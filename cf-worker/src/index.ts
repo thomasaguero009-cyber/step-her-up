@@ -519,6 +519,7 @@ async function handleLeadsSummary(url: URL, env: Env, cors: HeadersInit): Promis
           const cambio = Date.parse(o.lastStageChangeAt);
           if (!cambio || cambio < start || cambio >= end) continue;
           const monto = o.monetaryValue || 0;
+          if (!(monto > 0)) continue;   // una tarjeta movida a "Closed" sin monto no es una venta cobrada (ej.: alumna de la oferta anterior movida por error)
           const atr = atribucionDeTags(o.contact?.tags);
           if (o.contact?.tags) conTags++; else sinTags++;
           (["src", "med", "camp", "cont"] as const).forEach((d) => sumar(d, atr[d], { ll: false, ag: false, sh: false, ci: true, monto }));
@@ -606,7 +607,7 @@ async function handleFunnelPorDia(url: URL, env: Env, cors: HeadersInit): Promis
         const lote = ((await res.json()) as { opportunities?: OpportunityGHL[] }).opportunities || [];
         for (const o of lote) {
           const cambio = Date.parse(o.lastStageChangeAt);
-          if (!cambio || cambio < start || cambio >= end) continue;
+          if (!cambio || cambio < start || cambio >= end || !(o.monetaryValue > 0)) continue;   // sin monto no cuenta como cierre
           const dia = diaPR.format(new Date(cambio));
           if (!dias[dia]) dias[dia] = { ...filaVacia(), porFuente: {} };
           const d = dias[dia] as any;
