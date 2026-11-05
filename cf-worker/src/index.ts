@@ -2743,6 +2743,9 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       else if (/acompa/i.test(a.low.etapa)) proximo = "Solo Skool (sin llamadas grupales)";
     }
     if (a.low && !a.high && !terminada && /^1ra llamada|diagn[oó]stico/i.test(a.low.etapa)) proximo = auditoria?.hecha ? "Pasar a acompañamiento (llamadas grupales)" : auditoria ? `Auditoría de Instagram · ${fechaCita(+new Date(auditoria.fecha))}` : "";
+    // Tarjetas de 2.0 creadas en "Enviar Contrato" solo como columna provisional: no se sabe si el contrato se envió, así que no se muestra como paso pendiente.
+    const columnaProvisional = !!a.high && et.includes("por-revisar-columna") && /enviar/i.test(a.high.etapa);
+    if (columnaProvisional && !terminada) proximo = "Confirmar en qué etapa está";
     if (terminada) proximo = "";
 
     // No cuadra: las fuentes se contradicen.
@@ -2764,8 +2767,8 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     for (const n of noCuadra) motivos.push("No cuadra");
     return {
       contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d,
-      high: a.high, low: a.low, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
-      contrato: a.high ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
+      high: columnaProvisional ? { ...a.high, etapa: "Por definir (columna provisional)" } : a.high, low: a.low, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
+      contrato: a.high && !columnaProvisional ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
       llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, acceso, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
       johanna: cr?.johanna || null, noCuadra, revisar: [...new Set(motivos)], haySinCruce: !cr,
     };
