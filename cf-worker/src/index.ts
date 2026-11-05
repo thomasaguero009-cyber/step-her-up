@@ -2688,6 +2688,9 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     const auditoria = !a.high && a.low ? (citasHechas ? { hecha: true, fecha: new Date(ci.filter((x) => x.inicio < ahoraMs).pop()!.inicio).toISOString() } : proxCita ? { hecha: false, fecha: new Date(proxCita.inicio).toISOString() } : null) : null;
     const hechasColumna = llamadas ? llamadas.hechas : 0;
     if (llamadas) { llamadas.hechas = Math.min(llamadas.total, Math.max(hechasColumna, citasHechas)); llamadas.proxima = proxCita ? new Date(proxCita.inicio).toISOString() : null; }
+    // Qué incluye el Low ticket según cuándo compró: desde septiembre 2026 Skool + grupo de WhatsApp + reuniones grupales; antes, solo Skool.
+    const fechaLow = !a.high && a.low ? cr?.compras?.[0]?.fecha || null : null;
+    const acceso = fechaLow ? (fechaLow >= "2026-09-01" ? { skool: true, whatsapp: true, grupales: true } : { skool: true, whatsapp: false, grupales: false }) : null;
     // Sesiones con la psicóloga: "Sesión N" = ya hizo N. Total 4 en High o sola, 1 en Low.
     let sesiones: { hechas: number; total: number } | null = null;
     if (a.psicologa) {
@@ -2731,6 +2734,10 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     if (llamadas && !terminada && !tareaDelEquipo && llamadas.hechas < llamadas.total) {
       proximo = `Llamada 1:1 n.º ${llamadas.hechas + 1}` + (proxCita ? ` · ${fechaCita(proxCita.inicio)}` : " · sin agendar");
     }
+    if (acceso && !acceso.whatsapp && !terminada) {
+      if (/accesos/i.test(a.low.etapa)) proximo = "Dar acceso a Skool";
+      else if (/acompa/i.test(a.low.etapa)) proximo = "Solo Skool (sin llamadas grupales)";
+    }
     if (a.low && !a.high && !terminada && /^1ra llamada|diagn[oó]stico/i.test(a.low.etapa)) proximo = auditoria?.hecha ? "Pasar a acompañamiento (llamadas grupales)" : auditoria ? `Auditoría de Instagram · ${fechaCita(+new Date(auditoria.fecha))}` : "";
     if (terminada) proximo = "";
 
@@ -2755,7 +2762,7 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d,
       high: a.high, low: a.low, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
       contrato: a.high ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
-      llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
+      llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, acceso, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
       johanna: cr?.johanna || null, noCuadra, revisar: [...new Set(motivos)], haySinCruce: !cr,
     };
   }).sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
