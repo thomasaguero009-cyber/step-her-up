@@ -3354,7 +3354,12 @@ async function yaPublicadoReciente(env: Env, clave: string, segundos = 90): Prom
 }
 
 // Anota que esta persona ya envió sus números por Métricas (así el recordatorio de Slack no se lo vuelve a pedir).
+// Marca "hubo un cambio en las métricas": el dashboard abierto lo consulta cada pocos segundos (GET /metricas-cambio) y se actualiza solo al instante.
+async function marcarCambioMetricas(env: Env): Promise<void> {
+  await env.ESTRATEGIAS.put("metricas:cambio", String(Date.now()), { expirationTtl: 7 * 86400 });
+}
 async function registrarEnvioMetricas(env: Env, nombre: string, cuando: number): Promise<void> {
+  await marcarCambioMetricas(env).catch(() => undefined);
   const dia = new Date(cuando - 4 * 3600 * 1000).toISOString().slice(0, 10);
   const clave = `metricas:enviado:${dia}:${nombre}`;
   let lista: number[] = [];
@@ -3510,6 +3515,7 @@ async function guardarMetricasAuto(env: Env, slot: "tarde" | "cierre" | "hora", 
       await env.ESTRATEGIAS.delete(claveB);
       await env.ESTRATEGIAS.put(`metricas:auto:${nombre}`, JSON.stringify({ ts: Date.now(), fecha: b.fecha, slot }), { expirationTtl: 3 * 86400 });
       guardados.push(nombre);
+      await marcarCambioMetricas(env).catch(() => undefined);
       const tot = await acumularDia(env, nombre, b.rol, b.fecha, v, b.closerCerro);
       if (publica && b.fecha === fechaHoyPR) { lineas.push(mensajeMetricas(nombre, b.rol, b.fecha, tot.valores, tot.closerCerro, "total del día")); conLinea.add(nombre); }
       if (b.fecha === fechaHoyPR) await registrarEnvioMetricas(env, nombre, cuando).catch(() => undefined);
@@ -3654,6 +3660,11 @@ export default {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
         const r = await fetch(`${GHL_BASE}/workflows/?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
         return json({ ok: r.ok, status: r.status, body: r.ok ? await r.json() : (await r.text()).slice(0, 300) }, 200, cors);
+      }
+      if (url.pathname === "/metricas-cambio" && request.method === "GET") {
+        const origen = request.headers.get("Origin") || "";
+        if (!env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).includes(origen)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
+        return json({ ok: true, t: Number((await env.ESTRATEGIAS.get("metricas:cambio")) || 0) }, 200, { ...cors, "Cache-Control": "no-store" });
       }
       if (url.pathname === "/metricas-borrador" && (request.method === "POST" || request.method === "GET")) {
         return await handleMetricasBorrador(request, url, env, cors);
