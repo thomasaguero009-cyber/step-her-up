@@ -100,6 +100,9 @@ export const ALIAS_VENC: Record<string, string> = {
   "kelymar melendez nieves": "Kellymar Meléndez", "lesly ann": "Lesly Serrano", "dra virnalis santiago pharmd": "Virnalís Santiago", "lelis lelis": "Lelis Sabatier",
   "sangelines": "Sangelinés Navedo García", "yeslian gisselle": "Yeslian Marrero Pagán", "mialexa": "Mialexa (Mia) Matos", "claryssa claryssa": "Claryssa Cartagena",
   "genesis j olmo gonzalez": "Génesis Olmo", "sole cruz": "Sole Cruz", "sol cruz": "Sole Cruz", "angela malespin entrenadora de perros": "Ángela Malespín Hernández",
+  // Probables (6-nov, vistos en el panel contra la hoja de Gianie): apodo o nombre corto de GHL = nombre completo de la hoja.
+  "claryssa": "Claryssa Cartagena", "gis ter gis": "Gisela Terrón", "kelymar melendez nieves kelymar melendez nieves": "Kellymar Meléndez", "lelis": "Lelis Sabatier",
+  "lemi rodriguez": "Lemishka D. Rodríguez Acevedo", "nei ramirez": "Neishlyann Ramírez", "sarai": "Sarai Incle", "symar arodz": "Jossymar Álamo",
   // Dudosos (no activados hasta que Gianie o Thomas confirmen): mari carmen = Mari Alvarado, sel = Selmarie, fabi = Fabiola Itzel Morales, marynel huertas = Marynel Maldonado, pao = Paola Irizarry.
 };
 const sinParentesis = (t: string) => t.replace(/\([^)]*\)/g, " ");
