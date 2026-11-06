@@ -18,10 +18,9 @@ function sincronizarHojas() {
   if (!clave) throw new Error('Falta la propiedad HOJAS_KEY (Configuración del proyecto > Propiedades del script).');
   var ventas = leerVentas_(SpreadsheetApp.openById(VENTAS_ID));
   var johanna = leerJohanna_(SpreadsheetApp.openById(JOHANNA_ID));
-  // La hoja de vencimientos es de Gianie: si esta cuenta todavía no tiene acceso, las otras hojas se sincronizan igual y queda el aviso en el registro.
-  var vencimientos = null;
-  try { vencimientos = leerVencimientos_(SpreadsheetApp.openById(VENCIMIENTOS_ID)); }
-  catch (e) { Logger.log('AVISO: no pude leer la hoja de vencimientos de Gianie (' + e.message + '). Pídele a Gianie que la comparta con la cuenta que corre este script.'); }
+  // Hoja de vencimientos de Gianie: primero el espejo del Tracker (pestañas "Vencimientos Gianie" y "Reglas Gianie", que se alimentan solas con IMPORTRANGE),
+  // y si no está, la hoja original. Si ninguna se puede abrir, las otras hojas se sincronizan igual y queda el aviso en el registro.
+  var vencimientos = leerVencimientosAuto_();
   var r = UrlFetchApp.fetch(WORKER_HOJAS_URL, {
     method: 'post', contentType: 'application/json', headers: { 'X-Hojas-Key': clave },
     payload: JSON.stringify({ ventas: ventas, johanna: johanna, vencimientos: vencimientos }), muteHttpExceptions: true
@@ -226,10 +225,29 @@ function fechaDMA_(t) {
   return m ? iso_(m[3], m[2], m[1]) : '';
 }
 
-function leerVencimientos_(ss) {
+var TRACKER_ID = '1kzrQbqmOAm2FD81_-KYm2LZkRgVlFVz2B7Xs02FjkPc';   // "Step Her Up - Tracker": aquí viven las pestañas espejo de la hoja de Gianie
+
+function leerVencimientosAuto_() {
+  var fuentes = [
+    { nombre: 'espejo en el Tracker', id: TRACKER_ID, reC: /^vencimientos gianie/, reR: /^reglas gianie/ },
+    { nombre: 'hoja original de Gianie', id: VENCIMIENTOS_ID, reC: /^clientas/, reR: /^reglas/ }
+  ];
+  var fallos = [];
+  for (var i = 0; i < fuentes.length; i++) {
+    try {
+      var v = leerVencimientos_(SpreadsheetApp.openById(fuentes[i].id), fuentes[i].reC, fuentes[i].reR);
+      if (v.clientas.length >= 20) { Logger.log('Vencimientos: ' + v.clientas.length + ' clientas leídas del ' + fuentes[i].nombre + '.'); return v; }
+      fallos.push(fuentes[i].nombre + ': solo ' + v.clientas.length + ' filas (¿falta permitir el acceso de IMPORTRANGE?)');
+    } catch (e) { fallos.push(fuentes[i].nombre + ': ' + e.message); }
+  }
+  Logger.log('AVISO: no pude leer los vencimientos de Gianie. ' + fallos.join(' | '));
+  return null;
+}
+
+function leerVencimientos_(ss, reC, reR) {
   var pestana = function (re) { return ss.getSheets().filter(function (s) { return re.test(sinTildes_(s.getName()).toLowerCase()); })[0]; };
-  var hojaC = pestana(/^clientas/), hojaR = pestana(/^reglas/);
-  if (!hojaC) throw new Error('No encuentro la pestaña Clientas en la hoja de vencimientos.');
+  var hojaC = pestana(reC || /^clientas/), hojaR = pestana(reR || /^reglas/);
+  if (!hojaC) throw new Error('No encuentro la pestaña de clientas en la hoja de vencimientos.');
   var v = hojaC.getDataRange().getDisplayValues();
   var cab = v[0].map(function (c) { return sinTildes_(c).toLowerCase().replace(/\s+/g, ' ').trim(); });
   var col = function (re) { for (var i = 0; i < cab.length; i++) if (re.test(cab[i])) return i; return -1; };
