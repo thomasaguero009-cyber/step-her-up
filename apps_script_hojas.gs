@@ -18,7 +18,10 @@ function sincronizarHojas() {
   if (!clave) throw new Error('Falta la propiedad HOJAS_KEY (Configuración del proyecto > Propiedades del script).');
   var ventas = leerVentas_(SpreadsheetApp.openById(VENTAS_ID));
   var johanna = leerJohanna_(SpreadsheetApp.openById(JOHANNA_ID));
-  var vencimientos = leerVencimientos_(SpreadsheetApp.openById(VENCIMIENTOS_ID));
+  // La hoja de vencimientos es de Gianie: si esta cuenta todavía no tiene acceso, las otras hojas se sincronizan igual y queda el aviso en el registro.
+  var vencimientos = null;
+  try { vencimientos = leerVencimientos_(SpreadsheetApp.openById(VENCIMIENTOS_ID)); }
+  catch (e) { Logger.log('AVISO: no pude leer la hoja de vencimientos de Gianie (' + e.message + '). Pídele a Gianie que la comparta con la cuenta que corre este script.'); }
   var r = UrlFetchApp.fetch(WORKER_HOJAS_URL, {
     method: 'post', contentType: 'application/json', headers: { 'X-Hojas-Key': clave },
     payload: JSON.stringify({ ventas: ventas, johanna: johanna, vencimientos: vencimientos }), muteHttpExceptions: true
