@@ -12,7 +12,7 @@
   // (class.stepherup.com/...?utm_source=...&utm_campaign=...): sin esto el
   // iframe no las ve y se pierde de qué anuncio vino cada lead.
   var frame = document.getElementById("shuFrame");
-  frame.src = "https://shu.stepherup.com/landing/" + window.location.search;
+  frame.src = "https://thomasaguero009-cyber.github.io/step-her-up/" + window.location.search;
   window.addEventListener("message", function (ev) {
     if (ev.data && ev.data.shuFrameHeight) {
       frame.style.height = ev.data.shuFrameHeight + "px";
