@@ -3368,6 +3368,33 @@ async function registrarEnvioMetricas(env: Env, nombre: string, cuando: number):
   await env.ESTRATEGIAS.put(clave, JSON.stringify(lista.slice(-20)), { expirationTtl: 2 * 86400 });
 }
 
+// ===== Traspaso del lead de la VSL (github.io, dentro de ClickFunnels) al formulario (shu.stepherup.com): son dominios distintos y el navegador
+// no comparte lo que la VSL guardó. La VSL deja aquí los datos y recibe un código corto; el link al formulario lleva SOLO ese código (nunca
+// nombre, correo ni teléfono en la dirección). El formulario canjea el código una sola vez y el dato se borra. Caduca a las 24 h. =====
+async function handleLeadPase(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
+  const origin = request.headers.get("Origin") || "";
+  if (!env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
+  const sinCache = { ...cors, "Cache-Control": "no-store" };
+  if (request.method === "POST") {
+    let b: any = {};
+    try { b = await request.json(); } catch { return json({ ok: false, error: "json" }, 400, sinCache); }
+    const t = (v: unknown, n = 200) => String(v ?? "").trim().slice(0, n);
+    const lead = { nombre: t(b.nombre), email: t(b.email).toLowerCase(), telefono: t(b.telefono, 40), utm_source: t(b.utm_source, 150), utm_medium: t(b.utm_medium, 150), utm_campaign: t(b.utm_campaign, 150), utm_content: t(b.utm_content, 150), fecha: t(b.fecha, 40) };
+    if (!lead.email && !lead.nombre) return json({ ok: false, error: "sin_datos" }, 400, sinCache);
+    const bytes = crypto.getRandomValues(new Uint8Array(18));
+    const codigo = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    await env.ESTRATEGIAS.put(`pase:${codigo}`, JSON.stringify(lead), { expirationTtl: 86400 });
+    return json({ ok: true, t: codigo }, 200, sinCache);
+  }
+  const codigo = url.searchParams.get("t") || "";
+  if (!/^[A-Za-z0-9_-]{16,40}$/.test(codigo)) return json({ ok: false, error: "codigo" }, 400, sinCache);
+  const crudo = await env.ESTRATEGIAS.get(`pase:${codigo}`);
+  if (!crudo) return json({ ok: false, error: "no_existe_o_ya_usado" }, 404, sinCache);
+  await env.ESTRATEGIAS.delete(`pase:${codigo}`);
+  let lead: unknown = {}; try { lead = JSON.parse(crudo); } catch { /* vacío */ }
+  return json({ ok: true, lead }, 200, sinCache);
+}
+
 async function handleMetricasBorrador(request: Request, url: URL, env: Env, cors: HeadersInit): Promise<Response> {
   const origin = request.headers.get("Origin") || "";
   if (!env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).includes(origin)) return json({ ok: false, error: "origen_no_permitido" }, 403, cors);
@@ -3660,6 +3687,9 @@ export default {
         if (!igualesSeguro(request.headers.get("X-Admin-Key") || "", env.ADMIN_KEY || "")) return json({ ok: false, error: "unauthorized" }, 401, cors);
         const r = await fetch(`${GHL_BASE}/workflows/?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
         return json({ ok: r.ok, status: r.status, body: r.ok ? await r.json() : (await r.text()).slice(0, 300) }, 200, cors);
+      }
+      if (url.pathname === "/lead-pase" && (request.method === "POST" || request.method === "GET")) {
+        return await handleLeadPase(request, url, env, cors);
       }
       if (url.pathname === "/metricas-cambio" && request.method === "GET") {
         const origen = request.headers.get("Origin") || "";

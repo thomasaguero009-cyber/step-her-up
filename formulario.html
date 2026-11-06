@@ -411,6 +411,24 @@
   // Mismo Workflow de GHL ("Inbound Webhook") que el gate del VSL — como
   // manda el mismo email/teléfono, GHL actualiza el contacto que ya se
   // había creado ahí, en vez de duplicarlo.
+  // Traspaso desde la VSL (otro dominio): el link trae SOLO un código (?t=…) y el Worker entrega los datos de la persona una única vez.
+  const WORKER_URL = "https://step-her-up-calendar.thomasaguero009.workers.dev";
+  const VSL_URL = "https://class.stepherup.com/step-her-up-c";
+  const leerLead = () => { try { return JSON.parse(localStorage.getItem("shu_vsl_lead")) || {}; } catch (e) { return {}; } };
+  const leadListo = (async () => {
+    const params = new URLSearchParams(location.search), codigo = params.get("t");
+    if (codigo) {
+      try {
+        const r = await fetch(WORKER_URL + "/lead-pase?t=" + encodeURIComponent(codigo));
+        const d = await r.json();
+        if (d && d.ok && d.lead) { try { localStorage.setItem("shu_vsl_lead", JSON.stringify(d.lead)); } catch (e) {} }
+      } catch (e) {}
+      params.delete("t");   // el código ya no sirve: se saca de la dirección
+      try { history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : "")); } catch (e) {}
+    }
+    const lead = leerLead();
+    if (!lead.email && !lead.nombre) window.location.href = VSL_URL;   // sin datos de la persona no se puede guardar nada en GHL: vuelve a la VSL
+  })();
   const GHL_WEBHOOK_URL = "https://services.leadconnectorhq.com/hooks/6cXs7Gwtzk0m50TZkWPg/webhook-trigger/0df4ac3d-a465-414c-98c2-f48607952e35";
   // UTMs guardadas por la landing (shu_utm) — por si el lead entró directo acá.
   function utmGuardadas() {
@@ -442,7 +460,8 @@
   // Manda el progreso a GHL después de CADA respuesta, no solo al
   // terminar — así, si alguien abandona el quiz a mitad de camino, lo que
   // ya contestó queda guardado igual (no se pierde por no llegar al final).
-  function sendProgressToGHL() {
+  function sendProgressToGHL() { return leadListo.then(enviarProgresoGHL); }
+  function enviarProgresoGHL() {
     let contacto = {};
     try {
       contacto = JSON.parse(localStorage.getItem("shu_vsl_lead")) || {};

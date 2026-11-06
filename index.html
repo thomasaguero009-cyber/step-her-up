@@ -954,7 +954,28 @@
   function actualizarBotonAplicar() {
     const u = getUTMs(), q = new URLSearchParams();
     Object.keys(u).forEach((k) => { if (u[k]) q.set(k, u[k]); });
-    if (q.toString()) applyBtn.href = "formulario.html?" + q.toString();
+    if (pase) {
+      // Formulario en shu.stepherup.com: la dirección lleva SOLO un código (los datos de la persona se los pasa el Worker).
+      q.set("t", pase);
+      applyBtn.href = FORM_SHU + "?" + q.toString();
+      applyBtn.target = "_top";
+    } else if (q.toString()) applyBtn.href = "formulario.html?" + q.toString();
+  }
+  // Traspaso del lead al formulario (otro dominio): se pide al desbloquear el botón. Si falla, el botón sigue yendo al formulario de aquí.
+  const FORM_SHU = "https://shu.stepherup.com/formulario/";
+  let pase = "", paseEnCurso = false;
+  async function prepararPase() {
+    if (pase || paseEnCurso) return;
+    paseEnCurso = true;
+    try {
+      const lead = JSON.parse(localStorage.getItem("shu_vsl_lead")) || {};
+      if (!lead.email && !lead.nombre) return;
+      const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(GEO_WORKER_URL + "/lead-pase", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(lead), signal: ctrl.signal });
+      clearTimeout(to);
+      const d = await r.json();
+      if (d && d.ok && d.t) { pase = d.t; actualizarBotonAplicar(); }
+    } catch (e) {} finally { paseEnCurso = false; }
   }
   actualizarBotonAplicar();
   const fill = document.getElementById("ctaFill");
@@ -974,6 +995,7 @@
     applyBtn.classList.remove("locked");
     applyBtn.removeAttribute("aria-disabled");
     applyBtn.classList.add("just-unlocked");
+    prepararPase();
   }
 
   vslVideo.addEventListener("timeupdate", () => {

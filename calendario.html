@@ -298,7 +298,7 @@
     let contacto = {};
     try { contacto = JSON.parse(localStorage.getItem("shu_application_lead")) || JSON.parse(localStorage.getItem("shu_vsl_lead")) || {}; } catch (e) {}
     if (!contacto.nombre && !contacto.email) {
-      window.location.href = "index.html";
+      window.location.href = "https://class.stepherup.com/step-her-up-c";
       return;
     }
     const nombreCompleto = (contacto.nombre || "").trim();
