@@ -91,7 +91,7 @@ export interface VencFila {
 }
 // Apodos de GHL -> nombre en la hoja de Gianie (clave: nombre del contacto normalizado). Se agregan acá los que aparezcan.
 export const ALIAS_VENC: Record<string, string> = {
-  "ginnny": "Ginny Narváez", "lia cosmeticchemist": "Liannette Villanueva", "anil": "Anill Méndez", "fabi": "Fabiola Itzel Morales",
+  "ginnny": "Ginny Narváez", "lia cosmeticchemist": "Liannette Villanueva", "anil": "Anill Méndez",
   "symar": "Jossymar Álamo", "nei": "Neishlyann Ramírez", "lemi": "Lemishka D. Rodríguez Acevedo", "amanda madrigal": "Dinia Miranda Redondo",
   "gis ter": "Gisela Terrón",
   // Confirmados por la sesión de Fulfillment (6-nov-2026), a partir de su cruce con GHL.
@@ -100,7 +100,7 @@ export const ALIAS_VENC: Record<string, string> = {
   "kelymar melendez nieves": "Kellymar Meléndez", "lesly ann": "Lesly Serrano", "dra virnalis santiago pharmd": "Virnalís Santiago", "lelis lelis": "Lelis Sabatier",
   "sangelines": "Sangelinés Navedo García", "yeslian gisselle": "Yeslian Marrero Pagán", "mialexa": "Mialexa (Mia) Matos", "claryssa claryssa": "Claryssa Cartagena",
   "genesis j olmo gonzalez": "Génesis Olmo", "sole cruz": "Sole Cruz", "sol cruz": "Sole Cruz", "angela malespin entrenadora de perros": "Ángela Malespín Hernández",
-  // Dudosos (no activados hasta que Gianie o Thomas confirmen): mari carmen = Mari Alvarado, sel = Selmarie, marynel huertas = Marynel Maldonado, pao = Paola Irizarry.
+  // Dudosos (no activados hasta que Gianie o Thomas confirmen): mari carmen = Mari Alvarado, sel = Selmarie, fabi = Fabiola Itzel Morales, marynel huertas = Marynel Maldonado, pao = Paola Irizarry.
 };
 const sinParentesis = (t: string) => t.replace(/\([^)]*\)/g, " ");
 
