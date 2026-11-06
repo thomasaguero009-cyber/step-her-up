@@ -3,7 +3,7 @@
 // para que el front no tenga que hablar con GHL directamente.
 
 import { handleAsistente } from "./asistente";
-import { calcularCruce } from "./cruce";
+import { calcularCruce, casarVencimientos, type VencFila } from "./cruce";
 
 export interface Env {
   GHL_API_KEY: string;
@@ -2519,15 +2519,18 @@ async function firmaStripeValida(payload: string, header: string, secreto: strin
 async function handleHojas(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   if (!env.HOJAS_KEY) return json({ ok: false, error: "not_configured" }, 503, cors);
   if (!igualesSeguro(request.headers.get("X-Hojas-Key") || "", env.HOJAS_KEY)) return json({ ok: false, error: "unauthorized" }, 401, cors);
-  let body: { ventas?: any[]; johanna?: any[] };
+  let body: { ventas?: any[]; johanna?: any[]; vencimientos?: { clientas?: any[]; reglas?: any[] } };
   try { body = (await request.json()) as typeof body; } catch { return json({ ok: false, error: "json_invalido" }, 400, cors); }
   const ventas = Array.isArray(body.ventas) ? body.ventas : [], johanna = Array.isArray(body.johanna) ? body.johanna : [];
   // Si una lectura viene vacía (hoja renombrada o sin permiso) no pisa lo que ya había: mejor datos de ayer que ninguno.
   if (ventas.length < 20 || johanna.length < 5) return json({ ok: false, error: "muy_pocas_filas", ventas: ventas.length, johanna: johanna.length }, 422, cors);
   const limpio = (x: any) => Object.fromEntries(Object.entries(x).filter(([, v]) => typeof v === "string" || typeof v === "number" || Array.isArray(v)));
   await env.ESTRATEGIAS.put("fulf:hojas", JSON.stringify({ generado: new Date().toISOString(), ventas: ventas.map(limpio), johanna: johanna.map(limpio) }));
+  // Hoja de vencimientos de Gianie (opcional en este envío). Si viene casi vacía no pisa la anterior.
+  const clientasV = Array.isArray(body.vencimientos?.clientas) ? body.vencimientos!.clientas!.map(limpio) : [];
+  if (clientasV.length >= 20) await env.ESTRATEGIAS.put("fulf:venc", JSON.stringify({ generado: new Date().toISOString(), clientas: clientasV, reglas: (body.vencimientos!.reglas || []).map(limpio) }));
   await env.ESTRATEGIAS.delete("cache:ghl:entrega");
-  return json({ ok: true, ventas: ventas.length, johanna: johanna.length }, 200, cors);
+  return json({ ok: true, ventas: ventas.length, johanna: johanna.length, vencimientos: clientasV.length }, 200, cors);
 }
 
 // ===== POST /skool: lista de miembros de Skool (solo lectura de Skool; la carga Thomas con la exportación o un Zap). Misma clave que /hojas (X-Hojas-Key).
@@ -2683,6 +2686,18 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
       cruce = { generado: hojas.generado, porContacto: r.porContacto, sinTarjeta: r.sinTarjeta };
     } else cruce = ((await env.ESTRATEGIAS.get("fulf:cruce", "json")) as typeof cruce) || {};
   } catch { cruce = {}; }
+  // Hoja de vencimientos (Gianie): los 4 plazos de cada clienta. Se cruza con los contactos por nombre (y apodos, ALIAS_VENC).
+  let vencHoja: { generado?: string; clientas?: VencFila[] } | null = null;
+  try { vencHoja = (await env.ESTRATEGIAS.get("fulf:venc", "json")) as typeof vencHoja; } catch { vencHoja = null; }
+  const vencPorContacto = vencHoja?.clientas?.length ? casarVencimientos(vencHoja.clientas, [...alumnas.values()].map((a) => ({ id: a.contactId, nombre: a.nombre, email: a.email || "" }))) : new Map<string, VencFila[]>();
+  const vencUsadas = new Set<VencFila>();
+  const hoyISO = hoy.toISOString().slice(0, 10);
+  // El estatus se recalcula con la fecha de hoy (la hoja lo calcula al leerla, que puede ser hasta una hora antes).
+  const estatusPlazo = (vence: string, texto: string) => {
+    if (!vence) return texto;
+    const dd = Math.ceil((+new Date(vence) - +new Date(hoyISO)) / 86400000);
+    return dd < 0 ? "Vencido" : dd <= 30 ? "Vence en 30 días o menos" : "Activo";
+  };
   const duplicados = new Map<string, string[]>();
   for (const a of alumnas.values()) {
     for (const k of [a.email && `e:${String(a.email).toLowerCase()}`, a.telefono && `t:${String(a.telefono).replace(/\D/g, "").slice(-10)}`, `n:${normalizarNombre(a.nombre)}`].filter(Boolean) as string[]) {
@@ -2750,7 +2765,19 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
 
     // Vencimiento: el campo del contacto manda; si no está, el cálculo de la tarjeta.
     const campoVence = f[CAMPO_VENCE] ? f[CAMPO_VENCE].slice(0, 10) : null;
-    const vence = campoVence || base?.vence || null;
+    // Hoja de Gianie: si hay dos filas (p. ej. premium y webinar), la que corresponde al tipo de alumna.
+    const filasV = vencPorContacto.get(a.contactId) || [];
+    const filaV = filasV.length > 1 ? (filasV.find((x) => (/^webinar/i.test(x.version) || /webinar/i.test(x.programa)) === !!webinar) || filasV[0]) : filasV[0] || null;
+    if (filaV) vencUsadas.add(filaV);
+    const venc = filaV ? {
+      programa: filaV.programa, version: filaV.version, inicio: filaV.inicio || null, grabado: filaV.grabado, contratoTexto: filaV.contrato, notas: filaV.notas,
+      plazos: [
+        { clave: "grupales", etiqueta: "Llamadas grupales", vence: filaV.grupVence || null, estatus: estatusPlazo(filaV.grupVence, filaV.grupEstatus) },
+        { clave: "uno", etiqueta: "3 llamadas 1:1", vence: filaV.unoVence || null, estatus: estatusPlazo(filaV.unoVence, filaV.unoEstatus) },
+        { clave: "psicologa", etiqueta: "Psicóloga", vence: filaV.psicoVence || null, estatus: estatusPlazo(filaV.psicoVence, filaV.psicoEstatus) },
+      ],
+    } : null;
+    const vence = venc?.plazos[0].vence || campoVence || base?.vence || null;
     const d = dias(vence);
 
     // Estado (una sola etiqueta con esta prioridad).
@@ -2805,7 +2832,8 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     const accesoVigente = cr?.vence && cr.vence >= hoy.toISOString().slice(0, 10);
     if (cr?.tier === "high" && !a.high && !a.anterior && accesoVigente) noCuadra.push("Compró High ticket (ventas) y no tiene tarjeta en 2.0-Delivery");
     if (cr?.tier === "low" && a.high && !a.low && accesoVigente) noCuadra.push("Compró Low ticket (ventas) y está en 2.0-Delivery");
-    if (cr?.venceOpc?.length && campoVence && !cr.venceOpc.some((x: string) => Math.abs(+new Date(x) - +new Date(campoVence)) <= 40 * 86400000)) noCuadra.push(`Vencimiento: ventas calcula ${cr.venceOpc.join(" o ")} y el CRM tiene ${campoVence}`);
+    if (venc?.plazos[0].vence && campoVence && Math.abs(+new Date(venc.plazos[0].vence) - +new Date(campoVence)) > 86400000) noCuadra.push(`Vencimiento de llamadas grupales: la hoja de Gianie dice ${venc.plazos[0].vence} y el CRM tiene ${campoVence}`);
+    else if (!venc && cr?.venceOpc?.length && campoVence && !cr.venceOpc.some((x: string) => Math.abs(+new Date(x) - +new Date(campoVence)) <= 40 * 86400000)) noCuadra.push(`Vencimiento: ventas calcula ${cr.venceOpc.join(" o ")} y el CRM tiene ${campoVence}`);
     if (cr?.pago && /deuda|contracargo|chargeback|reembolso/i.test(cr.pago)) noCuadra.push(`Pago: ${cr.pago}`);
 
     const claveDup = [a.email && `e:${String(a.email).toLowerCase()}`, a.telefono && `t:${String(a.telefono).replace(/\D/g, "").slice(-10)}`, `n:${normalizarNombre(a.nombre)}`].filter(Boolean) as string[];
@@ -2815,15 +2843,20 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     if (!a.email) motivos.push("Sin correo");
     if (et.includes("por-revisar-columna") && !a.anterior) motivos.push("Columna por revisar");
     for (const n of noCuadra) motivos.push("No cuadra");
+    // Contrato: manda la hoja de Gianie (sale de los contratos). Webinar y talleres no llevan contrato. Sin hoja, se deduce de la columna de 2.0.
+    const contratoColumna = a.high && !columnaProvisional ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null;
+    const sinContratoPorOferta = !!webinar || /^(webinar|talleres)/i.test(venc?.version || "");
+    const contratoFinal = venc && !sinContratoPorOferta && venc.contratoTexto ? (/^firmado/i.test(venc.contratoTexto) ? "firmado" : /^enviado/i.test(venc.contratoTexto) ? "enviado" : /^no encontr/i.test(venc.contratoTexto) ? "sin_contrato" : contratoColumna) : venc && sinContratoPorOferta ? null : contratoColumna;
     return {
-      contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d,
+      contactId: a.contactId, nombre: a.nombre, email: a.email, telefono: a.telefono, tipo, webinar, estado, vence, dias: d, venc,
       high: columnaProvisional ? { ...a.high, etapa: "Por definir (columna provisional)" } : a.high, low: a.low, anterior: a.anterior, psicologa: a.psicologa, llamadas, sesiones, estrategiaEntregada: strategy, proximoPaso: proximo,
-      contrato: a.high && !columnaProvisional ? (/enviar/i.test(a.high.etapa) ? "pendiente" : /firmar/i.test(a.high.etapa) ? "enviado" : "firmado") : null,
+      contrato: contratoFinal,
       llamadaPendiente: et.includes("llamada-1a1-pendiente"), porAgendar: quePorAgendar, auditoria, acceso, oferta, skool, citas1a1: { hechas: citasHechas, proxima: proxCita ? new Date(proxCita.inicio).toISOString() : null }, compras: cr?.compras || [], fechaCompra: cr?.compras?.[0]?.fecha || null, pago: cr?.pago || null, closer: cr?.closer || null,
       johanna: cr?.johanna || null, noCuadra, revisar: [...new Set(motivos)], haySinCruce: !cr,
     };
   }).sort((x, y) => x.nombre.localeCompare(y.nombre, "es"));
-  return json({ ok: true, generado: hoy.toISOString(), citasLeidas: citas.size, skoolGenerado: skoolLista?.generado || null, cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [] }, 200, cors);
+  return json({ ok: true, generado: hoy.toISOString(), citasLeidas: citas.size, skoolGenerado: skoolLista?.generado || null, cruceGenerado: cruce.generado || null, pipelines: resumen, alumnas: lista, sinTarjeta: cruce.sinTarjeta || [], vencGenerado: vencHoja?.generado || null,
+    sinCrm: (vencHoja?.clientas || []).filter((x) => !vencUsadas.has(x)).map((x) => ({ nombre: x.nombre, programa: x.programa, version: x.version })) }, 200, cors);
 }
 
 // POST /stripe-webhook. Stripe avisa cada pago ("checkout.session.completed"). Solo cuentan los links de la oferta

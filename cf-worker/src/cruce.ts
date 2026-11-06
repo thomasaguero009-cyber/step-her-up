@@ -82,3 +82,47 @@ export function calcularCruce(ventas: VentaFila[], johanna: JohannaFila[], conta
   const sinTarjeta = [...vistos.values()].map((r) => ({ nombre: r.nombre, producto: r.producto, fecha: r.fecha, correo: r.correo || "", telefono: r.telefono || "" }));
   return { generado: new Date().toISOString(), porContacto: out, sinTarjeta };
 }
+
+// ===== Hoja "Control de vencimientos – Clientas Step Her Up" (Gianie, sale de los contratos): una fila por clienta con sus 4 plazos. =====
+export interface VencFila {
+  nombre: string; programa: string; version: string; inicio: string;
+  grupVence: string; grupEstatus: string; unoVence: string; unoEstatus: string; psicoVence: string; psicoEstatus: string;
+  grabado: string; contrato: string; notas: string;
+}
+// Apodos de GHL -> nombre en la hoja de Gianie (clave: nombre del contacto normalizado). Se agregan acá los que aparezcan.
+export const ALIAS_VENC: Record<string, string> = {
+  "ginnny": "Ginny Narváez", "lia cosmeticchemist": "Liannette Villanueva", "anil": "Anill Méndez", "fabi": "Fabiola Itzel Morales",
+  "symar": "Jossymar Álamo", "nei": "Neishlyann Ramírez", "lemi": "Lemishka D. Rodríguez Acevedo", "amanda madrigal": "Dinia Miranda Redondo",
+  "gis ter": "Gisela Terrón",
+};
+const sinParentesis = (t: string) => t.replace(/\([^)]*\)/g, " ");
+
+// contactId -> filas de la hoja que le corresponden (puede haber 2: p. ej. "Chanayska Virella (premium enero)" y "(webinar)").
+export function casarVencimientos(filas: VencFila[], contactos: { id: string; nombre: string; email?: string }[], alias: Record<string, string> = ALIAS_VENC): Map<string, VencFila[]> {
+  const out = new Map<string, VencFila[]>();
+  const F = filas.map((f) => ({ f, t: toks(sinParentesis(f.nombre)), t2: toks(f.nombre.replace(/[()]/g, " ")) }));   // t2 = con el apodo entre paréntesis: "Mialexa (Mia) Matos"
+  const aliasN = new Map(Object.entries(alias).map(([k, v]) => [nn(k), nn(v)]));
+  const poner = (id: string, f: VencFila) => { const l = out.get(id) || []; if (!l.includes(f)) l.push(f); out.set(id, l); };
+  for (const c of contactos) {
+    const ct = toks(c.nombre), cn = ct.join(" ");
+    const via = aliasN.get(nn(c.nombre));
+    for (const { f, t, t2 } of F) {
+      const fn = t.join(" ");
+      if (via && fn === via) { poner(c.id, f); continue; }
+      if (!t.length) continue;
+      if (fn === cn) { poner(c.id, f); continue; }
+      if (t.length >= 2) {
+        const sb = new Set(ct);
+        const casa = (ta: string[]) => { const sa = new Set(ta); const comunes = [...sa].filter((x) => sb.has(x)).length; return comunes >= 2 && ([...sa].every((x) => sb.has(x)) || [...sb].every((x) => sa.has(x))); };
+        if (casa(t) || casa(t2)) poner(c.id, f);
+      }
+    }
+  }
+  // Filas con un solo nombre ("Beatriz", "Selmarie"): solo si UN contacto empieza con ese nombre y todavía no se casó con otra fila.
+  for (const { f, t } of F) {
+    if (t.length !== 1) continue;
+    const posibles = contactos.filter((c) => toks(c.nombre)[0] === t[0] && !(out.get(c.id) || []).length);
+    if (posibles.length === 1) poner(posibles[0].id, f);
+  }
+  return out;
+}

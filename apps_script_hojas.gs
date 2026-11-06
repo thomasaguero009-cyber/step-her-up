@@ -18,9 +18,10 @@ function sincronizarHojas() {
   if (!clave) throw new Error('Falta la propiedad HOJAS_KEY (Configuración del proyecto > Propiedades del script).');
   var ventas = leerVentas_(SpreadsheetApp.openById(VENTAS_ID));
   var johanna = leerJohanna_(SpreadsheetApp.openById(JOHANNA_ID));
+  var vencimientos = leerVencimientos_(SpreadsheetApp.openById(VENCIMIENTOS_ID));
   var r = UrlFetchApp.fetch(WORKER_HOJAS_URL, {
     method: 'post', contentType: 'application/json', headers: { 'X-Hojas-Key': clave },
-    payload: JSON.stringify({ ventas: ventas, johanna: johanna }), muteHttpExceptions: true
+    payload: JSON.stringify({ ventas: ventas, johanna: johanna, vencimientos: vencimientos }), muteHttpExceptions: true
   });
   Logger.log('Worker respondió ' + r.getResponseCode() + ': ' + r.getContentText());
   if (r.getResponseCode() !== 200) throw new Error('El Worker no aceptó las hojas: ' + r.getContentText());
@@ -209,4 +210,48 @@ function filasJohanna_(fechas, contactos, hojaVenta) {
     salida.push({ nombre: nombre, correo: c.correo || '', telefono: c.telefono || '', sesiones: fechasIso.length, fechas: fechasIso, nota: nota.replace(/[;,\s]+$/, '') });
   });
   return salida;
+}
+
+
+// ===== "Control de vencimientos – Clientas Step Her Up" (hoja de Gianie, solo lectura): sale de los contratos y trae, por clienta, los 4 plazos
+// (llamadas grupales, 3 llamadas 1:1, psicóloga y programa grabado) con su estatus, y si el contrato está firmado. El panel Fulfillment la usa
+// en lugar de calcular los plazos por su cuenta. Se lee con tu cuenta de Google (la misma que ya lee las otras hojas); no se escribe nada. =====
+var VENCIMIENTOS_ID = '1nyK5XAxcnfDZ2jckSgt72O1dL_Xv4qwpTaWV1SBJ4o4';
+
+function fechaDMA_(t) {
+  var m = String(t || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? iso_(m[3], m[2], m[1]) : '';
+}
+
+function leerVencimientos_(ss) {
+  var pestana = function (re) { return ss.getSheets().filter(function (s) { return re.test(sinTildes_(s.getName()).toLowerCase()); })[0]; };
+  var hojaC = pestana(/^clientas/), hojaR = pestana(/^reglas/);
+  if (!hojaC) throw new Error('No encuentro la pestaña Clientas en la hoja de vencimientos.');
+  var v = hojaC.getDataRange().getDisplayValues();
+  var cab = v[0].map(function (c) { return sinTildes_(c).toLowerCase().replace(/\s+/g, ' ').trim(); });
+  var col = function (re) { for (var i = 0; i < cab.length; i++) if (re.test(cab[i])) return i; return -1; };
+  var C = {
+    nombre: col(/^clienta/), programa: col(/^programa$/), version: col(/^version/), inicio: col(/^fecha de inicio/),
+    gVence: col(/^llamadas grupales: vencen/), gEst: col(/^grupales: estatus/), uVence: col(/^3 llamadas 1:1: vencen/), uEst: col(/^1:1: estatus/),
+    pVence: col(/^psicologa: vence/), pEst: col(/^psicologa: estatus/), grabado: col(/^programa grabado/), contrato: col(/^contrato firmado/), notas: col(/^notas/)
+  };
+  var g = function (f, k) { return C[k] >= 0 && f[C[k]] != null ? String(f[C[k]]).trim() : ''; };
+  var clientas = [];
+  for (var i = 1; i < v.length; i++) {
+    var f = v[i];
+    if (!g(f, 'nombre')) continue;
+    clientas.push({
+      nombre: g(f, 'nombre'), programa: g(f, 'programa'), version: g(f, 'version'), inicio: fechaDMA_(g(f, 'inicio')),
+      grupVence: fechaDMA_(g(f, 'gVence')), grupEstatus: g(f, 'gEst'), unoVence: fechaDMA_(g(f, 'uVence')), unoEstatus: g(f, 'uEst'),
+      psicoVence: fechaDMA_(g(f, 'pVence')), psicoEstatus: g(f, 'pEst'), grabado: g(f, 'grabado'), contrato: g(f, 'contrato'), notas: g(f, 'notas').slice(0, 300)
+    });
+  }
+  var reglas = [];
+  if (hojaR) {
+    var r = hojaR.getDataRange().getDisplayValues();
+    for (var j = 1; j < r.length && String(r[j][0] || '').trim(); j++) {
+      reglas.push({ version: r[j][0], grupales: r[j][1], uno: r[j][2], psicologa: r[j][3], grabado: r[j][4], texto: String(r[j][9] || '').slice(0, 400) });
+    }
+  }
+  return { clientas: clientas, reglas: reglas };
 }
