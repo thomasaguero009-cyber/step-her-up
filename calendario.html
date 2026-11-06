@@ -298,7 +298,19 @@
     let contacto = {};
     try { contacto = JSON.parse(localStorage.getItem("shu_application_lead")) || JSON.parse(localStorage.getItem("shu_vsl_lead")) || {}; } catch (e) {}
     if (!contacto.nombre && !contacto.email) {
-      window.location.href = "https://class.stepherup.com/step-her-up-c";
+      // Link compartido suelto: se piden los datos aquí y se vuelve a cargar con ellos.
+      root.innerHTML = '<div class="form-card" style="max-width:460px; margin:0 auto; text-align:left;"><h3>Antes de agendar</h3><p class="sub">Déjanos tus datos para reservar tu llamada.</p>'
+        + '<div class="field"><label for="cNombre">Nombre completo</label><input id="cNombre" type="text" autocomplete="name"></div>'
+        + '<div class="field"><label for="cEmail">Correo electrónico</label><input id="cEmail" type="email" autocomplete="email"></div>'
+        + '<div class="field"><label for="cTel">Teléfono (con código de país)</label><input id="cTel" type="tel" autocomplete="tel" placeholder="+1 787 555 0000"></div>'
+        + '<p id="cError" style="color:#ff8a8a; font-size:13px; display:none; margin:0 0 8px;"></p><button type="button" class="btn btn-solid" id="cBoton" style="width:100%; justify-content:center;">Continuar</button></div>';
+      document.getElementById("cBoton").addEventListener("click", () => {
+        const nombre = document.getElementById("cNombre").value.trim(), email = document.getElementById("cEmail").value.trim(), tel = document.getElementById("cTel").value.trim(), err = document.getElementById("cError");
+        const falla = nombre.length < 3 ? "Escribe tu nombre completo." : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? "Escribe un correo válido." : tel.replace(/\D/g, "").length < 8 ? "Escribe tu teléfono con el código de país." : "";
+        if (falla) { err.textContent = falla; err.style.display = "block"; return; }
+        try { localStorage.setItem("shu_vsl_lead", JSON.stringify({ nombre, email, telefono: tel, pagina: location.href, fecha: new Date().toISOString() })); } catch (e) {}
+        window.location.reload();
+      });
       return;
     }
     const nombreCompleto = (contacto.nombre || "").trim();

@@ -260,6 +260,16 @@
   <section class="section" style="padding:20px 0 60px;">
     <div class="wrap">
       <div class="form-card" style="max-width:560px; text-align:left;">
+        <div id="contactoCard" style="display:none;">
+          <h3>Antes de empezar</h3>
+          <p class="sub">Déjanos tus datos para guardar tus respuestas y agendar tu llamada.</p>
+          <div class="field"><label for="cNombre">Nombre completo</label><input id="cNombre" type="text" autocomplete="name"></div>
+          <div class="field"><label for="cEmail">Correo electrónico</label><input id="cEmail" type="email" autocomplete="email"></div>
+          <div class="field"><label for="cTel">Teléfono (con código de país)</label><input id="cTel" type="tel" autocomplete="tel" placeholder="+1 787 555 0000"></div>
+          <p id="cError" style="color:#ff8a8a; font-size:13px; display:none; margin:0 0 8px;"></p>
+          <button type="button" class="btn btn-solid" id="cBoton">Continuar</button>
+        </div>
+
         <div class="gate-progress" id="formProgress">
           <span class="active"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
         </div>
@@ -425,9 +435,28 @@
       params.delete("t");   // el código ya no sirve: se saca de la dirección
       try { history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : "")); } catch (e) {}
     }
+    // Link compartido suelto (sin pasar por la VSL): se piden nombre, correo y teléfono antes de las preguntas, para que todo quede en GHL.
     const lead = leerLead();
-    if (!lead.email && !lead.nombre) window.location.href = VSL_URL;   // sin datos de la persona no se puede guardar nada en GHL: vuelve a la VSL
+    if (!lead.email && !lead.nombre) await pedirContacto();
   })();
+  function pedirContacto() {
+    return new Promise((listo) => {
+      const card = document.getElementById("contactoCard"), progreso = document.getElementById("formProgress");
+      const pasos = document.querySelectorAll(".gate-step"), err = document.getElementById("cError");
+      const ocultar = (v) => { progreso.style.display = v ? "none" : ""; pasos.forEach((p) => { p.style.display = v ? "none" : ""; }); card.style.display = v ? "block" : "none"; };
+      ocultar(true);
+      document.getElementById("cBoton").addEventListener("click", () => {
+        const nombre = document.getElementById("cNombre").value.trim(), email = document.getElementById("cEmail").value.trim(), tel = document.getElementById("cTel").value.trim();
+        const falla = nombre.length < 3 ? "Escribe tu nombre completo." : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? "Escribe un correo válido." : tel.replace(/\D/g, "").length < 8 ? "Escribe tu teléfono con el código de país." : "";
+        if (falla) { err.textContent = falla; err.style.display = "block"; return; }
+        const u = utmGuardadas();
+        try { localStorage.setItem("shu_vsl_lead", JSON.stringify({ nombre, email, telefono: tel, ...u, pagina: location.href, fecha: new Date().toISOString() })); } catch (e) {}
+        sendToGHL({ first_name: nombre, full_name: nombre, email, phone: tel, ...u, pagina_origen: "formulario (link directo)", fecha: new Date().toISOString() });
+        ocultar(false);
+        listo();
+      });
+    });
+  }
   const GHL_WEBHOOK_URL = "https://services.leadconnectorhq.com/hooks/6cXs7Gwtzk0m50TZkWPg/webhook-trigger/0df4ac3d-a465-414c-98c2-f48607952e35";
   // UTMs guardadas por la landing (shu_utm) — por si el lead entró directo acá.
   function utmGuardadas() {
