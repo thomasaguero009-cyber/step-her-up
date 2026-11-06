@@ -8,6 +8,9 @@
 </div>
 <script>
 (function () {
+  // Ícono de la pestaña: esta página es de ClickFunnels y el iframe no puede cambiarlo, así que se pone desde aquí.
+  document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(function (l) { l.parentNode.removeChild(l); });
+  ["icon", "apple-touch-icon"].forEach(function (rel) { var l = document.createElement("link"); l.rel = rel; l.type = "image/png"; l.href = "https://shu.stepherup.com/favicon.png"; document.head.appendChild(l); });
   // Le pasa al funnel las UTMs del link por el que entró la persona
   // (class.stepherup.com/...?utm_source=...&utm_campaign=...): sin esto el
   // iframe no las ve y se pierde de qué anuncio vino cada lead.

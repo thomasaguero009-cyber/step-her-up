@@ -8,6 +8,9 @@
 </div>
 <script>
 (function () {
+  // Ícono de la pestaña: esta página es de ClickFunnels y el iframe no puede cambiarlo, así que se pone desde aquí.
+  document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(function (l) { l.parentNode.removeChild(l); });
+  ["icon", "apple-touch-icon"].forEach(function (rel) { var l = document.createElement("link"); l.rel = rel; l.type = "image/png"; l.href = "https://shu.stepherup.com/favicon.png"; document.head.appendChild(l); });
   var frame = document.getElementById("shuFrame");
   frame.src = "https://thomasaguero009-cyber.github.io/step-her-up/gracias.html" + window.location.search; // arrastra las UTMs del link
   window.addEventListener("message", function (ev) {
