@@ -10,7 +10,7 @@ export interface CruceContacto {
 }
 export interface CruceResultado { generado: string; porContacto: Record<string, CruceContacto>; sinTarjeta: any[] }
 
-const nn = (t: string) => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const nn = (t: string) => t.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const toks = (t: string) => { const h: string[] = []; for (const w of nn(t).split(" ").filter(Boolean)) if (!h.length || h[h.length - 1] !== w) h.push(w); return h; };
 const ph = (t?: string) => { const d = (t || "").replace(/\D/g, ""); return d.length >= 10 ? d.slice(-10) : ""; };
 const PRODUCTO_CLAVE = /premium|coaching|shu program|shu mp/i;
@@ -94,6 +94,13 @@ export const ALIAS_VENC: Record<string, string> = {
   "ginnny": "Ginny Narváez", "lia cosmeticchemist": "Liannette Villanueva", "anil": "Anill Méndez", "fabi": "Fabiola Itzel Morales",
   "symar": "Jossymar Álamo", "nei": "Neishlyann Ramírez", "lemi": "Lemishka D. Rodríguez Acevedo", "amanda madrigal": "Dinia Miranda Redondo",
   "gis ter": "Gisela Terrón",
+  // Confirmados por la sesión de Fulfillment (6-nov-2026), a partir de su cruce con GHL.
+  "lashes wax by julyanet": "Julyanet Aldea", "marycel rodriguez": "Marycel Cintrón", "vivi diaz": "Viviannette Díaz", "𝓥𝓲𝓿𝓲 𝓓𝓲́𝓪𝔃⛭": "Viviannette Díaz",
+  "yamilette santana": "Yamilet Santana", "juliana": "Juliana Hernández", "johanna": "Johana Ortiz", "chanayska otero": "Chanayska Virella",
+  "kelymar melendez nieves": "Kellymar Meléndez", "lesly ann": "Lesly Serrano", "dra virnalis santiago pharmd": "Virnalís Santiago", "lelis lelis": "Lelis Sabatier",
+  "sangelines": "Sangelinés Navedo García", "yeslian gisselle": "Yeslian Marrero Pagán", "mialexa": "Mialexa (Mia) Matos", "claryssa claryssa": "Claryssa Cartagena",
+  "genesis j olmo gonzalez": "Génesis Olmo", "sole cruz": "Sole Cruz", "sol cruz": "Sole Cruz", "angela malespin entrenadora de perros": "Ángela Malespín Hernández",
+  // Dudosos (no activados hasta que Gianie o Thomas confirmen): mari carmen = Mari Alvarado, sel = Selmarie, marynel huertas = Marynel Maldonado, pao = Paola Irizarry.
 };
 const sinParentesis = (t: string) => t.replace(/\([^)]*\)/g, " ");
 
@@ -108,7 +115,7 @@ export function casarVencimientos(filas: VencFila[], contactos: { id: string; no
     const via = aliasN.get(nn(c.nombre));
     for (const { f, t, t2 } of F) {
       const fn = t.join(" ");
-      if (via && fn === via) { poner(c.id, f); continue; }
+      if (via && (fn === via || t2.join(" ") === via)) { poner(c.id, f); continue; }
       if (!t.length) continue;
       if (fn === cn) { poner(c.id, f); continue; }
       if (t.length >= 2) {
