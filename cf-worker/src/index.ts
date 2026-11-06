@@ -2786,11 +2786,15 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     // Falta agendar: la etiqueta de GHL, o le toca una llamada 1:1 y no tiene ninguna cita por delante (antes del contrato o de los accesos
     // la tarea es del equipo, salvo las tarjetas con columna provisional), o la psicóloga está en "Por agendar" sin sesión futura en la hoja de Johanna.
     const tareaDelEquipo = (a.high && /enviar|firmar/i.test(a.high.etapa)) || (a.low && !a.high && /accesos/i.test(a.low.etapa));
-    const llamadaPorAgendar = !!llamadas && llamadas.hechas < llamadas.total && !proxCita && (!tareaDelEquipo || et.includes("por-revisar-columna"));
+    // Lo que incluye cada oferta lo dice la hoja de Gianie (plazos por contrato): sin ese plazo activo no hay nada que agendar.
+    const plazoDe = (k: string) => venc?.plazos.find((x) => x.clave === k)?.estatus || "";
+    const unoIncluido = !venc || /^(activo|vence en 30)/i.test(plazoDe("uno"));
+    const psicoIncluida = !venc || !/^(no incluye|vencido)/i.test(plazoDe("psicologa"));
+    const llamadaPorAgendar = unoIncluido && !!llamadas && llamadas.hechas < llamadas.total && !proxCita && (!tareaDelEquipo || et.includes("por-revisar-columna"));
     const sesionFutura = (cr?.johanna?.fechas || []).some((x: string) => x >= hoyISO);
     // Con fila en la hoja de Johanna manda la hoja (las etiquetas "cita con psicóloga" o "sesión N" quedan viejas); sin fila, las etiquetas.
-    const psicologaPorAgendar = !!a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && (cr?.johanna ? !sesionFutura : !et.some((t) => /cita|sesi[oó]n \d/.test(t)));
-    const etiquetaLlamada = et.includes("llamada-1a1-pendiente") && !(a.low && !a.high);   // Low ticket no tiene llamadas 1:1
+    const psicologaPorAgendar = psicoIncluida && !!a.psicologa && /^por agendar/i.test(a.psicologa.etapa) && (cr?.johanna ? !sesionFutura : !et.some((t) => /cita|sesi[oó]n \d/.test(t)));
+    const etiquetaLlamada = unoIncluido && et.includes("llamada-1a1-pendiente") && !(a.low && !a.high);   // Low ticket no tiene llamadas 1:1
     const faltaAgendar = etiquetaLlamada || llamadaPorAgendar || psicologaPorAgendar;
     const quePorAgendar = [etiquetaLlamada || llamadaPorAgendar ? "llamada 1:1" : "", psicologaPorAgendar ? "sesión con la psicóloga" : ""].filter(Boolean);
     const estado = terminada ? "terminada" : d != null && d < 0 ? "vencida" : d != null && d <= 30 ? "por_vencer" : faltaAgendar ? "falta_agendar" : "al_dia";
@@ -2832,6 +2836,8 @@ async function handleEntrega(env: Env, cors: HeadersInit): Promise<Response> {
     const accesoVigente = cr?.vence && cr.vence >= hoy.toISOString().slice(0, 10);
     if (cr?.tier === "high" && !a.high && !a.anterior && accesoVigente) noCuadra.push("Compró High ticket (ventas) y no tiene tarjeta en 2.0-Delivery");
     if (cr?.tier === "low" && a.high && !a.low && accesoVigente) noCuadra.push("Compró Low ticket (ventas) y está en 2.0-Delivery");
+    if (venc && a.psicologa && /^no incluye/i.test(plazoDe("psicologa")) && !/^(done|vencido)/i.test(a.psicologa.etapa)) noCuadra.push(`Tiene tarjeta de psicóloga en "${a.psicologa.etapa}" y su oferta (${venc.version || venc.programa}) no incluye psicóloga según la hoja de Gianie`);
+    if (venc && /^(plazo en blanco|sin contrato)/i.test(plazoDe("uno"))) motivos.push("Plazo de las llamadas 1:1 sin confirmar en el contrato");
     if (venc?.plazos[0].vence && campoVence && Math.abs(+new Date(venc.plazos[0].vence) - +new Date(campoVence)) > 86400000) noCuadra.push(`Vencimiento de llamadas grupales: la hoja de Gianie dice ${venc.plazos[0].vence} y el CRM tiene ${campoVence}`);
     else if (!venc && cr?.venceOpc?.length && campoVence && !cr.venceOpc.some((x: string) => Math.abs(+new Date(x) - +new Date(campoVence)) <= 40 * 86400000)) noCuadra.push(`Vencimiento: ventas calcula ${cr.venceOpc.join(" o ")} y el CRM tiene ${campoVence}`);
     if (cr?.pago && /deuda|contracargo|chargeback|reembolso/i.test(cr.pago)) noCuadra.push(`Pago: ${cr.pago}`);
