@@ -405,6 +405,7 @@
     stepIndex = i;
     formSteps.forEach((step, idx) => step.classList.toggle("active", idx === i));
     formProgressDots.forEach((dot, idx) => dot.classList.toggle("active", idx <= i));
+    if (i > 0) { try { document.body.scrollIntoView(); } catch (e) {} }   // dentro del iframe de ClickFunnels, sube la página al cambiar de pregunta
   }
 
   // Mismo Workflow de GHL ("Inbound Webhook") que el gate del VSL — como
@@ -479,7 +480,7 @@
     } catch (e) {}
     const q = new URLSearchParams(), u = utmGuardadas();
     Object.keys(u).forEach((k) => { if (u[k]) q.set(k, u[k]); });
-    window.top.location.href = "calendario.html" + (q.toString() ? "?" + q.toString() : "");
+    window.location.href = "calendario.html" + (q.toString() ? "?" + q.toString() : "");
   }
 
   function recordAndAdvance(question, questionText, label) {
@@ -558,6 +559,7 @@
     window.parent.postMessage({ shuFrameHeight: document.documentElement.scrollHeight }, "*");
   }
   window.addEventListener("load", reportHeight);
+  window.addEventListener("load", function () { if (window.parent !== window) { try { document.body.scrollIntoView(); } catch (e) {} } });   // al llegar desde otra página del iframe, arranca arriba
   window.addEventListener("resize", reportHeight);
   new ResizeObserver(reportHeight).observe(document.body);
 })();
