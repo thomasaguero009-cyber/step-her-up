@@ -252,8 +252,8 @@
     </header>
   <section class="hero" style="padding:40px 0 10px;">
     <div class="wrap" style="max-width:760px; text-align:center;">
-      <h1 style="font-size:32px;">Contanos un poco más</h1>
-      <p style="color:var(--text-dim); font-size:16px; margin:14px 0 0;">Así evaluamos si el programa es para vos — 9 preguntas rápidas.</p>
+      <h1 style="font-size:32px;">Cuéntanos un poco más</h1>
+      <p style="color:var(--text-dim); font-size:16px; margin:14px 0 0;">Así evaluamos si el programa es para ti — 9 preguntas rápidas.</p>
     </div>
   </section>
 
@@ -276,7 +276,7 @@
             <button type="button" class="quiz-option" data-other="true" data-label="Otro">Otro</button>
           </div>
           <div class="quiz-other-wrap">
-            <input type="text" placeholder="Especificá tu edad">
+            <input type="text" placeholder="Especifica tu edad">
             <button type="button" class="btn btn-solid">Continuar</button>
           </div>
         </div>
@@ -294,7 +294,7 @@
         </div>
 
         <div class="gate-step" data-step="3">
-          <p class="quiz-q">¿En qué área te desempeñás actualmente?</p>
+          <p class="quiz-q">¿En qué área te desempeñas actualmente?</p>
           <p class="quiz-help">Esta información nos permite evaluar si el programa puede adaptarse a tu entorno profesional.</p>
           <div class="quiz-options" data-question="area">
             <button type="button" class="quiz-option" data-label="Salud (enfermería, medicina, farmacia, etc.)">Salud (enfermería, medicina, farmacia, etc.)</button>
@@ -308,14 +308,14 @@
             <button type="button" class="quiz-option" data-other="true" data-label="Otro">Otro</button>
           </div>
           <div class="quiz-other-wrap">
-            <input type="text" placeholder="Especificá tu área">
+            <input type="text" placeholder="Especifica tu área">
             <button type="button" class="btn btn-solid">Continuar</button>
           </div>
         </div>
 
         <div class="gate-step" data-step="4" data-type="multi">
           <p class="quiz-q">¿Cómo describirías tu estado emocional actual?</p>
-          <p class="quiz-help">Saber cómo te sentís nos permite acompañarte con empatía. No estás sola. (Podés elegir más de una opción)</p>
+          <p class="quiz-help">Saber cómo te sientes nos permite acompañarte con empatía. No estás sola. (Puedes elegir más de una opción)</p>
           <div class="quiz-options" data-question="estado_emocional">
             <button type="button" class="quiz-option" data-label="Me siento estancada">Me siento estancada</button>
             <button type="button" class="quiz-option" data-label="Me cuesta tomar decisiones importantes">Me cuesta tomar decisiones importantes</button>
@@ -353,18 +353,18 @@
 
         <div class="gate-step" data-step="7">
           <p class="quiz-q">¿Cuál es tu ingreso promedio mensual?</p>
-          <p class="quiz-help">Nos importa entender tu situación en todas las áreas, incluyendo lo financiero, porque queremos trabajar con vos de forma integral.</p>
+          <p class="quiz-help">Nos importa entender tu situación en todas las áreas, incluyendo lo financiero, porque queremos trabajar contigo de forma integral.</p>
           <div class="quiz-options" data-question="ingreso">
             <button type="button" class="quiz-option" data-label="Menos de USD 1.500">Menos de USD 1.500</button>
             <button type="button" class="quiz-option" data-label="Entre USD 1.500 y USD 2.000">Entre USD 1.500 y USD 2.000</button>
             <button type="button" class="quiz-option" data-label="Entre USD 2.000 y USD 3.500">Entre USD 2.000 y USD 3.500</button>
-            <button type="button" class="quiz-option" data-label="Más de USD 4.000">Más de USD 4.000</button>
+            <button type="button" class="quiz-option" data-label="Más de USD 3.500">Más de USD 3.500</button>
           </div>
         </div>
 
         <div class="gate-step" data-step="8">
-          <p class="quiz-q">¿Necesitás consultar con alguien más para tomar decisiones de inversión personal?</p>
-          <p class="quiz-help">Esta pregunta nos ayuda a que la llamada sea efectiva. Si necesitás consultar con alguien, es requerido que esa persona esté presente.</p>
+          <p class="quiz-q">¿Necesitas consultar con alguien más para tomar decisiones de inversión personal?</p>
+          <p class="quiz-help">Esta pregunta nos ayuda a que la llamada sea efectiva. Si necesitas consultar con alguien, es requerido que esa persona esté presente.</p>
           <div class="quiz-options" data-question="consulta_terceros">
             <button type="button" class="quiz-option" data-label="No, yo tomo mis propias decisiones de inversión">No, yo tomo mis propias decisiones de inversión</button>
             <button type="button" class="quiz-option" data-label="Sí, necesito consultarlo con mi pareja, madre/padre u otra persona">Sí, necesito consultarlo con mi pareja, madre/padre u otra persona</button>
@@ -372,7 +372,7 @@
         </div>
 
         <div class="gate-step" data-step="9">
-          <p class="quiz-q">¿Cuál de estas frases se parece más a vos?</p>
+          <p class="quiz-q">¿Cuál de estas frases se parece más a ti?</p>
           <p class="quiz-help">Tu respuesta nos da claridad sobre tu disposición actual y te va a ayudar a tener una llamada más productiva.</p>
           <div class="quiz-options" data-question="disposicion">
             <button type="button" class="quiz-option" data-label="Estoy lista para invertir en un programa transformador que me lleve al próximo nivel">Estoy lista para invertir en un programa transformador que me lleve al próximo nivel</button>
@@ -431,6 +431,7 @@
     try {
       fetch(GHL_WEBHOOK_URL, {
         method: "POST",
+        keepalive: true,   // el último envío sale justo antes de pasar al calendario: sin esto el navegador podía cortarlo
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }).catch(() => {});
