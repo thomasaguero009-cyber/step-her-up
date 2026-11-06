@@ -253,7 +253,7 @@
   <section class="hero" style="padding:40px 0 10px;">
     <div class="wrap" style="max-width:760px; text-align:center;">
       <h1 style="font-size:32px;">Cuéntanos un poco más</h1>
-      <p style="color:var(--text-dim); font-size:16px; margin:14px 0 0;">Así evaluamos si el programa es para ti — 9 preguntas rápidas.</p>
+      <p style="color:var(--text-dim); font-size:16px; margin:14px 0 0;">Así evaluamos si el programa es para ti. Son 9 preguntas rápidas.</p>
     </div>
   </section>
 
@@ -267,6 +267,7 @@
         <div class="gate-step active" data-step="1">
           <p class="quiz-q">¿Cuál es tu rango de edad?</p>
           <div class="quiz-options" data-question="edad">
+            <button type="button" class="quiz-option" data-label="18 - 22 años">18 - 22 años</button>
             <button type="button" class="quiz-option" data-label="23 - 26 años">23 - 26 años</button>
             <button type="button" class="quiz-option" data-label="27 - 30 años">27 - 30 años</button>
             <button type="button" class="quiz-option" data-label="31 - 35 años">31 - 35 años</button>
@@ -283,13 +284,13 @@
 
         <div class="gate-step" data-step="2">
           <p class="quiz-q">¿Cuál es tu situación actual?</p>
-          <p class="quiz-help">Queremos comprender tu ritmo de vida actual y cómo podríamos apoyarte.</p>
+          <p class="quiz-help">Queremos entender dónde estás hoy con tu negocio o tu marca para saber cómo podemos ayudarte.</p>
           <div class="quiz-options" data-question="situacion">
-            <button type="button" class="quiz-option" data-label="Trabajo a tiempo completo">Trabajo a tiempo completo</button>
-            <button type="button" class="quiz-option" data-label="Soy emprendedora o freelancer">Soy emprendedora o freelancer</button>
-            <button type="button" class="quiz-option" data-label="Estudiante de maestría o doctorado">Estudiante de maestría o doctorado</button>
-            <button type="button" class="quiz-option" data-label="Trabajo y estudio a la vez">Trabajo y estudio a la vez</button>
-            <button type="button" class="quiz-option" data-label="Estoy en pausa laboral">Estoy en pausa laboral</button>
+            <button type="button" class="quiz-option" data-label="Tengo mi negocio o doy servicios por mi cuenta">Tengo mi negocio o doy servicios por mi cuenta</button>
+            <button type="button" class="quiz-option" data-label="Soy profesional y quiero crecer mi marca personal">Soy profesional y quiero crecer mi marca personal</button>
+            <button type="button" class="quiz-option" data-label="Trabajo a tiempo completo y quiero emprender">Trabajo a tiempo completo y quiero emprender</button>
+            <button type="button" class="quiz-option" data-label="Estoy empezando mi negocio">Estoy empezando mi negocio</button>
+            <button type="button" class="quiz-option" data-label="Estudio y estoy construyendo mi marca">Estudio y estoy construyendo mi marca</button>
           </div>
         </div>
 
@@ -314,39 +315,37 @@
         </div>
 
         <div class="gate-step" data-step="4" data-type="multi">
-          <p class="quiz-q">¿Cómo describirías tu estado emocional actual?</p>
-          <p class="quiz-help">Saber cómo te sientes nos permite acompañarte con empatía. No estás sola. (Puedes elegir más de una opción)</p>
-          <div class="quiz-options" data-question="estado_emocional">
-            <button type="button" class="quiz-option" data-label="Me siento estancada">Me siento estancada</button>
-            <button type="button" class="quiz-option" data-label="Me cuesta tomar decisiones importantes">Me cuesta tomar decisiones importantes</button>
-            <button type="button" class="quiz-option" data-label="Me exijo demasiado y termino agotada">Me exijo demasiado y termino agotada</button>
-            <button type="button" class="quiz-option" data-label="Me siento desconectada de mi propósito">Me siento desconectada de mi propósito</button>
-            <button type="button" class="quiz-option" data-label="Me comparo constantemente">Me comparo constantemente</button>
-            <button type="button" class="quiz-option" data-label="Siento que no soy suficiente">Siento que no soy suficiente</button>
-            <button type="button" class="quiz-option" data-label="Estoy bien emocionalmente, pero quiero ir a otro nivel">Estoy bien emocionalmente, pero quiero ir a otro nivel</button>
-            <button type="button" class="quiz-option" data-label="Me siento clara y fuerte, solo busco herramientas estratégicas">Me siento clara y fuerte, solo busco herramientas estratégicas</button>
+          <p class="quiz-q">¿Cuál es tu mayor reto hoy con tu negocio y tus redes?</p>
+          <p class="quiz-help">Elige todos los que se parezcan a tu situación.</p>
+          <div class="quiz-options" data-question="reto_negocio">
+            <button type="button" class="quiz-option" data-label="Tengo una comunidad, pero no logro vender">Tengo una comunidad, pero no logro vender</button>
+            <button type="button" class="quiz-option" data-label="Quiero ser la número uno en mi área, pero no sé hacer contenido">Quiero ser la número uno en mi área, pero no sé hacer contenido</button>
+            <button type="button" class="quiz-option" data-label="No sé cómo hacer crecer mi comunidad en redes sociales">No sé cómo hacer crecer mi comunidad en redes sociales</button>
+            <button type="button" class="quiz-option" data-label="Publico seguido, pero no me llegan clientas">Publico seguido, pero no me llegan clientas</button>
+            <button type="button" class="quiz-option" data-label="No tengo claro qué ofrecer ni cuánto cobrar">No tengo claro qué ofrecer ni cuánto cobrar</button>
+            <button type="button" class="quiz-option" data-label="No tengo tiempo ni un sistema para ser constante">No tengo tiempo ni un sistema para ser constante</button>
           </div>
           <button type="button" class="btn btn-solid quiz-continue-btn" disabled>Continuar</button>
         </div>
 
         <div class="gate-step" data-step="5">
-          <p class="quiz-q">¿Cuál es tu nivel de compromiso con tu crecimiento personal y profesional?</p>
+          <p class="quiz-q">¿Cuál es tu nivel de compromiso con hacer crecer tu negocio?</p>
           <p class="quiz-help">Ser honesta contigo misma en esta respuesta te va a ayudar a aprovechar mejor el proceso.</p>
           <div class="quiz-options" data-question="compromiso">
-            <button type="button" class="quiz-option" data-label="10/10 — Estoy dispuesta a invertir tiempo, energía y recursos">10/10 — Estoy dispuesta a invertir tiempo, energía y recursos</button>
-            <button type="button" class="quiz-option" data-label="8/10 — Estoy lista, pero quiero asegurarme de que sea lo correcto">8/10 — Estoy lista, pero quiero asegurarme de que sea lo correcto</button>
-            <button type="button" class="quiz-option" data-label="6/10 — Estoy explorando opciones, aún tengo dudas">6/10 — Estoy explorando opciones, aún tengo dudas</button>
+            <button type="button" class="quiz-option" data-label="10/10: Estoy dispuesta a invertir tiempo, energía y recursos">10/10: Estoy dispuesta a invertir tiempo, energía y recursos</button>
+            <button type="button" class="quiz-option" data-label="8/10: Estoy lista, pero quiero asegurarme de que sea lo correcto">8/10: Estoy lista, pero quiero asegurarme de que sea lo correcto</button>
+            <button type="button" class="quiz-option" data-label="6/10: Estoy explorando opciones y aún tengo dudas">6/10: Estoy explorando opciones y aún tengo dudas</button>
           </div>
         </div>
 
         <div class="gate-step" data-step="6">
-          <p class="quiz-q">¿Qué te motiva a aplicar a Step Her Up en este momento?</p>
-          <p class="quiz-help">Esto nos ayuda a identificar qué tipo de transformación estás buscando.</p>
-          <div class="quiz-options" data-question="motivacion">
-            <button type="button" class="quiz-option" data-label="Necesito sanar y reconectarme conmigo misma">Necesito sanar y reconectarme conmigo misma</button>
-            <button type="button" class="quiz-option" data-label="Quiero claridad para avanzar en mi propósito">Quiero claridad para avanzar en mi propósito</button>
-            <button type="button" class="quiz-option" data-label="Estoy lista para organizar mi vida emocional y profesional">Estoy lista para organizar mi vida emocional y profesional</button>
-            <button type="button" class="quiz-option" data-label="Me interesa estar en comunidad con mujeres con metas">Me interesa estar en comunidad con mujeres con metas</button>
+          <p class="quiz-q">¿Qué quieres lograr con Step Her Up?</p>
+          <p class="quiz-help">Esto nos ayuda a entender qué resultado estás buscando.</p>
+          <div class="quiz-options" data-question="deseo">
+            <button type="button" class="quiz-option" data-label="Quiero vender más con mi contenido en Instagram">Quiero vender más con mi contenido en Instagram</button>
+            <button type="button" class="quiz-option" data-label="Quiero un sistema claro para atraer clientas todos los meses">Quiero un sistema claro para atraer clientas todos los meses</button>
+            <button type="button" class="quiz-option" data-label="Quiero posicionarme como la referente de mi área">Quiero posicionarme como la referente de mi área</button>
+            <button type="button" class="quiz-option" data-label="Quiero aprender a hacer contenido que conecte y venda">Quiero aprender a hacer contenido que conecte y venda</button>
             <button type="button" class="quiz-option" data-label="Todo lo anterior">Todo lo anterior</button>
           </div>
         </div>

@@ -585,7 +585,7 @@
           delete days[selectedDate]; // fuerza a recargar ese día
           await cargarHorarios();
           selectedSlot = null;
-          showError("Ese horario se acaba de ocupar — elegí otro.");
+          showError("Ese horario se acaba de ocupar. Elige otro.");
           renderSlots();
           return;
         }
