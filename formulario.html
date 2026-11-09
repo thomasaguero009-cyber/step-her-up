@@ -508,6 +508,17 @@
     });
   }
 
+  // Funnel de ClickFunnels "Step Her Up - Aplicación": cada paso es una página propia con este sitio en un iframe.
+  // Si la página está adentro de ese funnel, se pasa al paso siguiente de ClickFunnels (así cuenta cuántas llegan a cada paso).
+  const CF_APLICACION = ["https://gianiemvelezlopezst2fb6d.myclickfunnels.com"];
+  function origenCF() {
+    try {
+      if (window.top === window) return "";
+      const ao = location.ancestorOrigins;
+      const o = ao && ao.length ? ao[ao.length - 1] : (document.referrer ? new URL(document.referrer).origin : "");
+      return CF_APLICACION.indexOf(o) > -1 ? o : "";
+    } catch (e) { return ""; }
+  }
   function finish() {
     let contacto = {};
     try {
@@ -522,7 +533,15 @@
     } catch (e) {}
     const q = new URLSearchParams(), u = utmGuardadas();
     Object.keys(u).forEach((k) => { if (u[k]) q.set(k, u[k]); });
-    window.location.href = "calendario.html" + (q.toString() ? "?" + q.toString() : "");
+    const qs = q.toString() ? "?" + q.toString() : "";
+    const cf = origenCF();
+    if (cf) {
+      try { window.top.location.href = cf + "/calendario" + qs; } catch (e) {}
+      // Si el navegador no deja cambiar la página de afuera, sigue al calendario dentro del mismo marco.
+      setTimeout(() => { window.location.href = "calendario.html" + qs; }, 2500);
+      return;
+    }
+    window.location.href = "calendario.html" + qs;
   }
 
   function recordAndAdvance(question, questionText, label) {
