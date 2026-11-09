@@ -35,6 +35,9 @@ def vsl():
         ('applyBtn.href = "formulario.html?" + q.toString();', 'applyBtn.href = "/form?" + q.toString();'),
         # mismo dominio: el formulario lee la lead de localStorage, no hace falta pedir el código al Worker
         ("    prepararPase();\n", ""),
+        # Meta: la persona dejó sus datos en la VSL
+        ('      localStorage.setItem("shu_vsl_lead", JSON.stringify(lead));\n    } catch (e) {}\n',
+         '      localStorage.setItem("shu_vsl_lead", JSON.stringify(lead));\n    } catch (e) {}\n    try { window.fbq && fbq("track", "Lead"); } catch (e) {}\n'),
     ])
     return s
 
@@ -43,12 +46,17 @@ def formulario():
     s = absolutas((RAIZ / "formulario.html").read_text(encoding="utf-8"))
     antes = 'window.location.href = "calendario.html" + qs;'
     assert s.count(antes) == 2, antes  # salto normal y respaldo
-    return s.replace(antes, 'window.location.href = "/calendar" + qs;')
+    s = s.replace(antes, 'window.location.href = "/calendar" + qs;')
+    # Meta: terminó las 9 preguntas
+    return reemplazar(s, [("  function finish() {\n", '  function finish() {\n    try { window.fbq && fbq("track", "SubmitApplication"); } catch (e) {}\n')])
 
 
 def calendario():
     # Sin links internos: al reservar muestra la confirmación en la misma página.
-    return absolutas((RAIZ / "calendario.html").read_text(encoding="utf-8"))
+    s = absolutas((RAIZ / "calendario.html").read_text(encoding="utf-8"))
+    # Meta: reservó la llamada
+    return reemplazar(s, [("        if (body.ok) {\n          renderReservado();\n",
+                           '        if (body.ok) {\n          try { window.fbq && fbq("track", "Schedule"); } catch (e) {}\n          renderReservado();\n')])
 
 
 PAGINAS = {"vsl": vsl, "formulario": formulario, "calendario": calendario}
@@ -60,6 +68,12 @@ TOKENS = {
     "calendario": "cfp_zGxmQtQEOTntRT8Z9BReOlSx",
 }
 SDK = '<script src="https://sdk.myclickfunnels.com/sdk.js" defer></script>'
+PIXEL_META = "2379181872915932"
+PIXEL = ("<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};"
+         "if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;"
+         "s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');"
+         f"fbq('init','{PIXEL_META}');fbq('track','PageView');</script>"
+         f'<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id={PIXEL_META}&ev=PageView&noscript=1"/></noscript>')
 
 
 def con_sdk(nombre, s):
@@ -68,7 +82,7 @@ def con_sdk(nombre, s):
         return s
     m = re.search(r"<head[^>]*>", s)
     assert m, "sin <head>"
-    return s[: m.end()] + f'\n<meta name="cf-page-token" content="{t}">\n{SDK}' + s[m.end():]
+    return s[: m.end()] + f'\n<meta name="cf-page-token" content="{t}">\n{SDK}\n{PIXEL}' + s[m.end():]
 
 
 if __name__ == "__main__":
