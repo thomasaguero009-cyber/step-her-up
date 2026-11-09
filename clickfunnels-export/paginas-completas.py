@@ -68,12 +68,15 @@ TOKENS = {
     "calendario": "cfp_zGxmQtQEOTntRT8Z9BReOlSx",
 }
 SDK = '<script src="https://sdk.myclickfunnels.com/sdk.js" defer></script>'
-PIXEL_META = "2379181872915932"
+# Dos conjuntos de datos de Meta: "SHU Funnel" (775352058307323, el que usan las campañas; recibe la API de conversiones)
+# y "100k DATA SET" (2379181872915932). Cada evento va a los dos.
+PIXELES_META = ["775352058307323", "2379181872915932"]
+PIXEL_META = PIXELES_META[0]
 PIXEL = ("<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};"
          "if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;"
          "s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');"
-         f"fbq('init','{PIXEL_META}');fbq('track','PageView');</script>"
-         f'<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id={PIXEL_META}&ev=PageView&noscript=1"/></noscript>')
+         + "".join(f"fbq('init','{p}');" for p in PIXELES_META) + "fbq('track','PageView');</script>"
+         + "".join(f'<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id={p}&ev=PageView&noscript=1"/></noscript>' for p in PIXELES_META))
 
 
 def con_sdk(nombre, s):
