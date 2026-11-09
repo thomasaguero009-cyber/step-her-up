@@ -11,7 +11,7 @@ compatibility_date = "2026-09-01"
 # Orígenes permitidos a llamar este Worker (CORS).
 ALLOWED_ORIGINS = "https://thomasaguero009-cyber.github.io,https://dash.stepherup.com,https://stepherup.com,https://www.stepherup.com,https://shu.stepherup.com,https://gianiemvelezlopezst2fb6d.myclickfunnels.com,http://localhost:8934"
 GHL_LOCATION_ID = "6cXs7Gwtzk0m50TZkWPg"
-GHL_CALENDAR_ID = "oqdvXTW2FT1ZbOo0sio2"
+GHL_CALENDAR_ID = "35WHwyFHNMaPRD9VRcfR"  # Consulta 1:1 · Step Her Up (3 setters, round robin). Antes: oqdvXTW2FT1ZbOo0sio2 (Paula)
 # Modelo de OpenAI para las estrategias (se puede cambiar acá y volver a desplegar).
 OPENAI_MODEL = "gpt-4.1"
 
