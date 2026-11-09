@@ -68,9 +68,9 @@ TOKENS = {
     "calendario": "cfp_zGxmQtQEOTntRT8Z9BReOlSx",
 }
 SDK = '<script src="https://sdk.myclickfunnels.com/sdk.js" defer></script>'
-# Dos conjuntos de datos de Meta: "SHU Funnel" (775352058307323, el que usan las campañas; recibe la API de conversiones)
-# y "100k DATA SET" (2379181872915932). Cada evento va a los dos.
-PIXELES_META = ["775352058307323", "2379181872915932"]
+# Conjunto de datos de Meta que usa la campaña "SHU 100k" (conjunto 100k-2, evento de conversión "Cliente potencial" = Lead):
+# "100k DATA SET" 2379181872915932. ("SHU Funnel" 775352058307323 recibe la API de conversiones del ClickFunnels viejo.)
+PIXELES_META = ["2379181872915932"]
 PIXEL_META = PIXELES_META[0]
 PIXEL = ("<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};"
          "if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;"
