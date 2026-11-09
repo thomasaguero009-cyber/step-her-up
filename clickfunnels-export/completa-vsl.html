@@ -385,8 +385,8 @@
       <div class="form-card vsl-gate-card">
         <button type="button" class="vsl-gate-close" id="vslGateClose" aria-label="Cerrar">✕</button>
         <h3>Antes de ver el video…</h3>
-        <p class="sub">Dejanos tus datos para guardarte tu lugar.</p>
-        <form id="vslGateForm">
+        <p class="sub">Déjanos tus datos para guardarte tu lugar.</p>
+        <form id="vslGateForm" novalidate>
           <div class="field">
             <label for="gateNombre">Nombre y apellido</label>
             <input type="text" id="gateNombre" placeholder="Tu nombre y apellido" autocomplete="name" required>
@@ -485,6 +485,7 @@
               <input type="tel" id="gateTelefono" placeholder="Tu número de celular" autocomplete="tel-national" required>
             </div>
           </div>
+          <p id="gateError" role="alert" style="display:none;margin:0 0 12px;color:#f0a8be;font-size:14px;line-height:1.4;text-align:center;"></p>
           <button type="submit" class="btn btn-solid">Ver el video →</button>
         </form>
       </div>
@@ -839,8 +840,23 @@
 
   gateForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const nombre = document.getElementById("gateNombre").value.trim();
-    const email = document.getElementById("gateEmail").value.trim();
+    // Validación propia con aviso visible: el navegador de Instagram (iPhone) bloquea el envío sin mostrar nada
+    // cuando falta un dato, y la persona cree que el botón "no hace nada".
+    const gateError = document.getElementById("gateError");
+    const avisar = (texto, campo) => {
+      gateError.textContent = texto;
+      gateError.style.display = "block";
+      try { campo.focus(); campo.scrollIntoView({ block: "center" }); } catch (e) {}
+    };
+    const nombreEl = document.getElementById("gateNombre"), emailEl = document.getElementById("gateEmail"), telEl = document.getElementById("gateTelefono");
+    const emailLimpio = emailEl.value.replace(/\s+/g, "").toLowerCase();
+    emailEl.value = emailLimpio;
+    if (nombreEl.value.trim().length < 2) return avisar("Escribe tu nombre para continuar.", nombreEl);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(emailLimpio)) return avisar("Revisa tu correo electrónico, parece que falta algo (por ejemplo: nombre@gmail.com).", emailEl);
+    if (telEl.value.replace(/\D/g, "").length < 7) return avisar("Escribe tu número de celular completo.", telEl);
+    gateError.style.display = "none";
+    const nombre = nombreEl.value.trim();
+    const email = emailLimpio;
     const telefono = gateCodigoPais.value + " " + document.getElementById("gateTelefono").value.trim();
     const lead = {
       nombre,

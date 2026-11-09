@@ -1090,13 +1090,56 @@ async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): 
   try {
     // Mismo criterio que el webhook del funnel: el nombre completo va en firstName
     // (si se separaba acá, el workflow lo volvía a escribir y el apellido salía duplicado).
-    const id = await upsertContact(env, { firstName: nombre || "Lead", lastName: "", email, phone: telefono });
-    const resultado = await etiquetarAtribucion(env, id, p);
-    const oportunidad = await oportunidadVsl(env, id, nombre);
-    await anotarDiagnostico(env, "atribucion", { resultado, oportunidad: oportunidad.accion, detalle: oportunidad.detail, utm: utmTags(p) });
-    return json({ ok: true, resultado, oportunidad: oportunidad.accion }, 200, cors);
+    const r = await procesarLeadVsl(env, p);
+    // Sin tarjeta en New Lead (GHL falló a mitad de camino): queda en cola y el cron la reintenta.
+    if (r.oportunidad === "error") await encolarLeadVsl(env, p, `oportunidad: ${r.detalle || ""}`);
+    return json({ ok: true, resultado: r.resultado, oportunidad: r.oportunidad }, 200, cors);
   } catch (err) {
-    return json({ ok: false, error: "atribucion_failed", detail: String(err).slice(0, 200) }, 502, cors);
+    // GHL no respondió: se guarda y el cron reintenta cada 10 min hasta que entre. Para la página, ya está a salvo.
+    await encolarLeadVsl(env, p, String(err).slice(0, 200));
+    return json({ ok: true, resultado: "en_cola" }, 200, cors);
+  }
+}
+
+// Alta de la lead que dejó sus datos en la VSL: contacto + etiquetas de origen + tarjeta en "New Lead".
+async function procesarLeadVsl(env: Env, p: Record<string, unknown>): Promise<{ resultado: string; oportunidad: string; detalle?: string }> {
+  const nombre = String(p.nombre || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const email = String(p.email || "").trim().toLowerCase().slice(0, 120);
+  const telefono = String(p.telefono || "").replace(/[^\d+]/g, "").slice(0, 20);
+  const id = await upsertContact(env, { firstName: nombre || "Lead", lastName: "", email, phone: telefono });
+  const resultado = await etiquetarAtribucion(env, id, p);
+  const oportunidad = await oportunidadVsl(env, id, nombre);
+  await anotarDiagnostico(env, "atribucion", { resultado, oportunidad: oportunidad.accion, detalle: oportunidad.detail, utm: utmTags(p) });
+  return { resultado, oportunidad: oportunidad.accion, detalle: oportunidad.detail };
+}
+
+// Cola de leads de la VSL que no pudieron entrar a GHL en el momento (GHL caído o lento). Se guardan 7 días y el cron de
+// 10 min las reintenta; al entrar se borran. A Thomas le llega un aviso por Slack cuando una lead queda en cola.
+async function encolarLeadVsl(env: Env, p: Record<string, unknown>, motivo: string): Promise<void> {
+  try {
+    const clave = `cola:leadvsl:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+    await env.ESTRATEGIAS.put(clave, JSON.stringify({ p, motivo, intentos: 0 }), { expirationTtl: 7 * 86400 });
+    await avisarThomas(env, `⚠️ Una lead dejó sus datos en la VSL pero GHL no respondió (${motivo.slice(0, 80)}). Quedó guardada y se reintenta sola cada 10 minutos.`).catch(() => undefined);
+  } catch { /* nunca debe romper la página */ }
+}
+
+async function reintentarLeadsVsl(env: Env): Promise<void> {
+  const lista = await env.ESTRATEGIAS.list({ prefix: "cola:leadvsl:", limit: 20 });
+  for (const k of lista.keys) {
+    const raw = await env.ESTRATEGIAS.get(k.name);
+    if (!raw) continue;
+    let item: { p: Record<string, unknown>; motivo: string; intentos: number };
+    try { item = JSON.parse(raw); } catch { await env.ESTRATEGIAS.delete(k.name); continue; }
+    try {
+      const r = await procesarLeadVsl(env, item.p);
+      if (r.oportunidad !== "error") {
+        await env.ESTRATEGIAS.delete(k.name);
+        await avisarThomas(env, `✅ La lead que había quedado en cola ya entró a GHL (New Lead).`).catch(() => undefined);
+        continue;
+      }
+    } catch { /* sigue en cola */ }
+    item.intentos = (item.intentos || 0) + 1;
+    await env.ESTRATEGIAS.put(k.name, JSON.stringify(item), { expirationTtl: 7 * 86400 });
   }
 }
 
@@ -3689,6 +3732,7 @@ export default {
     const hm = new Date(event.scheduledTime).getUTCHours() * 60 + new Date(event.scheduledTime).getUTCMinutes();
     if (hm % 60 === 30) ctx.waitUntil(guardarMetricasAuto(env, "hora", event.scheduledTime).catch(() => undefined));
     // Tarea única de alta de alumnas en los pipelines de entrega (se apaga sola cuando termina cada lista).
+    ctx.waitUntil(reintentarLeadsVsl(env).catch(() => undefined));
     ctx.waitUntil(altaUnica(env).catch(() => undefined));
     ctx.waitUntil(altaContactoFaltante(env).catch(() => undefined));
     ctx.waitUntil(diagGhlUnica(env).catch(() => undefined));
