@@ -248,12 +248,12 @@
      arrancar el video/cronómetro. Reusa las clases .form-card/.field/
      .phone-row de arriba. ===== */
   .vsl-gate-overlay{
-    position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center;
-    padding:20px; background:rgba(10,2,4,0.72); backdrop-filter:blur(6px);
+    position:fixed; inset:0; z-index:100; display:none; align-items:flex-start; justify-content:center;
+    overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding:20px; background:rgba(10,2,4,0.72); backdrop-filter:blur(6px);
   }
   .vsl-gate-overlay.open{ display:flex; }
   .vsl-gate-card{
-    position:relative; width:100%; box-shadow:0 30px 70px rgba(0,0,0,0.5);
+    position:relative; width:100%; margin:auto; box-shadow:0 30px 70px rgba(0,0,0,0.5);
     animation:vsl-gate-in .25s ease;
     background:#2b0b15; border-color:rgba(255,255,255,0.16);
   }
@@ -284,7 +284,8 @@
     aspect-ratio:4/5; object-fit:cover; display:block; border-radius:16px;
     filter:drop-shadow(0 20px 50px rgba(0,0,0,0.45));
   }
-  .about-photo-sm{ max-width:320px; margin:0 0 0 auto; }
+  .about-photo-sm{ max-width:min(320px,100%); margin:0 0 0 auto; }
+  .about-grid > *{ min-width:0; }
   .about-grid p{ color:var(--text-dim); font-size:15px; }
   .about-grid p b{ color:var(--cream); }
   @media (max-width:700px){ .about-grid{ grid-template-columns:1fr; } .about-photo-sm{ margin:0 auto; } }
