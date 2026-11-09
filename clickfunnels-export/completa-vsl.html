@@ -881,16 +881,39 @@
   // arma "agendas por campaña" con esas etiquetas). Fire-and-forget: si falla
   // no traba nada. Solo se manda si hay al menos una UTM.
   function registrarAtribucion(p) {
+    // Primer envío al dejar los datos; si no se confirma, asegurarCRM reintenta a los 5 y 20 segundos (y al abrir otro paso).
     try {
+      const clave = String(p.email || p.telefono || "").toLowerCase();
       fetch(GEO_WORKER_URL + "/atribucion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(p),
         keepalive: true,
-      }).catch(() => {});
+      }).then((r) => r.json()).then((d) => { if (d && d.ok && clave) localStorage.setItem("shu_crm_ok", clave); }).catch(() => {});
+    } catch (e) {}
+    setTimeout(asegurarCRM, 5000);
+    setTimeout(asegurarCRM, 20000);
+  }
+
+  // Respaldo para que la lead quede SÍ O SÍ en GHL (contacto + tarjeta en "New Lead") apenas deja nombre, correo y celular:
+  // si el envío falla (se cortó internet, cerró la página), se reintenta a los segundos y cada vez que abre un paso del embudo.
+  function asegurarCRM() {
+    try {
+      const lead = JSON.parse(localStorage.getItem("shu_vsl_lead") || "null");
+      if (!lead || (!lead.email && !lead.telefono)) return;
+      const clave = String(lead.email || lead.telefono).toLowerCase();
+      if (localStorage.getItem("shu_crm_ok") === clave) return;
+      let u = {};
+      try { u = JSON.parse(localStorage.getItem("shu_utm") || "{}") || {}; } catch (e) {}
+      const p = { nombre: lead.nombre || "", email: lead.email || "", telefono: lead.telefono || "" };
+      ["utm_source", "utm_medium", "utm_campaign", "utm_content"].forEach((k) => { p[k] = lead[k] || u[k] || ""; });
+      fetch("https://step-her-up-calendar.thomasaguero009.workers.dev/atribucion", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p), keepalive: true,
+      }).then((r) => r.json()).then((d) => { if (d && d.ok) localStorage.setItem("shu_crm_ok", clave); }).catch(() => {});
     } catch (e) {}
   }
   getUTMs(); // guarda las UTMs del link apenas carga la página
+  asegurarCRM();
   // Si no llegaron UTMs por el link (el funnel va dentro de un iframe de
   // ClickFunnels y la página padre no se las pasa), se las pide al Worker:
   // los links de anuncios pasan por /go, que anotó de qué anuncio vino esta

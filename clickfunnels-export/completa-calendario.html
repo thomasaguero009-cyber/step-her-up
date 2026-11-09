@@ -434,6 +434,25 @@
       return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
     }
 
+
+    // Respaldo para que la lead quede SÍ O SÍ en GHL (contacto + tarjeta en "New Lead") apenas deja nombre, correo y celular:
+    // si el envío falla (se cortó internet, cerró la página), se reintenta a los segundos y cada vez que abre un paso del embudo.
+    function asegurarCRM() {
+      try {
+        const lead = JSON.parse(localStorage.getItem("shu_vsl_lead") || "null");
+        if (!lead || (!lead.email && !lead.telefono)) return;
+        const clave = String(lead.email || lead.telefono).toLowerCase();
+        if (localStorage.getItem("shu_crm_ok") === clave) return;
+        let u = {};
+        try { u = JSON.parse(localStorage.getItem("shu_utm") || "{}") || {}; } catch (e) {}
+        const p = { nombre: lead.nombre || "", email: lead.email || "", telefono: lead.telefono || "" };
+        ["utm_source", "utm_medium", "utm_campaign", "utm_content"].forEach((k) => { p[k] = lead[k] || u[k] || ""; });
+        fetch("https://step-her-up-calendar.thomasaguero009.workers.dev/atribucion", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p), keepalive: true,
+        }).then((r) => r.json()).then((d) => { if (d && d.ok) localStorage.setItem("shu_crm_ok", clave); }).catch(() => {});
+      } catch (e) {}
+    }
+    setTimeout(asegurarCRM, 1500);
     async function cargarHorarios() {
       try {
         const [zona, res] = await Promise.all([tz ? Promise.resolve(tz) : detectarZona(), fetch(WORKER_URL + "/free-slots?days=21")]);
