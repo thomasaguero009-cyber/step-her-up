@@ -1028,7 +1028,51 @@ async function etiquetarAtribucion(env: Env, contactId: string, p: UtmPayload): 
   return res.ok ? "etiquetado" : `error_${res.status}`;
 }
 
-// Etiqueta a un lead apenas pasa por la landing (aunque todavía no agende).
+// Pipeline de ventas al que entra todo el que deja sus datos en la VSL (columna "New Lead").
+const NOMBRE_PIPELINE_VSL = "STEP HER UP - CLICKFUNNELS";
+
+async function oportunidadVsl(env: Env, contactId: string, nombre: string): Promise<{ accion: string; detail?: string }> {
+  try {
+    const r = await fetch(`${GHL_BASE}/opportunities/pipelines?locationId=${env.GHL_LOCATION_ID}`, { headers: ghlHeaders(env) });
+    if (!r.ok) return { accion: "error", detail: `pipelines ${r.status}` };
+    const b = (await r.json()) as { pipelines?: { id: string; name: string; stages?: { id: string; name: string; position?: number }[] }[] };
+    const p = (b.pipelines || []).find((x) => x.name.trim().toUpperCase() === NOMBRE_PIPELINE_VSL);
+    if (!p) return { accion: "pipeline_no_encontrado" };
+    const etapas = [...(p.stages || [])].sort((x, y) => (x.position ?? 0) - (y.position ?? 0));
+    const nuevo = etapas.find((e) => e.name.trim().toLowerCase() === "new lead") || etapas[0];
+    if (!nuevo) return { accion: "sin_etapa" };
+    // Si ya tiene tarjeta en este pipeline (en cualquier columna) no se crea otra.
+    const buscar = await fetch(
+      `${GHL_BASE}/opportunities/search?location_id=${env.GHL_LOCATION_ID}&pipeline_id=${p.id}&contact_id=${contactId}`,
+      { headers: ghlHeaders(env) }
+    );
+    if (!buscar.ok) return { accion: "error", detail: `search ${buscar.status}` };
+    const { opportunities = [] } = (await buscar.json()) as { opportunities?: { id: string }[] };
+    if (opportunities.length) return { accion: "ya_estaba" };
+    const crear = await fetch(`${GHL_BASE}/opportunities/`, {
+      method: "POST",
+      headers: { ...ghlHeaders(env), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pipelineId: p.id,
+        locationId: env.GHL_LOCATION_ID,
+        pipelineStageId: nuevo.id,
+        contactId,
+        name: nombre || "Lead VSL",
+        status: "open",
+        source: "VSL (datos antes del video)",
+      }),
+    });
+    if (crear.ok) return { accion: "creada" };
+    const texto = await crear.text();
+    if (/"existingId":"/.test(texto)) return { accion: "ya_estaba" };
+    return { accion: "error", detail: `create ${crear.status}: ${texto.slice(0, 200)}` };
+  } catch (err) {
+    return { accion: "error", detail: String(err).slice(0, 200) };
+  }
+}
+
+// Todo el que deja nombre y correo/teléfono en la VSL queda como contacto, con sus etiquetas de origen (si trae UTMs)
+// y con una tarjeta en "New Lead" del pipeline de ventas, aunque todavía no agende.
 async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): Promise<Response> {
   let p: Record<string, unknown>;
   try {
@@ -1039,7 +1083,7 @@ async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): 
   const nombre = String(p.nombre || "").replace(/\s+/g, " ").trim().slice(0, 80);
   const email = String(p.email || "").trim().toLowerCase().slice(0, 120);
   const telefono = String(p.telefono || "").replace(/[^\d+]/g, "").slice(0, 20);
-  if (!utmTags(p).length || (!email && !telefono)) {
+  if (!email && !telefono) {
     await anotarDiagnostico(env, "atribucion", { resultado: "nada_para_hacer", utm: utmTags(p) });
     return json({ ok: true, resultado: "nada_para_hacer" }, 200, cors);
   }
@@ -1048,8 +1092,9 @@ async function handleAtribucion(request: Request, env: Env, cors: HeadersInit): 
     // (si se separaba acá, el workflow lo volvía a escribir y el apellido salía duplicado).
     const id = await upsertContact(env, { firstName: nombre || "Lead", lastName: "", email, phone: telefono });
     const resultado = await etiquetarAtribucion(env, id, p);
-    await anotarDiagnostico(env, "atribucion", { resultado, utm: utmTags(p) });
-    return json({ ok: true, resultado }, 200, cors);
+    const oportunidad = await oportunidadVsl(env, id, nombre);
+    await anotarDiagnostico(env, "atribucion", { resultado, oportunidad: oportunidad.accion, detalle: oportunidad.detail, utm: utmTags(p) });
+    return json({ ok: true, resultado, oportunidad: oportunidad.accion }, 200, cors);
   } catch (err) {
     return json({ ok: false, error: "atribucion_failed", detail: String(err).slice(0, 200) }, 502, cors);
   }

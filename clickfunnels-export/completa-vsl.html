@@ -70,7 +70,10 @@
     position:absolute; top:0; left:0; bottom:0; width:0%; z-index:1;
     background:var(--blush);
   }
-  .btn-cta.locked{ cursor:not-allowed; pointer-events:none; animation:cta-breathe 2.4s ease-in-out infinite; }
+  .btn-cta.locked{ cursor:not-allowed; animation:cta-breathe 2.4s ease-in-out infinite; }
+  .apply-hint{ margin:14px auto 0; max-width:420px; font-size:14px; color:var(--text-dim); transition:color .25s ease, transform .25s ease; }
+  .apply-hint.alerta{ color:var(--blush); font-weight:600; animation:hint-shake .45s ease; }
+  @keyframes hint-shake{ 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
   .btn-cta:not(.locked){
     color:#2a0a13; border-color:transparent; box-shadow:0 10px 30px rgba(232,138,168,0.35);
     animation:none;
@@ -498,6 +501,7 @@
         <span class="cta-label">Aplicar al programa →</span>
         <span class="cta-fill" id="ctaFill"></span>
       </a>
+      <p class="apply-hint" id="applyHint">Este botón se activa cuando termines de ver el video.</p>
     </div>
   </section>
 
@@ -876,7 +880,6 @@
   // arma "agendas por campaña" con esas etiquetas). Fire-and-forget: si falla
   // no traba nada. Solo se manda si hay al menos una UTM.
   function registrarAtribucion(p) {
-    if (!p.utm_source && !p.utm_campaign) return;
     try {
       fetch(GEO_WORKER_URL + "/atribucion", {
         method: "POST",
@@ -1010,6 +1013,8 @@
   const ICON_COMPRESS = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
 
   function unlock() {
+    const hint = document.getElementById("applyHint");
+    if (hint) hint.style.display = "none";
     fill.style.width = "100%";
     progressFill.style.width = "100%";
     applyBtn.classList.remove("locked");
@@ -1025,6 +1030,7 @@
     // siempre da 100%, sea cual sea la curva). Las dos barras (la del
     // video y la del botón) usan el mismo valor para que se vean
     // siempre sincronizadas entre sí.
+    if (frac >= 0.98 && applyBtn.classList.contains("locked")) unlock();
     const eased = 1 - Math.pow(1 - frac, 2.2);
     fill.style.width = eased * 100 + "%";
     progressFill.style.width = eased * 100 + "%";
@@ -1125,7 +1131,15 @@
   }
 
   applyBtn.addEventListener("click", (ev) => {
-    if (applyBtn.classList.contains("locked")) ev.preventDefault();
+    if (applyBtn.classList.contains("locked")) {
+      ev.preventDefault();
+      const hint = document.getElementById("applyHint");
+      if (hint) {
+        hint.textContent = started ? "Mira el video hasta el final para desbloquear el botón." : "Primero dale play al video: el botón se activa cuando lo termines.";
+        hint.classList.remove("alerta"); void hint.offsetWidth; hint.classList.add("alerta");
+      }
+      vslVideoWrap.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   });
 })();
 </script>
