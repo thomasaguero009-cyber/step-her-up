@@ -1486,6 +1486,21 @@ async function resumenSemanal(env: Env, cuando: number): Promise<void> {
     "Más detalle en https://dash.stepherup.com",
   ].join("\n");
   await avisarThomas(env, texto);
+  // Segundo mensaje: la misma semana en versión para el equipo, lista para copiar y pegar en #setters (sin nombres ni críticas).
+  const prom = t.llamadas ? Math.round(t.llamadas / 15) : 0;
+  const equipo = [
+    `*Resumen de la semana (${dia(ini)} al ${dia(cuando)})*`,
+    "",
+    "*Ventas*",
+    `• Llamadas: ${t.llamadas || 0}${variacion(t.llamadas || 0, ta.llamadas || 0)}. Meta: 100 por persona por día (promedio de la semana: unas ${prom}).`,
+    `• Agendas: ${t.agendadas || 0}${variacion(t.agendadas || 0, ta.agendadas || 0)}. Shows: ${t.shows || 0}. Cierres: ${t.cierres || 0}.`,
+    `• Cash cobrado: ${fmtDinero(t.ventas || 0)}${variacion(t.ventas || 0, ta.ventas || 0)}.`,
+    "",
+    "*Marketing*",
+    `• Webinar: ${w.total || 0} inscritas en total, ${asistieron} asistieron.`,
+    "• (Completar: campañas prendidas, gasto, contenido y email de la semana.)",
+  ].join("\n");
+  await avisarThomas(env, "Versión para el equipo (copiá lo de abajo):\n```\n" + equipo + "\n```");
 }
 
 async function resumenSemanalProgramado(env: Env, cuando: number): Promise<void> {
