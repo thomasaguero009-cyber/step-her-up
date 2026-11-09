@@ -393,7 +393,10 @@
         (nuevo[clave] = nuevo[clave] || []).push({ iso: slot.iso, time: fmtHora.format(fecha), t: fecha.getTime() });
       }));
       Object.values(nuevo).forEach((lista) => lista.sort((a, b) => a.t - b.t));
-      days = nuevo;
+      // Pedido de Gianie: que se pueda agendar como máximo en los próximos 4 días con horarios libres.
+      const MAX_DIAS = 4;
+      days = {};
+      Object.keys(nuevo).sort().filter((k) => nuevo[k].length).slice(0, MAX_DIAS).forEach((k) => { days[k] = nuevo[k]; });
     }
 
     function renderZona() {
