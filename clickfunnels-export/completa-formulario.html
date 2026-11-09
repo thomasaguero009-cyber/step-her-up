@@ -540,10 +540,10 @@
     if (cf) {
       try { window.top.location.href = cf + "/calendario" + qs; } catch (e) {}
       // Si el navegador no deja cambiar la página de afuera, sigue al calendario dentro del mismo marco.
-      setTimeout(() => { window.location.href = "/calendario" + qs; }, 2500);
+      setTimeout(() => { window.location.href = "/calendar" + qs; }, 2500);
       return;
     }
-    window.location.href = "/calendario" + qs;
+    window.location.href = "/calendar" + qs;
   }
 
   function recordAndAdvance(question, questionText, label) {

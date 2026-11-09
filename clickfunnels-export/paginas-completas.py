@@ -3,7 +3,7 @@
 
 Todo el embudo vive en un solo dominio de ClickFunnels (shu.stepherup.com), así que la lead pasa de un paso
 al otro por localStorage del mismo origen: no hace falta el código de traspaso (/lead-pase) del Worker.
-Rutas de ClickFunnels: /vsl, /formulario, /calendario (sin barra final ni .html).
+Rutas de ClickFunnels: /class (VSL), /form, /calendar (sin barra final ni .html).
 
 Uso:  python3 -I clickfunnels-export/paginas-completas.py      (desde la raíz del repo step-her-up)
 Salida: clickfunnels-export/completa-<paso>.html  (para copiar con pbcopy y pegar en ClickFunnels)
@@ -31,8 +31,8 @@ def reemplazar(s, pares):
 def vsl():
     s = absolutas((RAIZ / "index.html").read_text(encoding="utf-8"))
     s = reemplazar(s, [
-        ('id="applyBtn" href="formulario.html" target="_self"', 'id="applyBtn" href="/formulario" target="_self"'),
-        ('applyBtn.href = "formulario.html?" + q.toString();', 'applyBtn.href = "/formulario?" + q.toString();'),
+        ('id="applyBtn" href="formulario.html" target="_self"', 'id="applyBtn" href="/form" target="_self"'),
+        ('applyBtn.href = "formulario.html?" + q.toString();', 'applyBtn.href = "/form?" + q.toString();'),
         # mismo dominio: el formulario lee la lead de localStorage, no hace falta pedir el código al Worker
         ("    prepararPase();\n", ""),
     ])
@@ -43,7 +43,7 @@ def formulario():
     s = absolutas((RAIZ / "formulario.html").read_text(encoding="utf-8"))
     antes = 'window.location.href = "calendario.html" + qs;'
     assert s.count(antes) == 2, antes  # salto normal y respaldo
-    return s.replace(antes, 'window.location.href = "/calendario" + qs;')
+    return s.replace(antes, 'window.location.href = "/calendar" + qs;')
 
 
 def calendario():
